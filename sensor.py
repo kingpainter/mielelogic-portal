@@ -1,5 +1,9 @@
 # VERSION = "1.1.0"
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorDeviceClass,
+    SensorStateClass,
+)
 from homeassistant.const import CONF_NAME
 from .const import DOMAIN
 
@@ -22,17 +26,20 @@ class MieleLogicReservationsSensor(SensorEntity):
     """Representation of a MieleLogic Reservations sensor."""
     
     _attr_has_entity_name = True
+    _attr_native_unit_of_measurement = "reservationer"
+    _attr_state_class = SensorStateClass.MEASUREMENT
     
     def __init__(self, coordinator, config_entry):
         self.coordinator = coordinator
         self._attr_unique_id = f"{config_entry.entry_id}_reservations"
         self._attr_name = "Reservations"
-        self._attr_icon = "mdi:calendar"
+        self._attr_icon = "mdi:calendar-clock"
         self._attr_device_info = coordinator.device_info
 
     @property
-    def state(self):
-        return str(len(self.coordinator.data.get("reservations", {}).get("Reservations", [])))
+    def native_value(self):
+        """Return the number of reservations."""
+        return len(self.coordinator.data.get("reservations", {}).get("Reservations", []))
 
     @property
     def extra_state_attributes(self):
@@ -42,19 +49,26 @@ class MieleLogicWasherStatusSensor(SensorEntity):
     """Representation of a MieleLogic Washer Status sensor."""
     
     _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["Reserved", "Idle"]
     
     def __init__(self, coordinator, config_entry):
         self.coordinator = coordinator
         self._attr_unique_id = f"{config_entry.entry_id}_washer_status"
         self._attr_name = "Washer Status"
-        self._attr_icon = "mdi:washing-machine"
         self._attr_device_info = coordinator.device_info
 
     @property
-    def state(self):
+    def native_value(self):
+        """Return washer status."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         washer_reservations = [r for r in reservations if "Washer" in r.get("MachineName", "") or r.get("MachineType") in ["51", "85"]]
         return "Reserved" if washer_reservations else "Idle"
+    
+    @property
+    def icon(self):
+        """Return dynamic icon based on state."""
+        return "mdi:washing-machine" if self.native_value == "Reserved" else "mdi:washing-machine-off"
 
     @property
     def extra_state_attributes(self):
@@ -65,19 +79,26 @@ class MieleLogicDryerStatusSensor(SensorEntity):
     """Representation of a MieleLogic Dryer Status sensor."""
     
     _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["Reserved", "Idle"]
     
     def __init__(self, coordinator, config_entry):
         self.coordinator = coordinator
         self._attr_unique_id = f"{config_entry.entry_id}_dryer_status"
         self._attr_name = "Dryer Status"
-        self._attr_icon = "mdi:tumble-dryer"
         self._attr_device_info = coordinator.device_info
 
     @property
-    def state(self):
+    def native_value(self):
+        """Return dryer status."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         dryer_reservations = [r for r in reservations if "Dryer" in r.get("MachineName", "") or r.get("MachineType") == "58"]
         return "Reserved" if dryer_reservations else "Idle"
+    
+    @property
+    def icon(self):
+        """Return dynamic icon based on state."""
+        return "mdi:tumble-dryer" if self.native_value == "Reserved" else "mdi:tumble-dryer-off"
 
     @property
     def extra_state_attributes(self):
@@ -94,12 +115,39 @@ class MieleLogicMachineStatusSensor(SensorEntity):
         self._machine = machine
         self._attr_unique_id = f"{config_entry.entry_id}_machine_{machine['MachineNumber']}_status"
         self._attr_name = f"{machine['UnitName']} {machine['MachineNumber']}"
-        self._attr_icon = "mdi:washing-machine" if machine["MachineType"] in ["51", "85"] else "mdi:tumble-dryer"
         self._attr_device_info = coordinator.device_info
 
     @property
-    def state(self):
+    def native_value(self):
+        """Return machine status."""
         return self._machine.get("Text1", "Unknown")
+    
+    @property
+    def icon(self):
+        """Return dynamic icon based on machine type and state."""
+        state = self._machine.get("Text1", "").lower()
+        machine_type = self._machine.get("MachineType")
+        
+        # Washer icons (type 51, 85)
+        if machine_type in ["51", "85"]:
+            if "optaget" in state or "kører" in state or "reserved" in state:
+                return "mdi:washing-machine"
+            elif "ledig" in state or "idle" in state or "available" in state:
+                return "mdi:washing-machine-off"
+            else:
+                return "mdi:washing-machine-alert"
+        
+        # Dryer icons (type 58)
+        elif machine_type == "58":
+            if "optaget" in state or "kører" in state or "reserved" in state:
+                return "mdi:tumble-dryer"
+            elif "ledig" in state or "idle" in state or "available" in state:
+                return "mdi:tumble-dryer-off"
+            else:
+                return "mdi:tumble-dryer-alert"
+        
+        # Fallback
+        return "mdi:help-circle"
 
     @property
     def extra_state_attributes(self):
@@ -116,19 +164,36 @@ class MieleLogicAccountSensor(SensorEntity):
     """Representation of a MieleLogic Account sensor."""
     
     _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "DKK"
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_suggested_display_precision = 2
     
     def __init__(self, coordinator, config_entry):
         self.coordinator = coordinator
         self._attr_unique_id = f"{config_entry.entry_id}_account"
-        self._attr_name = "Account"
-        self._attr_icon = "mdi:account"
+        self._attr_name = "Account Balance"
+        self._attr_icon = "mdi:wallet"
         self._attr_device_info = coordinator.device_info
 
     @property
-    def state(self):
+    def native_value(self):
+        """Return account balance as numeric value."""
         account = self.coordinator.data.get("account_details", {}).get("Cards", [{}])[0]
-        return account.get("Name", "Unknown")
+        balance = account.get("Balance", 0)
+        # Ensure numeric value
+        try:
+            return float(balance) if balance is not None else 0.0
+        except (ValueError, TypeError):
+            return 0.0
 
     @property
     def extra_state_attributes(self):
-        return self.coordinator.data.get("account_details", {})
+        """Return additional account details."""
+        account_data = self.coordinator.data.get("account_details", {})
+        account = account_data.get("Cards", [{}])[0]
+        return {
+            "account_name": account.get("Name", "Unknown"),
+            "card_number": account.get("CardNumber"),
+            "full_details": account_data,
+        }
