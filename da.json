@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MieleLogic Konfiguration",
+        "description": "Indtast dine MieleLogic legitimationsoplysninger",
+        "data": {
+          "username": "Brugernavn",
+          "password": "Adgangskode",
+          "client_id": "Klient ID",
+          "laundry_id": "Vaskeri ID",
+          "client_secret": "Klient Hemmelighed (valgfri)",
+          "name": "Navn"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kunne ikke oprette forbindelse til MieleLogic API",
+      "invalid_auth": "Ugyldige legitimationsoplysninger",
+      "bad_request": "Ugyldig anmodning, tjek indtastede oplysninger",
+      "server_error": "Serverfejl, prøv igen senere",
+      "unknown": "Ukendt fejl opstod"
+    },
+    "abort": {
+      "already_configured": "MieleLogic er allerede konfigureret"
+    }
+  }
+}

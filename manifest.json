@@ -1,0 +1,12 @@
+{
+  "domain": "mielelogic",
+  "name": "MieleLogic",
+  "codeowners": [],
+  "dependencies": [],
+  "documentation": "https://github.com/your-repo/mielelogic",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "1.1.0",
+  "icon": "mdi:washing-machine",
+  "config_flow": true
+}
