@@ -1,0 +1,95 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MieleLogic Konfiguration",
+        "description": "Indtast dine MieleLogic legitimationsoplysninger",
+        "data": {
+          "username": "Brugernavn",
+          "password": "Adgangskode",
+          "client_id": "Klient ID",
+          "laundry_id": "Vaskeri ID",
+          "client_secret": "Klient Hemmelighed (valgfri)",
+          "name": "Navn"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kunne ikke oprette forbindelse til MieleLogic API",
+      "invalid_auth": "Ugyldige legitimationsoplysninger",
+      "bad_request": "Ugyldig anmodning, tjek indtastede oplysninger",
+      "server_error": "Serverfejl, prøv igen senere",
+      "unknown": "Ukendt fejl opstod"
+    },
+    "abort": {
+      "already_configured": "MieleLogic er allerede konfigureret"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opdater MieleLogic Legitimationsoplysninger",
+        "description": "Opdater dine login oplysninger for MieleLogic",
+        "data": {
+          "username": "Brugernavn",
+          "password": "Adgangskode",
+          "client_id": "Klient ID",
+          "client_secret": "Klient Hemmelighed (valgfri)"
+        },
+        "data_description": {
+          "username": "Dit MieleLogic brugernavn",
+          "password": "Dit MieleLogic password (kræves for at verificere ændringer)",
+          "client_id": "OAuth2 client ID",
+          "client_secret": "OAuth2 client secret (valgfri)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kunne ikke oprette forbindelse til MieleLogic API",
+      "invalid_auth": "Ugyldige legitimationsoplysninger - tjek brugernavn og password",
+      "server_error": "Serverfejl, prøv igen senere",
+      "unknown": "Ukendt fejl opstod"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "has_reservation": {
+        "name": "Har Reservation"
+      },
+      "has_washer_reservation": {
+        "name": "Har Vasker Reservation"
+      },
+      "has_dryer_reservation": {
+        "name": "Har Tørretumbler Reservation"
+      },
+      "reservation_starting_soon": {
+        "name": "Reservation Starter Snart"
+      },
+      "washer_available": {
+        "name": "Vasker Tilgængelig"
+      },
+      "dryer_available": {
+        "name": "Tørretumbler Tilgængelig"
+      }
+    },
+    "sensor": {
+      "reservations": {
+        "name": "Reservationer"
+      },
+      "washer_status": {
+        "name": "Vasker Status"
+      },
+      "dryer_status": {
+        "name": "Tørretumbler Status"
+      },
+      "account_balance": {
+        "name": "Konto Saldo"
+      }
+    },
+    "calendar": {
+      "reservations": {
+        "name": "Reservationer"
+      }
+    }
+  }
+}

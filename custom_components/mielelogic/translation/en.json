@@ -1,0 +1,95 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MieleLogic Configuration",
+        "description": "Enter your MieleLogic credentials",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "client_id": "Client ID",
+          "laundry_id": "Laundry ID",
+          "client_secret": "Client Secret (optional)",
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to MieleLogic API",
+      "invalid_auth": "Invalid credentials",
+      "bad_request": "Invalid request, check entered information",
+      "server_error": "Server error, please try again later",
+      "unknown": "Unknown error occurred"
+    },
+    "abort": {
+      "already_configured": "MieleLogic is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update MieleLogic Credentials",
+        "description": "Update your login credentials for MieleLogic",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "client_id": "Client ID",
+          "client_secret": "Client Secret (optional)"
+        },
+        "data_description": {
+          "username": "Your MieleLogic username",
+          "password": "Your MieleLogic password (required to verify changes)",
+          "client_id": "OAuth2 client ID",
+          "client_secret": "OAuth2 client secret (optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to MieleLogic API",
+      "invalid_auth": "Invalid credentials - check username and password",
+      "server_error": "Server error, please try again later",
+      "unknown": "Unknown error occurred"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "has_reservation": {
+        "name": "Has Reservation"
+      },
+      "has_washer_reservation": {
+        "name": "Has Washer Reservation"
+      },
+      "has_dryer_reservation": {
+        "name": "Has Dryer Reservation"
+      },
+      "reservation_starting_soon": {
+        "name": "Reservation Starting Soon"
+      },
+      "washer_available": {
+        "name": "Washer Available"
+      },
+      "dryer_available": {
+        "name": "Dryer Available"
+      }
+    },
+    "sensor": {
+      "reservations": {
+        "name": "Reservations"
+      },
+      "washer_status": {
+        "name": "Washer Status"
+      },
+      "dryer_status": {
+        "name": "Dryer Status"
+      },
+      "account_balance": {
+        "name": "Account Balance"
+      }
+    },
+    "calendar": {
+      "reservations": {
+        "name": "Reservations"
+      }
+    }
+  }
+}
