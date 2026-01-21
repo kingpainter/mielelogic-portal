@@ -1,0 +1,11 @@
+{
+  "name": "MieleLogic",
+  "hacs": "1.6.0",
+  "domains": [
+    "sensor",
+    "binary_sensor",
+    "calendar"
+  ],
+  "iot_class": "cloud_polling",
+  "homeassistant": "2024.1.0"
+}
