@@ -1,343 +1,391 @@
-# VERSION = "1.1.0"
-import aiohttp
-import asyncio
+# VERSION = "1.3.2"
 import logging
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+import aiohttp
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
-from .const import DOMAIN, VERSION, CONF_LAUNDRY_ID, CONF_USERNAME, CONF_PASSWORD, CONF_CLIENT_ID, CONF_CLIENT_SECRET, AUTH_URL
+
+from .const import (
+    DOMAIN,
+    CONF_USERNAME,
+    CONF_PASSWORD,
+    CONF_CLIENT_ID,
+    CONF_LAUNDRY_ID,
+    CONF_CLIENT_SECRET,
+    API_BASE_URL,
+    AUTH_URL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching MieleLogic data."""
 
-    def __init__(self, hass: HomeAssistant, config_entry):
+class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to manage fetching MieleLogic data from the API."""
+
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         """Initialize the coordinator."""
-        self.hass = hass
         self.config_entry = config_entry
-        if CONF_LAUNDRY_ID not in config_entry.data:
-            _LOGGER.error("Missing '%s' in config entry data: %s", CONF_LAUNDRY_ID, config_entry.data)
-            raise ValueError(f"Configuration entry missing required key: {CONF_LAUNDRY_ID}")
+        self.username = config_entry.data[CONF_USERNAME]
+        self.password = config_entry.data[CONF_PASSWORD]
+        self.client_id = config_entry.data[CONF_CLIENT_ID]
         self.laundry_id = config_entry.data[CONF_LAUNDRY_ID]
-        self.access_token = config_entry.data.get("access_token")
-        self.expires_at = None
-        if config_entry.data.get("expires_at"):
-            try:
-                self.expires_at = datetime.fromisoformat(config_entry.data["expires_at"].replace("Z", "+00:00"))
-                _LOGGER.debug("Parsed expires_at from config: %s", self.expires_at)
-            except ValueError as err:
-                _LOGGER.error("Invalid expires_at format in config: %s, error: %s", config_entry.data["expires_at"], err)
-                self.expires_at = None
+        self.client_secret = config_entry.data.get(CONF_CLIENT_SECRET)
         
-        # Create device info for all sensors to link to
+        # NEW: Calendar sync settings
+        self.sync_to_calendar = config_entry.data.get("sync_to_calendar")
+
+        self.access_token = None
+        self.refresh_token = None
+        self.token_expiry = None
+
+        # Response caching (60s TTL)
+        self._cache = {}
+        self._cache_ttl = timedelta(seconds=60)
+
+        # Device info for all entities
         self.device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"laundry_{self.laundry_id}")},
-            name=f"MieleLogic Vaskeri {self.laundry_id}",
+            identifiers={(DOMAIN, f"{self.username}_{self.laundry_id}")},
+            name="MieleLogic Portal",
             manufacturer="MieleLogic",
-            model="Laundry Management System",
-            sw_version=VERSION,
-            configuration_url="https://mielelogic.com",
+            model="Laundry Service",
+            sw_version="v7",
         )
-        _LOGGER.debug("Created device info for laundry %s", self.laundry_id)
-        
+
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(minutes=5),
-        )
-
-    async def _refresh_token(self):
-        """Refresh access token using refresh_token if available, else password grant."""
-        refresh_token = self.config_entry.data.get("refresh_token")
-        
-        # Strategy: Try refresh_token first (if available), fallback to password grant
-        if refresh_token:
-            _LOGGER.info("Token refresh: Attempting with refresh_token (efficient method)")
-            try:
-                await self._refresh_using_refresh_token(refresh_token)
-                _LOGGER.info("Token refresh: SUCCESS using refresh_token")
-                return  # Success! Exit early
-            except Exception as err:
-                _LOGGER.warning(
-                    "Token refresh: refresh_token method FAILED (%s), falling back to password grant", 
-                    err
-                )
-                # Continue to fallback below
-        else:
-            _LOGGER.debug("Token refresh: No refresh_token available, using password grant")
-        
-        # Fallback: Password grant (current reliable method)
-        _LOGGER.info("Token refresh: Using password grant (fallback method)")
-        try:
-            await self._refresh_using_password_grant()
-            _LOGGER.info("Token refresh: SUCCESS using password grant")
-        except Exception as err:
-            _LOGGER.error("Token refresh: CRITICAL - Both methods failed: %s", err)
-            raise UpdateFailed(f"Token refresh failed: {err}")
-
-    async def _refresh_using_refresh_token(self, refresh_token: str):
-        """Attempt token refresh using refresh_token grant."""
-        _LOGGER.debug("Token refresh: Preparing refresh_token request")
-        
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Origin": "https://mielelogic.com",
-            "Referer": "https://mielelogic.com/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "da-DK,da;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Connection": "keep-alive",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-site",
-        }
-        
-        data = {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token.strip(),
-            "client_id": self.config_entry.data[CONF_CLIENT_ID].strip(),
-        }
-        
-        if self.config_entry.data.get(CONF_CLIENT_SECRET):
-            data["client_secret"] = self.config_entry.data[CONF_CLIENT_SECRET].strip()
-        
-        _LOGGER.debug("Token refresh: Sending refresh_token request to %s", AUTH_URL)
-        
-        try:
-            session = async_get_clientsession(self.hass)
-            async with session.post(AUTH_URL, headers=headers, data=data) as response:
-                response_text = await response.text()
-                response_headers = dict(response.headers)
-                
-                _LOGGER.debug(
-                    "Token refresh (refresh_token): HTTP %s, headers=%s, body=%s",
-                    response.status,
-                    response_headers,
-                    response_text[:200] if len(response_text) > 200 else response_text
-                )
-                
-                if response.status != 200:
-                    # Don't raise UpdateFailed here - let caller handle fallback
-                    raise Exception(
-                        f"refresh_token grant failed: HTTP {response.status}, "
-                        f"body={response_text[:100]}"
-                    )
-                
-                auth_result = await response.json()
-                
-                # Verify we got required fields
-                if "access_token" not in auth_result:
-                    raise Exception("refresh_token response missing access_token field")
-                
-                # Update tokens in memory and storage
-                self._update_tokens_in_memory(auth_result)
-                await self._save_tokens_to_config(auth_result)
-                
-                _LOGGER.info("Token refresh (refresh_token): Tokens updated successfully")
-                
-        except aiohttp.ClientError as err:
-            _LOGGER.warning("Token refresh (refresh_token): Network error: %s", err)
-            raise
-        except Exception as err:
-            _LOGGER.warning("Token refresh (refresh_token): Error: %s", err)
-            raise
-
-    async def _refresh_using_password_grant(self):
-        """Refresh token using password grant (reliable fallback method)."""
-        _LOGGER.debug("Token refresh: Preparing password grant request")
-        
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Origin": "https://mielelogic.com",
-            "Referer": "https://mielelogic.com/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "da-DK,da;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Connection": "keep-alive",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-site",
-        }
-        
-        data = {
-            "grant_type": "password",
-            "username": self.config_entry.data[CONF_USERNAME].strip(),
-            "password": self.config_entry.data[CONF_PASSWORD].strip(),
-            "client_id": self.config_entry.data[CONF_CLIENT_ID].strip(),
-            "scope": "DA",
-        }
-        
-        if self.config_entry.data.get(CONF_CLIENT_SECRET):
-            data["client_secret"] = self.config_entry.data[CONF_CLIENT_SECRET].strip()
-        
-        _LOGGER.debug("Token refresh: Sending password grant request to %s", AUTH_URL)
-        
-        try:
-            session = async_get_clientsession(self.hass)
-            async with session.post(AUTH_URL, headers=headers, data=data) as response:
-                response_text = await response.text()
-                response_headers = dict(response.headers)
-                
-                _LOGGER.debug(
-                    "Token refresh (password grant): HTTP %s, headers=%s",
-                    response.status,
-                    response_headers
-                )
-                
-                if response.status != 200:
-                    raise UpdateFailed(
-                        f"Password grant failed: HTTP {response.status}, "
-                        f"headers={response_headers}, body={response_text[:100]}"
-                    )
-                
-                auth_result = await response.json()
-                
-                # Verify we got required fields
-                if "access_token" not in auth_result:
-                    raise UpdateFailed("Password grant response missing access_token field")
-                
-                # Update tokens in memory and storage
-                self._update_tokens_in_memory(auth_result)
-                await self._save_tokens_to_config(auth_result)
-                
-                _LOGGER.info("Token refresh (password grant): Tokens updated successfully")
-                
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Token refresh (password grant): Network error: %s", err)
-            raise UpdateFailed(f"Network error during password grant: {err}")
-
-    def _update_tokens_in_memory(self, auth_result: dict):
-        """Update access token and expiry in memory."""
-        self.access_token = auth_result["access_token"]
-        expires_in = auth_result.get("expires_in", 900)
-        self.expires_at = datetime.now(ZoneInfo("UTC")) + timedelta(seconds=expires_in)
-        
-        _LOGGER.debug(
-            "Tokens updated in memory: expires_in=%s seconds, expires_at=%s",
-            expires_in,
-            self.expires_at
-        )
-
-    async def _save_tokens_to_config(self, auth_result: dict):
-        """Save tokens to config entry storage."""
-        new_data = {
-            **self.config_entry.data,
-            "access_token": auth_result["access_token"],
-            "refresh_token": auth_result.get("refresh_token"),  # May be None
-            "expires_at": self.expires_at.isoformat(),
-        }
-        
-        # Use async_update_entry (non-blocking)
-        self.hass.config_entries.async_update_entry(
-            self.config_entry,
-            data=new_data,
-        )
-        
-        _LOGGER.debug(
-            "Tokens saved to config: has_refresh_token=%s",
-            "yes" if auth_result.get("refresh_token") else "no"
+            update_interval=timedelta(seconds=300),  # 5 minutes
         )
 
     async def _async_update_data(self):
-        """Fetch data from MieleLogic API."""
-        # Check if token needs refresh (60 second buffer before expiry)
-        if not self.access_token or (self.expires_at and datetime.now(ZoneInfo("UTC")) >= self.expires_at - timedelta(seconds=60)):
-            _LOGGER.debug(
-                "Token check: now=%s, expires_at=%s, needs_refresh=%s", 
-                datetime.now(ZoneInfo("UTC")), 
-                self.expires_at,
-                not self.access_token or (self.expires_at and datetime.now(ZoneInfo("UTC")) >= self.expires_at - timedelta(seconds=60))
-            )
-            await self._refresh_token()
+        """Fetch data from MieleLogic API and optionally sync to calendar."""
+        try:
+            # 1. Ensure we have a valid token (ALWAYS required)
+            await self._ensure_token()
 
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Origin": "https://mielelogic.com",
-            "Referer": "https://mielelogic.com/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-        }
-        data = {"reservations": {}, "machine_states": {}, "account_details": {}}
+            # 2. Fetch data from MieleLogic API (ALWAYS required)
+            headers = {
+                "Authorization": f"Bearer {self.access_token}",
+                "Origin": "https://mielelogic.com",
+                "Referer": "https://mielelogic.com/",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            }
+
+            async with aiohttp.ClientSession() as session:
+                # Fetch all endpoints with caching
+                reservations = await self._fetch_with_cache(
+                    session,
+                    f"{API_BASE_URL}/reservations?laundry={self.laundry_id}",
+                    f"reservations_{self.laundry_id}",
+                    headers,
+                )
+
+                machine_states = await self._fetch_with_cache(
+                    session,
+                    f"{API_BASE_URL}/Country/DA/Laundry/{self.laundry_id}/laundrystates?language=da",
+                    f"machine_states_{self.laundry_id}",
+                    headers,
+                )
+
+                account_details = await self._fetch_with_cache(
+                    session,
+                    f"{API_BASE_URL}/accounts/Details",
+                    "account_details",
+                    headers,
+                )
+
+            data = {
+                "reservations": reservations,
+                "machine_states": machine_states,
+                "account_details": account_details,
+            }
+
+            # 3. Optionally sync to external calendar (OPTIONAL, can fail gracefully)
+            if self.sync_to_calendar:
+                try:
+                    await self._sync_to_external_calendar(data)
+                except Exception as err:
+                    _LOGGER.warning(
+                        "Calendar sync to %s failed: %s (continuing anyway)",
+                        self.sync_to_calendar,
+                        err,
+                    )
+                    # DON'T fail entire update if calendar sync fails!
+
+            return data
+
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Network error fetching data: %s", err)
+            raise UpdateFailed(f"Network error: {err}") from err
+        except Exception as err:
+            _LOGGER.error("Unexpected error fetching data: %s", err)
+            raise UpdateFailed(f"Unexpected error: {err}") from err
+
+    async def _sync_to_external_calendar(self, data):
+        """Sync MieleLogic reservations to external calendar."""
+        target_calendar = self.sync_to_calendar
+
+        # 1. Check if target calendar exists
+        calendar_state = self.hass.states.get(target_calendar)
+        if not calendar_state:
+            _LOGGER.warning(
+                "Target calendar %s not found - sync disabled. "
+                "Update calendar settings in Options Flow.",
+                target_calendar,
+            )
+            return
+
+        _LOGGER.debug("Syncing reservations to %s", target_calendar)
+
+        # 2. Get current MieleLogic reservations
+        reservations = data.get("reservations", {}).get("Reservations", [])
+        if not reservations:
+            _LOGGER.debug("No reservations to sync")
+            return
+
+        # 3. Get existing events from target calendar (via calendar.get_events service)
+        now = datetime.now(ZoneInfo("UTC"))
+        end_date = now + timedelta(days=30)  # Look 30 days ahead
 
         try:
-            async with aiohttp.ClientSession() as session:
-                # Reservationskald
-                url = f"https://api.mielelogic.com/v7/reservations?laundry={self.laundry_id}"
-                _LOGGER.debug("Fetching reservations data from %s with headers=%s", url, headers)
-                async with session.get(url, headers=headers) as response:
-                    response_text = await response.text()
-                    response_headers = dict(response.headers)
-                    _LOGGER.debug("Reservations response: HTTP %s, headers=%s, body=%s", response.status, response_headers, response_text)
-                    if response.status == 401:
-                        _LOGGER.warning("Received HTTP 401, attempting to refresh token")
-                        await self._refresh_token()
-                        headers["Authorization"] = f"Bearer {self.access_token}"
-                        async with session.get(url, headers=headers) as retry_response:
-                            retry_text = await retry_response.text()
-                            retry_headers = dict(retry_response.headers)
-                            _LOGGER.debug("Retry response: HTTP %s, headers=%s, body=%s", retry_response.status, retry_headers, retry_text)
-                            if retry_response.status != 200:
-                                raise UpdateFailed(f"Error fetching data after token refresh: HTTP {retry_response.status}, headers={retry_headers}, body={retry_text}")
-                            data["reservations"] = await retry_response.json()
-                    elif response.status != 200:
-                        raise UpdateFailed(f"Error fetching reservations: HTTP {response.status}, headers={response_headers}, body={response_text}")
-                    else:
-                        data["reservations"] = await response.json()
-                        if not data["reservations"].get("ResultOK", False):
-                            _LOGGER.error("API error in reservations: %s, headers=%s, body=%s", data["reservations"].get("ResultText", "Unknown error"), response_headers, response_text)
-                            raise UpdateFailed(f"API error in reservations: {data['reservations'].get('ResultText', 'Unknown error')}, headers={response_headers}, body={response_text}")
+            # Call calendar.get_events service to get existing events
+            response = await self.hass.services.async_call(
+                "calendar",
+                "get_events",
+                {
+                    "entity_id": target_calendar,
+                    "start_date_time": now.isoformat(),
+                    "end_date_time": end_date.isoformat(),
+                },
+                blocking=True,
+                return_response=True,
+            )
 
-                # Maskinstatus-kald
-                machine_url = f"https://api.mielelogic.com/v7/Country/DA/Laundry/{self.laundry_id}/laundrystates?language=da"
-                _LOGGER.debug("Fetching machine states from %s with headers=%s", machine_url, headers)
-                async with session.get(machine_url, headers=headers) as machine_response:
-                    machine_text = await machine_response.text()
-                    machine_headers = dict(machine_response.headers)
-                    _LOGGER.debug("Machine states response: HTTP %s, headers=%s, body=%s", machine_response.status, machine_headers, machine_text)
-                    if machine_response.status == 401:
-                        await self._refresh_token()
-                        headers["Authorization"] = f"Bearer {self.access_token}"
-                        async with session.get(machine_url, headers=headers) as retry_response:
-                            retry_text = await retry_response.text()
-                            retry_headers = dict(retry_response.headers)
-                            if retry_response.status != 200:
-                                raise UpdateFailed(f"Error fetching machine states: HTTP {retry_response.status}, headers={retry_headers}, body={retry_text}")
-                            data["machine_states"] = await retry_response.json()
-                    elif machine_response.status != 200:
-                        raise UpdateFailed(f"Error fetching machine states: HTTP {machine_response.status}, headers={machine_headers}, body={machine_text}")
-                    else:
-                        data["machine_states"] = await machine_response.json()
-                        if not data["machine_states"].get("ResultOK", False):
-                            raise UpdateFailed(f"API error in machine states: {data['machine_states'].get('ResultText', 'Unknown error')}, headers={machine_headers}, body={machine_text}")
+            existing_events = response.get(target_calendar, {}).get("events", [])
+            _LOGGER.debug("Found %d existing events in target calendar", len(existing_events))
 
-                # Kontodetaljer-kald
-                account_url = "https://api.mielelogic.com/v7/accounts/Details"
-                _LOGGER.debug("Fetching account details from %s with headers=%s", account_url, headers)
-                async with session.get(account_url, headers=headers) as account_response:
-                    account_text = await account_response.text()
-                    account_headers = dict(account_response.headers)
-                    _LOGGER.debug("Account details response: HTTP %s, headers=%s, body=%s", account_response.status, account_headers, account_text)
-                    if account_response.status == 401:
-                        await self._refresh_token()
-                        headers["Authorization"] = f"Bearer {self.access_token}"
-                        async with session.get(account_url, headers=headers) as retry_response:
-                            retry_text = await retry_response.text()
-                            retry_headers = dict(retry_response.headers)
-                            if retry_response.status != 200:
-                                raise UpdateFailed(f"Error fetching account details: HTTP {retry_response.status}, headers={retry_headers}, body={retry_text}")
-                            data["account_details"] = await retry_response.json()
-                    elif account_response.status != 200:
-                        raise UpdateFailed(f"Error fetching account details: HTTP {account_response.status}, headers={account_headers}, body={account_text}")
-                    else:
-                        data["account_details"] = await account_response.json()
-                        if not data["account_details"].get("ResultOK", False):
-                            raise UpdateFailed(f"API error in account details: {data['account_details'].get('ResultText', 'Unknown error')}, headers={account_headers}, body={account_text}")
+        except Exception as err:
+            _LOGGER.warning("Failed to get existing events from %s: %s", target_calendar, err)
+            existing_events = []
 
-                return data
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Error fetching data: %s", err)
-            raise UpdateFailed(f"Error communicating with API: {err}")
+        # 4. Sync logic: Create missing events
+        for reservation in reservations:
+            try:
+                start_str = reservation.get("Start")
+                end_str = reservation.get("End")
+                machine_name = reservation.get("MachineName", "Unknown")
+                machine_number = reservation.get("MachineNumber", "")
+
+                if not start_str or not end_str:
+                    continue
+
+                # Parse datetime with timezone handling
+                start_time = self._parse_datetime(start_str)
+                end_time = self._parse_datetime(end_str)
+
+                # Create event summary (must match for duplicate detection)
+                summary = f"{machine_name}"
+                if machine_number:
+                    summary += f" #{machine_number}"
+                summary += " [MieleLogic]"  # Tag to identify our events
+
+                # Check if event already exists (match on summary + start time)
+                already_exists = any(
+                    event.get("summary") == summary
+                    and self._parse_datetime(event.get("start")) == start_time
+                    for event in existing_events
+                )
+
+                if already_exists:
+                    _LOGGER.debug("Event '%s' already exists, skipping", summary)
+                    continue
+
+                # Create new event in target calendar
+                duration = reservation.get("Duration", 0)
+                description = f"MieleLogic Reservation\n"
+                description += f"Machine: {machine_name}\n"
+                description += f"Duration: {duration} minutter\n"
+                description += f"Type: {reservation.get('MachineType', 'Unknown')}"
+
+                await self.hass.services.async_call(
+                    "calendar",
+                    "create_event",
+                    {
+                        "entity_id": target_calendar,
+                        "summary": summary,
+                        "start_date_time": start_time.isoformat(),
+                        "end_date_time": end_time.isoformat(),
+                        "description": description,
+                    },
+                    blocking=False,
+                )
+
+                _LOGGER.info("✅ Created calendar event: %s", summary)
+
+            except Exception as err:
+                _LOGGER.warning(
+                    "Failed to sync reservation %s: %s",
+                    reservation.get("ReservationId"),
+                    err,
+                )
+                continue
+
+    def _parse_datetime(self, datetime_str: str) -> datetime:
+        """Parse datetime string - handle both with and without timezone."""
+        if not datetime_str:
+            raise ValueError("Empty datetime string")
+
+        # Check if datetime has timezone info
+        if "Z" in datetime_str or "+" in datetime_str or datetime_str.count("-") > 2:
+            # Has timezone info
+            return datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
+        else:
+            # No timezone info - assume UTC
+            return datetime.fromisoformat(datetime_str).replace(tzinfo=ZoneInfo("UTC"))
+
+    # ===== CACHING METHODS (from v1.2.0) =====
+
+    def _get_cache_key(self, endpoint: str) -> str:
+        """Generate cache key for endpoint."""
+        return endpoint.split("/")[-1].split("?")[0]
+
+    def _is_cache_valid(self, cache_key: str) -> bool:
+        """Check if cached data is still valid."""
+        if cache_key not in self._cache:
+            return False
+
+        cached = self._cache[cache_key]
+        age = datetime.now(ZoneInfo("UTC")) - cached["timestamp"]
+        return age < self._cache_ttl
+
+    def _get_from_cache(self, cache_key: str) -> dict | None:
+        """Get data from cache if valid."""
+        if self._is_cache_valid(cache_key):
+            cached = self._cache[cache_key]
+            age = (datetime.now(ZoneInfo("UTC")) - cached["timestamp"]).total_seconds()
+            _LOGGER.info("✅ Cache HIT for %s (age: %.1fs)", cache_key, age)
+            return cached["data"]
+
+        _LOGGER.debug("❌ Cache MISS for %s", cache_key)
+        return None
+
+    def _save_to_cache(self, cache_key: str, data: dict):
+        """Save data to cache with timestamp."""
+        self._cache[cache_key] = {
+            "data": data,
+            "timestamp": datetime.now(ZoneInfo("UTC")),
+        }
+        _LOGGER.debug("💾 Cached data for %s", cache_key)
+
+    async def _fetch_with_cache(
+        self, session: aiohttp.ClientSession, url: str, cache_key: str, headers: dict
+    ) -> dict:
+        """Fetch data with caching."""
+        # Check cache first
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        # Cache miss - fetch from API
+        _LOGGER.info("Fetching from API: %s", url)
+        async with session.get(url, headers=headers, timeout=10) as response:
+            if response.status == 401:
+                _LOGGER.warning("Token expired during fetch, refreshing...")
+                await self._refresh_token()
+                # Retry with new token
+                headers["Authorization"] = f"Bearer {self.access_token}"
+                async with session.get(url, headers=headers, timeout=10) as retry_response:
+                    retry_response.raise_for_status()
+                    data = await retry_response.json()
+            else:
+                response.raise_for_status()
+                data = await response.json()
+
+        # Save to cache
+        self._save_to_cache(cache_key, data)
+        return data
+
+    # ===== TOKEN MANAGEMENT (from v1.2.0) =====
+
+    async def _ensure_token(self):
+        """Ensure we have a valid token."""
+        if self.access_token and self.token_expiry:
+            # Check if token is still valid (with 60 second buffer)
+            if datetime.now(ZoneInfo("UTC")) < (self.token_expiry - timedelta(seconds=60)):
+                return
+
+        # Token missing or expired - get new one
+        await self._refresh_token()
+
+    async def _refresh_token(self):
+        """Refresh access token using refresh_token or password grant."""
+        # Try refresh_token grant first (efficient)
+        if self.refresh_token:
+            try:
+                await self._token_request_refresh_grant()
+                _LOGGER.info("Token refreshed using refresh_token grant")
+                return
+            except Exception as err:
+                _LOGGER.warning(
+                    "Refresh token grant failed: %s, falling back to password grant", err
+                )
+
+        # Fall back to password grant
+        await self._token_request_password_grant()
+        _LOGGER.info("Token refreshed using password grant")
+
+    async def _token_request_refresh_grant(self):
+        """Request new token using refresh_token grant."""
+        data = {
+            "grant_type": "refresh_token",
+            "refresh_token": self.refresh_token,
+            "client_id": self.client_id,
+        }
+
+        if self.client_secret:
+            data["client_secret"] = self.client_secret
+
+        await self._make_token_request(data)
+
+    async def _token_request_password_grant(self):
+        """Request new token using password grant."""
+        data = {
+            "grant_type": "password",
+            "username": self.username,
+            "password": self.password,
+            "client_id": self.client_id,
+            "scope": "DA",
+        }
+
+        if self.client_secret:
+            data["client_secret"] = self.client_secret
+
+        await self._make_token_request(data)
+
+    async def _make_token_request(self, data: dict):
+        """Make token request to auth endpoint."""
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Origin": "https://mielelogic.com",
+            "Referer": "https://mielelogic.com/",
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
+                response.raise_for_status()
+                result = await response.json()
+
+                self.access_token = result["access_token"]
+                self.refresh_token = result.get("refresh_token")  # May be None
+                expires_in = result.get("expires_in", 900)
+                self.token_expiry = datetime.now(ZoneInfo("UTC")) + timedelta(seconds=expires_in)
+
+                _LOGGER.debug(
+                    "Token acquired, expires in %d seconds (refresh_token: %s)",
+                    expires_in,
+                    "available" if self.refresh_token else "not available",
+                )

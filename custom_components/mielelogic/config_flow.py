@@ -1,14 +1,10 @@
-# VERSION = "1.1.0"
+# VERSION = "1.3.2"
 import logging
+import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_NAME
-from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.core import callback
-import aiohttp
-from datetime import timedelta, datetime
-from zoneinfo import ZoneInfo
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import (
     DOMAIN,
@@ -22,259 +18,377 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for MieleLogic."""
 
     VERSION = 1
 
-    @staticmethod
-    @callback
-    def async_get_options_flow(config_entry):
-        """Get the options flow for this handler."""
-        return MieleLogicOptionsFlowHandler(config_entry)
-
-    async def async_step_user(self, user_input=None) -> FlowResult:
-        """Handle the initial step."""
+    async def async_step_user(self, user_input=None):
+        """Handle the initial step - ONLY credentials, NO calendar."""
         errors = {}
+
         if user_input is not None:
             try:
-                _LOGGER.debug(
-                    "Attempting authentication with username='%s', client_id='%s', laundry_id='%s', client_secret_provided=%s",
+                # Validate credentials by attempting authentication
+                await self._test_credentials(
                     user_input[CONF_USERNAME],
+                    user_input[CONF_PASSWORD],
                     user_input[CONF_CLIENT_ID],
-                    user_input[CONF_LAUNDRY_ID],
-                    "yes" if CONF_CLIENT_SECRET in user_input else "no",
+                    user_input.get(CONF_CLIENT_SECRET),
                 )
-                auth_result = await self._authenticate(
-                    username=user_input[CONF_USERNAME],
-                    password=user_input[CONF_PASSWORD],
-                    client_id=user_input[CONF_CLIENT_ID],
-                    client_secret=user_input.get(CONF_CLIENT_SECRET, ""),
+
+                # Check if already configured
+                await self.async_set_unique_id(
+                    f"{user_input[CONF_USERNAME]}_{user_input[CONF_LAUNDRY_ID]}"
                 )
-                _LOGGER.debug("Authentication successful: access_token received, expires_in=%s", auth_result.get("expires_in"))
-                entry_data = {
-                    CONF_USERNAME: user_input[CONF_USERNAME],
-                    CONF_PASSWORD: user_input[CONF_PASSWORD],
-                    CONF_CLIENT_ID: user_input[CONF_CLIENT_ID],
-                    CONF_LAUNDRY_ID: user_input[CONF_LAUNDRY_ID],
-                    CONF_CLIENT_SECRET: user_input.get(CONF_CLIENT_SECRET, ""),
-                    "access_token": auth_result["access_token"],
-                    "refresh_token": auth_result.get("refresh_token"),
-                    "expires_at": (
-                        datetime.now(ZoneInfo("UTC")) + timedelta(seconds=auth_result.get("expires_in", 900))
-                    ).isoformat(),
-                }
+                self._abort_if_unique_id_configured()
+
+                # Create entry with calendar sync disabled by default
                 return self.async_create_entry(
-                    title=user_input.get(CONF_NAME, "MieleLogic"),
-                    data=entry_data,
+                    title="MieleLogic Portal",
+                    data={
+                        CONF_USERNAME: user_input[CONF_USERNAME],
+                        CONF_PASSWORD: user_input[CONF_PASSWORD],
+                        CONF_CLIENT_ID: user_input[CONF_CLIENT_ID],
+                        CONF_LAUNDRY_ID: user_input[CONF_LAUNDRY_ID],
+                        CONF_CLIENT_SECRET: user_input.get(CONF_CLIENT_SECRET),
+                        "sync_to_calendar": None,  # Default: disabled
+                        "opening_time": user_input.get("opening_time", "07:00"),
+                        "closing_time": user_input.get("closing_time", "21:00"),
+                    },
                 )
-            except aiohttp.ClientResponseError as err:
-                _LOGGER.error("Authentication failed: HTTP %s, %s", err.status, err.message)
-                if err.status == 400 and "invalid_grant" in err.message:
-                    errors["base"] = "invalid_auth"
-                    _LOGGER.error(
-                        "Invalid grant error (bad credentials). Possible causes: "
-                        "1) Wrong username (try 'kongemaleren' with lowercase), "
-                        "2) Incorrect or expired password (reset via mielelogic.com), "
-                        "3) Invalid client_id (verify YV1ZAQ7BTE9IT2ZBZXLJ), "
-                        "4) Rate limit (wait 30 min), "
-                        "5) Incorrect scope (using 'DA'), "
-                        "6) Account locked. Verify login on mielelogic.com."
-                    )
-                elif err.status == 401:
-                    errors["base"] = "invalid_auth"
-                elif err.status == 400:
-                    errors["base"] = "bad_request"
-                elif err.status in (500, 502, 503):
-                    errors["base"] = "server_error"
-                else:
-                    errors["base"] = "unknown"
-            except aiohttp.ClientConnectionError as err:
-                _LOGGER.error("Connection error: %s", err)
+
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
                 errors["base"] = "cannot_connect"
+            except BadRequest:
+                errors["base"] = "bad_request"
+            except ServerError:
+                errors["base"] = "server_error"
             except Exception as err:
-                _LOGGER.error("Unexpected error: %s", err)
+                _LOGGER.exception("Unexpected exception: %s", err)
                 errors["base"] = "unknown"
 
-        # Show the configuration form
+        # Show form with credentials + opening hours
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_USERNAME, default="kongemaleren"): str,
+                    vol.Required(CONF_USERNAME): str,
                     vol.Required(CONF_PASSWORD): str,
-                    vol.Required(CONF_CLIENT_ID, default="YV1ZAQ7BTE9IT2ZBZXLJ"): str,
-                    vol.Required(CONF_LAUNDRY_ID, default="3444"): str,
+                    vol.Required(
+                        CONF_CLIENT_ID, default="YV1ZAQ7BTE9IT2ZBZXLJ"
+                    ): str,
+                    vol.Required(CONF_LAUNDRY_ID): str,
                     vol.Optional(CONF_CLIENT_SECRET): str,
-                    vol.Optional(CONF_NAME, default="MieleLogic"): str,
+                    vol.Optional("opening_time", default="07:00"): str,
+                    vol.Optional("closing_time", default="21:00"): str,
                 }
             ),
             errors=errors,
         )
 
-    async def _authenticate(self, username: str, password: str, client_id: str, client_secret: str = None) -> dict:
-        """Authenticate with the MieleLogic API."""
+    async def _test_credentials(
+        self, username: str, password: str, client_id: str, client_secret: str = None
+    ):
+        """Validate credentials by attempting to get a token."""
+        data = {
+            "grant_type": "password",
+            "username": username,
+            "password": password,
+            "client_id": client_id,
+            "scope": "DA",
+        }
+
+        if client_secret:
+            data["client_secret"] = client_secret
+
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
             "Origin": "https://mielelogic.com",
             "Referer": "https://mielelogic.com/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "da-DK,da;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Connection": "keep-alive",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-site",
         }
-        data = {
-            "grant_type": "password",
-            "username": username.strip(),
-            "password": password.strip(),
-            "client_id": client_id.strip(),
-            "scope": "DA",
-        }
-        if client_secret:
-            data["client_secret"] = client_secret.strip()
-
-        _LOGGER.debug("Auth request: headers=%s, data=%s", headers, {k: v for k, v in data.items() if k != "password"})
 
         try:
-            session = async_get_clientsession(self.hass)
-            async with session.post(AUTH_URL, headers=headers, data=data) as response:
-                response_text = await response.text()
-                _LOGGER.debug("Authentication response: HTTP %s, %s", response.status, response_text)
-                if response.status != 200:
-                    raise aiohttp.ClientResponseError(
-                        response.request_info,
-                        response.history,
-                        status=response.status,
-                        message=response_text,
-                    )
-                return await response.json()
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    AUTH_URL, data=data, headers=headers, timeout=10
+                ) as response:
+                    if response.status == 400:
+                        error_text = await response.text()
+                        if "invalid_grant" in error_text:
+                            raise InvalidAuth
+                        raise BadRequest
+                    elif response.status == 401:
+                        raise InvalidAuth
+                    elif response.status >= 500:
+                        raise ServerError
+                    elif response.status != 200:
+                        raise CannotConnect
+
+                    result = await response.json()
+                    if "access_token" not in result:
+                        raise InvalidAuth
+
         except aiohttp.ClientError as err:
-            _LOGGER.error("Error during authentication: %s", err)
+            _LOGGER.error("Network error during authentication: %s", err)
+            raise CannotConnect from err
+        except Exception as err:
+            _LOGGER.error("Unexpected error during authentication: %s", err)
             raise
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Get the options flow for this handler."""
+        return MieleLogicOptionsFlowHandler()
 
 
 class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options flow for MieleLogic."""
-
-    def __init__(self, config_entry):
-        """Initialize options flow."""
-        self._config_entry = config_entry
+    """Handle options flow for MieleLogic - THREE SEPARATE OPTIONS."""
 
     async def async_step_init(self, user_input=None):
-        """Manage the options."""
+        """Show menu: credentials, calendar, or laundry hours."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["credentials", "calendar", "laundry_hours"],
+        )
+
+    async def async_step_credentials(self, user_input=None):
+        """Update login credentials - SEPARATE from calendar."""
         errors = {}
-        
+
         if user_input is not None:
-            # Test new credentials
             try:
-                _LOGGER.debug(
-                    "Options flow: Testing new credentials for username='%s', client_id='%s'",
+                # Validate new credentials
+                await self._test_credentials(
                     user_input[CONF_USERNAME],
+                    user_input[CONF_PASSWORD],
                     user_input[CONF_CLIENT_ID],
+                    user_input.get(CONF_CLIENT_SECRET),
                 )
-                auth_result = await self._authenticate(
-                    username=user_input[CONF_USERNAME],
-                    password=user_input[CONF_PASSWORD],
-                    client_id=user_input[CONF_CLIENT_ID],
-                    client_secret=user_input.get(CONF_CLIENT_SECRET, ""),
-                )
-                _LOGGER.debug("Options flow: Authentication successful")
+
+                # Update ONLY credentials, keep existing calendar settings
+                new_data = dict(self.config_entry.data)
+                new_data[CONF_USERNAME] = user_input[CONF_USERNAME]
+                new_data[CONF_PASSWORD] = user_input[CONF_PASSWORD]
+                new_data[CONF_CLIENT_ID] = user_input[CONF_CLIENT_ID]
                 
-                # Update config entry with new credentials and tokens
-                new_data = {
-                    **self._config_entry.data,
-                    CONF_USERNAME: user_input[CONF_USERNAME],
-                    CONF_PASSWORD: user_input[CONF_PASSWORD],
-                    CONF_CLIENT_ID: user_input[CONF_CLIENT_ID],
-                    CONF_CLIENT_SECRET: user_input.get(CONF_CLIENT_SECRET, ""),
-                    "access_token": auth_result["access_token"],
-                    "refresh_token": auth_result.get("refresh_token"),
-                    "expires_at": (
-                        datetime.now(ZoneInfo("UTC")) + timedelta(seconds=auth_result.get("expires_in", 900))
-                    ).isoformat(),
-                }
-                
+                if CONF_CLIENT_SECRET in user_input:
+                    new_data[CONF_CLIENT_SECRET] = user_input[CONF_CLIENT_SECRET]
+
+                # DON'T touch calendar settings!
                 self.hass.config_entries.async_update_entry(
-                    self._config_entry,
-                    data=new_data,
+                    self.config_entry, data=new_data
                 )
-                
-                # Reload the integration to apply new credentials
-                _LOGGER.info("Options flow: Reloading integration with new credentials")
-                await self.hass.config_entries.async_reload(self._config_entry.entry_id)
-                
+
                 return self.async_create_entry(title="", data={})
-                
-            except aiohttp.ClientResponseError as err:
-                _LOGGER.error("Options flow: Authentication failed: HTTP %s, %s", err.status, err.message)
-                if err.status == 400 or err.status == 401:
-                    errors["base"] = "invalid_auth"
-                elif err.status in (500, 502, 503):
-                    errors["base"] = "server_error"
-                else:
-                    errors["base"] = "unknown"
-            except aiohttp.ClientConnectionError as err:
-                _LOGGER.error("Options flow: Connection error: %s", err)
+
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
                 errors["base"] = "cannot_connect"
+            except ServerError:
+                errors["base"] = "server_error"
             except Exception as err:
-                _LOGGER.error("Options flow: Unexpected error: %s", err)
+                _LOGGER.exception("Unexpected exception: %s", err)
                 errors["base"] = "unknown"
 
-        # Show form with current values as defaults
+        # Get current data with safe defaults
+        current_username = self.config_entry.data.get(CONF_USERNAME, "")
+        current_client_id = self.config_entry.data.get(CONF_CLIENT_ID, "YV1ZAQ7BTE9IT2ZBZXLJ")
+        current_client_secret = self.config_entry.data.get(CONF_CLIENT_SECRET, "")
+
+        # Show form with current credentials
         return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema({
-                vol.Required(CONF_USERNAME, default=self._config_entry.data.get(CONF_USERNAME, "")): str,
-                vol.Required(CONF_PASSWORD): str,
-                vol.Required(CONF_CLIENT_ID, default=self._config_entry.data.get(CONF_CLIENT_ID, "YV1ZAQ7BTE9IT2ZBZXLJ")): str,
-                vol.Optional(CONF_CLIENT_SECRET, default=self._config_entry.data.get(CONF_CLIENT_SECRET, "")): str,
-            }),
+            step_id="credentials",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_USERNAME,
+                        default=current_username,
+                    ): str,
+                    vol.Required(CONF_PASSWORD): str,
+                    vol.Required(
+                        CONF_CLIENT_ID,
+                        default=current_client_id,
+                    ): str,
+                    vol.Optional(
+                        CONF_CLIENT_SECRET,
+                        default=current_client_secret,
+                    ): str,
+                }
+            ),
             errors=errors,
             description_placeholders={
-                "laundry_id": self._config_entry.data.get(CONF_LAUNDRY_ID, ""),
+                "username": current_username or "unknown",
             },
         )
 
-    async def _authenticate(self, username: str, password: str, client_id: str, client_secret: str = None) -> dict:
-        """Authenticate with the MieleLogic API."""
+    async def async_step_calendar(self, user_input=None):
+        """Configure calendar sync - SEPARATE from credentials."""
+        errors = {}
+
+        if user_input is not None:
+            try:
+                # Update ONLY calendar settings, keep existing credentials
+                new_data = dict(self.config_entry.data)
+
+                if user_input.get("enable_sync"):
+                    calendar_entity = user_input.get("calendar_entity")
+                    
+                    # Validate calendar entity exists
+                    if calendar_entity and not self.hass.states.get(calendar_entity):
+                        errors["base"] = "calendar_not_found"
+                    else:
+                        new_data["sync_to_calendar"] = calendar_entity
+                else:
+                    # Disable sync
+                    new_data["sync_to_calendar"] = None
+
+                if not errors:
+                    # DON'T touch credentials!
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=new_data
+                    )
+                    return self.async_create_entry(title="", data={})
+
+            except Exception as err:
+                _LOGGER.exception("Unexpected exception: %s", err)
+                errors["base"] = "unknown"
+
+        # Get all calendar entities (exclude MieleLogic's own calendar)
+        all_calendars = [
+            entity_id
+            for entity_id in self.hass.states.async_entity_ids("calendar")
+            if "mielelogic" not in entity_id.lower()
+        ]
+
+        # Current settings with safe defaults
+        current_calendar = self.config_entry.data.get("sync_to_calendar")
+        sync_enabled = bool(current_calendar)
+
+        # Build schema dynamically based on available calendars
+        schema_dict = {
+            vol.Optional("enable_sync", default=sync_enabled): bool,
+        }
+
+        if all_calendars:
+            # Add dropdown only if calendars exist
+            default_cal = current_calendar if current_calendar in all_calendars else (all_calendars[0] if all_calendars else "")
+            schema_dict[vol.Optional(
+                "calendar_entity",
+                default=default_cal
+            )] = vol.In(all_calendars)
+
+        return self.async_show_form(
+            step_id="calendar",
+            data_schema=vol.Schema(schema_dict),
+            errors=errors,
+            description_placeholders={
+                "current_calendar": current_calendar or "None",
+                "num_calendars": str(len(all_calendars)),
+            },
+        )
+
+    async def async_step_laundry_hours(self, user_input=None):
+        """Configure laundry opening/closing hours."""
+        errors = {}
+
+        if user_input is not None:
+            try:
+                # Update ONLY laundry hours, keep everything else
+                new_data = dict(self.config_entry.data)
+                new_data["opening_time"] = user_input.get("opening_time", "07:00")
+                new_data["closing_time"] = user_input.get("closing_time", "21:00")
+
+                # Update entry
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry, data=new_data
+                )
+                return self.async_create_entry(title="", data={})
+
+            except Exception as err:
+                _LOGGER.exception("Unexpected exception: %s", err)
+                errors["base"] = "unknown"
+
+        # Current settings
+        current_opening = self.config_entry.data.get("opening_time", "07:00")
+        current_closing = self.config_entry.data.get("closing_time", "21:00")
+
+        return self.async_show_form(
+            step_id="laundry_hours",
+            data_schema=vol.Schema({
+                vol.Optional("opening_time", default=current_opening): str,
+                vol.Optional("closing_time", default=current_closing): str,
+            }),
+            errors=errors,
+            description_placeholders={
+                "current_opening": current_opening,
+                "current_closing": current_closing,
+            },
+        )
+
+    async def _test_credentials(
+        self, username: str, password: str, client_id: str, client_secret: str = None
+    ):
+        """Validate credentials by attempting to get a token."""
+        data = {
+            "grant_type": "password",
+            "username": username,
+            "password": password,
+            "client_id": client_id,
+            "scope": "DA",
+        }
+
+        if client_secret:
+            data["client_secret"] = client_secret
+
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
             "Origin": "https://mielelogic.com",
             "Referer": "https://mielelogic.com/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "da-DK,da;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Connection": "keep-alive",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-site",
         }
-        data = {
-            "grant_type": "password",
-            "username": username.strip(),
-            "password": password.strip(),
-            "client_id": client_id.strip(),
-            "scope": "DA",
-        }
-        if client_secret:
-            data["client_secret"] = client_secret.strip()
 
         try:
-            session = async_get_clientsession(self.hass)
-            async with session.post(AUTH_URL, headers=headers, data=data) as response:
-                response_text = await response.text()
-                _LOGGER.debug("Options flow auth response: HTTP %s", response.status)
-                if response.status != 200:
-                    raise aiohttp.ClientResponseError(
-                        response.request_info,
-                        response.history,
-                        status=response.status,
-                        message=response_text,
-                    )
-                return await response.json()
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    AUTH_URL, data=data, headers=headers, timeout=10
+                ) as response:
+                    if response.status == 400:
+                        error_text = await response.text()
+                        if "invalid_grant" in error_text:
+                            raise InvalidAuth
+                        raise BadRequest
+                    elif response.status == 401:
+                        raise InvalidAuth
+                    elif response.status >= 500:
+                        raise ServerError
+                    elif response.status != 200:
+                        raise CannotConnect
+
+                    result = await response.json()
+                    if "access_token" not in result:
+                        raise InvalidAuth
+
         except aiohttp.ClientError as err:
-            _LOGGER.error("Options flow: Error during authentication: %s", err)
-            raise
+            _LOGGER.error("Network error during authentication: %s", err)
+            raise CannotConnect from err
+
+
+class CannotConnect(HomeAssistantError):
+    """Error to indicate we cannot connect."""
+
+
+class InvalidAuth(HomeAssistantError):
+    """Error to indicate there is invalid auth."""
+
+
+class BadRequest(HomeAssistantError):
+    """Error to indicate bad request."""
+
+
+class ServerError(HomeAssistantError):
+    """Error to indicate server error."""

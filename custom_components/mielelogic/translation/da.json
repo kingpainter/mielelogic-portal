@@ -10,7 +10,9 @@
           "client_id": "Klient ID",
           "laundry_id": "Vaskeri ID",
           "client_secret": "Klient Hemmelighed (valgfri)",
-          "name": "Navn"
+          "name": "Navn",
+          "opening_time": "Åbningstid (f.eks. 07:00)",
+          "closing_time": "Lukketid (f.eks. 21:00)"
         }
       }
     },
@@ -28,6 +30,13 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "credentials": "Opdater Login Oplysninger",
+          "calendar": "Konfigurer Kalender Synkronisering",
+          "laundry_hours": "Konfigurer Åbningstider"
+        }
+      },
+      "credentials": {
         "title": "Opdater MieleLogic Legitimationsoplysninger",
         "description": "Opdater dine login oplysninger for MieleLogic",
         "data": {
@@ -42,12 +51,37 @@
           "client_id": "OAuth2 client ID",
           "client_secret": "OAuth2 client secret (valgfri)"
         }
+      },
+      "calendar": {
+        "title": "Konfigurer Kalender Synkronisering",
+        "description": "Synkroniser MieleLogic reservationer til en ekstern kalender. Dette er valgfrit - hvis ikke aktiveret bruges kun MieleLogic's indbyggede kalender.\n\nAktuelt: {current_calendar}\nTilgængelige kalendere: {num_calendars}",
+        "data": {
+          "enable_sync": "Aktiver kalender synkronisering",
+          "calendar_entity": "Mål kalender"
+        },
+        "data_description": {
+          "enable_sync": "Synkroniser reservationer til en ekstern kalender (f.eks. CalDAV)",
+          "calendar_entity": "Vælg hvilken kalender der skal synkroniseres til"
+        }
+      },
+      "laundry_hours": {
+        "title": "Konfigurer Vaskehus Åbningstider",
+        "description": "Indstil hvornår vaskehuset åbner og lukker. Dette bruges til at vise 'Lukket indtil kl. XX:XX' på maskiner.\n\nAktuelt: Åbner {current_opening}, Lukker {current_closing}",
+        "data": {
+          "opening_time": "Åbningstid (f.eks. 07:00)",
+          "closing_time": "Lukketid (f.eks. 21:00)"
+        },
+        "data_description": {
+          "opening_time": "Hvornår åbner vaskehuset (format: HH:MM)",
+          "closing_time": "Hvornår lukker vaskehuset (format: HH:MM)"
+        }
       }
     },
     "error": {
       "cannot_connect": "Kunne ikke oprette forbindelse til MieleLogic API",
       "invalid_auth": "Ugyldige legitimationsoplysninger - tjek brugernavn og password",
       "server_error": "Serverfejl, prøv igen senere",
+      "calendar_not_found": "Valgte kalender findes ikke - tjek at den stadig er konfigureret",
       "unknown": "Ukendt fejl opstod"
     }
   },

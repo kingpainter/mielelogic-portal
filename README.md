@@ -1,20 +1,48 @@
 # MieleLogic Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/yourusername/mielelogic)
+[![Version](https://img.shields.io/badge/version-1.3.2-blue.svg)](https://github.com/kingpainter/mielelogic-portal)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024%2B-blue.svg)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Home Assistant custom integration for MieleLogic laundry service monitoring with reservation tracking, machine status, account balance, and calendar integration.
+Home Assistant custom integration for MieleLogic laundry service monitoring with reservation tracking, machine status, account balance, calendar integration, and automation blueprints.
 
 ---
 
 ## 🎉 Features
 
-### v1.3.0 - Calendar Integration & Automation Blueprints
+### v1.3.2 - Opening Hours & Enhanced Options ⭐ NEW!
+
+#### 🕐 Opening Hours Configuration
+- **Configure laundry hours** - Set when your laundry opens/closes
+- **Enhanced display** - "Lukket indtil kl. 07:00" shows opening time
+- **Smart priority** - Shows most relevant info (reservation > hours > status)
+- **Easy setup** - Configure during initial setup or via Options Flow
+- **Default times** - Sensible defaults (07:00 - 21:00)
+
+#### ⚙️ 3-Option Menu in Options Flow
+- **Update credentials** - Change login details without affecting other settings
+- **Configure calendar sync** - Enable/disable external calendar sync
+- **Configure opening hours** ⭐ NEW! - Set laundry opening/closing times
+- **Independent options** - Each setting is separate and safe
+
+#### 🏢 Professional Branding
+- **Integration name** - "MieleLogic Portal" (cleaner, no laundry ID)
+- **Device name** - "MieleLogic Portal"
+
+### v1.3.1 - Optional Calendar Sync
+
+#### 📅 External Calendar Sync (Optional)
+- **Sync to CalDAV** - Automatically sync reservations to Apple Calendar, Google Calendar, etc.
+- **Target any calendar** - Choose from available HA calendar entities
+- **Duplicate prevention** - Smart detection prevents duplicate events
+- **Graceful degradation** - Sync failures don't break main integration
+- **Easy configuration** - Enable/disable via Options Flow
+
+### v1.3.0 - Calendar Integration & Blueprints
 
 #### 📅 Calendar Integration
 - **Visual Overview** - See all reservations in HA Calendar
-- **Calendar Entity** - `calendar.mielelogic_vaskeri_3444_reservations`
+- **Calendar Entity** - `calendar.mielelogic_portal_reservations`
 - **Event Details** - Machine name, duration, start/end times
 - **Automation Triggers** - Use calendar events in automations
 - **Timezone Aware** - Handles all datetime formats correctly
@@ -55,7 +83,7 @@ Home Assistant custom integration for MieleLogic laundry service monitoring with
 6. Add integration via UI (Settings → Devices & Services → Add Integration)
 
 ### Manual Installation
-1. Download latest release from [Releases](https://github.com/yourusername/mielelogic/releases)
+1. Download latest release from [Releases](https://github.com/kingpainter/mielelogic-portal/releases)
 2. Copy `custom_components/mielelogic/` to your HA config directory
 3. Restart Home Assistant
 4. Add integration via UI
@@ -64,12 +92,31 @@ Home Assistant custom integration for MieleLogic laundry service monitoring with
 
 ## ⚙️ Configuration
 
-### Required Information
+### Initial Setup
+
+**Required Information:**
 - **Username** - Your MieleLogic account username
 - **Password** - Your MieleLogic account password
 - **Client ID** - OAuth2 client ID (default: `YV1ZAQ7BTE9IT2ZBZXLJ`)
 - **Laundry ID** - Your laundry facility ID (e.g., `3444`)
+
+**Optional Information:**
 - **Client Secret** - Optional OAuth2 client secret
+- **Opening Time** ⭐ NEW! - When laundry opens (default: 07:00)
+- **Closing Time** ⭐ NEW! - When laundry closes (default: 21:00)
+
+### Options Flow
+
+After installation, configure additional features via Options Flow:
+
+```
+Settings → Devices & Services → MieleLogic Portal → Configure
+
+Choose from:
+1. Update credentials
+2. Configure calendar sync
+3. Configure opening hours ⭐
+```
 
 ### Quick Start
 ```yaml
@@ -82,28 +129,62 @@ Home Assistant custom integration for MieleLogic laundry service monitoring with
 ## 📱 Entities Created
 
 ### Calendar (1 entity)
-- `calendar.mielelogic_vaskeri_3444_reservations` 📅 **NEW in v1.3.0!**
+- `calendar.mielelogic_portal_reservations` 📅 (v1.3.0+)
 
 ### Sensors (6-10 entities)
-- `sensor.mielelogic_vaskeri_3444_reservations`
-- `sensor.mielelogic_vaskeri_3444_account_balance`
-- `sensor.mielelogic_vaskeri_3444_washer_status` ⚠️*
-- `sensor.mielelogic_vaskeri_3444_dryer_status` ⚠️*
-- `sensor.mielelogic_vaskeri_3444_<machine_name>_<number>_status` (per machine)
+- `sensor.mielelogic_portal_reservations`
+- `sensor.mielelogic_portal_account_balance`
+- `sensor.mielelogic_portal_washer_status` ⚠️*
+- `sensor.mielelogic_portal_dryer_status` ⚠️*
+- `sensor.mielelogic_portal_<machine_name>_<number>_status` (per machine)
 
 ### Binary Sensors (6 entities)
-- `binary_sensor.mielelogic_vaskeri_3444_has_reservation`
-- `binary_sensor.mielelogic_vaskeri_3444_has_washer_reservation`
-- `binary_sensor.mielelogic_vaskeri_3444_has_dryer_reservation` ⚠️*
-- `binary_sensor.mielelogic_vaskeri_3444_reservation_starting_soon`
-- `binary_sensor.mielelogic_vaskeri_3444_washer_available`
-- `binary_sensor.mielelogic_vaskeri_3444_dryer_available` ⚠️*
+- `binary_sensor.mielelogic_portal_has_reservation`
+- `binary_sensor.mielelogic_portal_has_washer_reservation`
+- `binary_sensor.mielelogic_portal_has_dryer_reservation` ⚠️*
+- `binary_sensor.mielelogic_portal_reservation_starting_soon`
+- `binary_sensor.mielelogic_portal_washer_available`
+- `binary_sensor.mielelogic_portal_dryer_available` ⚠️*
 
 **⚠️ Dryer Sensors:** Requires dryers connected to MieleLogic API (MachineType "58"). If your laundry only has washing machines, these sensors will show "off"/"Idle" and can be safely ignored. See [FAQ](#-faq) for details.
 
 ---
 
-## 💡 Example Automations
+## 💡 Example Usage
+
+### v1.3.2 Features
+
+#### Opening Hours Display
+```yaml
+# Machine status during closed hours:
+sensor.mielelogic_klatvask_1_status: "Lukket indtil kl. 07:00"
+
+# Machine with reservation:
+sensor.mielelogic_klatvask_1_status: "Ledig indtil kl. 21:00"
+
+# Machine in use:
+sensor.mielelogic_klatvask_2_status: "Resttid: 55 min"
+```
+
+#### Configure Opening Hours
+```
+Settings → Devices & Services → MieleLogic Portal
+→ Configure → Configure opening hours
+→ Opening: 07:00
+→ Closing: 21:00
+→ Save
+```
+
+#### External Calendar Sync
+```
+Settings → Devices & Services → MieleLogic Portal
+→ Configure → Configure calendar sync
+→ ☑ Enable calendar sync
+→ Target: calendar.kun_flemming
+→ Save
+
+Result: Reservations appear in your external calendar!
+```
 
 ### Using Blueprints (Easy Way!) 📘
 
@@ -130,7 +211,7 @@ automation:
   - alias: Vaskehus Påmindelse
     trigger:
       - platform: state
-        entity_id: binary_sensor.mielelogic_vaskeri_3444_reservation_starting_soon
+        entity_id: binary_sensor.mielelogic_portal_reservation_starting_soon
         to: 'on'
     action:
       - service: notify.mobile_app
@@ -138,17 +219,17 @@ automation:
           title: "🧺 Vaskehus Påmindelse"
           message: >
             Din reservation starter om 
-            {{ state_attr('binary_sensor.mielelogic_vaskeri_3444_reservation_starting_soon', 'next_start_in_minutes') }} 
+            {{ state_attr('binary_sensor.mielelogic_portal_reservation_starting_soon', 'next_start_in_minutes') }} 
             minutter!
 ```
 
-#### Calendar-Based Reminder (NEW in v1.3.0!)
+#### Calendar-Based Reminder (v1.3.0+)
 ```yaml
 automation:
   - alias: Reservation om 15 minutter
     trigger:
       - platform: calendar
-        entity_id: calendar.mielelogic_vaskeri_3444_reservations
+        entity_id: calendar.mielelogic_portal_reservations
         event: start
         offset: "-00:15:00"  # 15 minutes before
     action:
@@ -164,11 +245,11 @@ automation:
   - alias: Vasker Ledig
     trigger:
       - platform: state
-        entity_id: binary_sensor.mielelogic_vaskeri_3444_washer_available
+        entity_id: binary_sensor.mielelogic_portal_washer_available
         to: 'on'
     condition:
       - condition: state
-        entity_id: binary_sensor.mielelogic_vaskeri_3444_has_reservation
+        entity_id: binary_sensor.mielelogic_portal_has_reservation
         state: 'off'
     action:
       - service: notify.mobile_app
@@ -187,22 +268,33 @@ automation:
 - **API compatibility** - Full support for all MieleLogic features
 
 You can hide unused sensors in the UI:
-1. Settings → Devices & Services → MieleLogic
+1. Settings → Devices & Services → MieleLogic Portal
 2. Click on device
 3. Click dryer sensor → Settings icon
 4. Select "Hide"
 
-### Q: How do I know if my dryer sensors will work?
-**A:** Check the MieleLogic API response for machines with `"MachineType": "58"`. If you only see types "51" or "85" (washers), dryer sensors won't have data.
+### Q: How do I configure opening hours?
+**A:** 
+- **During setup:** Enter opening/closing times in initial config flow
+- **After setup:** Options Flow → Configure opening hours
+- **Default:** 07:00 - 21:00 (change to match your laundry)
 
-### Q: Can I remove dryer sensors from the code?
-**A:** Not recommended. They don't cause issues and provide future compatibility. If desired, simply hide them in the UI.
+### Q: What if my laundry has different hours on weekends?
+**A:** v1.3.2 uses the same hours every day. Weekend-specific hours are planned for v1.3.3.
 
-### Q: What about my manual tumbler timer?
-**A:** The `timer.torretumbler_timer` in your automations is a **manual timer** you control via `input_select` - it's completely independent of the dryer sensors and will continue working as before.
+### Q: How does external calendar sync work?
+**A:** (v1.3.1+)
+- Enable in Options Flow → Configure calendar sync
+- Select target calendar (e.g., CalDAV)
+- Reservations sync automatically every 5 minutes
+- Events tagged with `[MieleLogic]` for easy identification
+- One-way sync: MieleLogic → External calendar
+
+### Q: Can I sync to multiple calendars?
+**A:** Currently only one target calendar is supported. Multi-calendar sync is planned for future version.
 
 ### Q: How do I use the calendar integration?
-**A:** After installing v1.3.0, the calendar entity appears automatically. Navigate to Calendar in the sidebar to see your reservations as events. You can also use calendar triggers in automations.
+**A:** After installing v1.3.0+, the calendar entity appears automatically. Navigate to Calendar in the sidebar to see your reservations as events. You can also use calendar triggers in automations.
 
 ### Q: Do blueprints require extra setup?
 **A:** Yes, copy the blueprint files to `/config/blueprints/automation/mielelogic/` and restart HA. Then they'll appear in Settings → Automations & Scenes → Blueprints.
@@ -212,13 +304,15 @@ You can hide unused sensors in the UI:
 ## 🔧 Development
 
 ### Version History
+- **v1.3.2** (2026-01-24) - Opening hours configuration, enhanced Options Flow, MieleLogic Portal branding
+- **v1.3.1** (2026-01-24) - External calendar sync (optional), menu-based Options Flow
 - **v1.3.0** (2026-01-21) - Calendar integration, automation blueprints, timezone fixes
 - **v1.2.0** (2026-01-20) - Binary sensors, enhanced attributes, response caching
 - **v1.1.0** (2026-01-20) - HA 2024+ compliance, device organization, options flow
 - **v1.0.5** (2026-01-13) - Initial alpha release
 
 ### Roadmap
-- **v1.3.1** (Planned) - CalDAV sync (Apple Calendar, Google Calendar)
+- **v1.3.3** (Planned) - Weekend-specific opening hours, sync status sensor
 - **v1.4.0** (Planned) - Services (make/cancel reservations), advanced automation
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
@@ -230,7 +324,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 - [Installation Guide](INSTALLATION_GUIDE.md)
 - [Changelog](CHANGELOG.md)
 - [Blueprints README](blueprints/README.md)
-- [v1.3.0 Release Status](v1_3_0_RELEASE_STATUS.md)
+- [v1.3.2 Release Notes](CHANGELOG_v1.3.2.md)
 
 ---
 
@@ -248,11 +342,10 @@ MIT License - See [LICENSE](LICENSE) for details
 
 ---
 
-## 🐛 Issues & Support
+## 🛠 Issues & Support
 
-- **Issues:** [GitHub Issues](https://github.com/yourusername/mielelogic/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/yourusername/mielelogic/discussions)
-- **Email:** support@example.com
+- **Issues:** [GitHub Issues](https://github.com/kingpainter/mielelogic-portal/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/kingpainter/mielelogic-portal/discussions)
 
 ---
 

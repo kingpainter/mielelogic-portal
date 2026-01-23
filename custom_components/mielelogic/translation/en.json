@@ -10,7 +10,9 @@
           "client_id": "Client ID",
           "laundry_id": "Laundry ID",
           "client_secret": "Client Secret (optional)",
-          "name": "Name"
+          "name": "Name",
+          "opening_time": "Opening time (e.g. 07:00)",
+          "closing_time": "Closing time (e.g. 21:00)"
         }
       }
     },
@@ -28,6 +30,13 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "credentials": "Update Login Credentials",
+          "calendar": "Configure Calendar Sync",
+          "laundry_hours": "Configure Opening Hours"
+        }
+      },
+      "credentials": {
         "title": "Update MieleLogic Credentials",
         "description": "Update your login credentials for MieleLogic",
         "data": {
@@ -42,12 +51,37 @@
           "client_id": "OAuth2 client ID",
           "client_secret": "OAuth2 client secret (optional)"
         }
+      },
+      "calendar": {
+        "title": "Configure Calendar Sync",
+        "description": "Sync MieleLogic reservations to an external calendar. This is optional - if not enabled, only MieleLogic's built-in calendar will be used.\n\nCurrent: {current_calendar}\nAvailable calendars: {num_calendars}",
+        "data": {
+          "enable_sync": "Enable calendar sync",
+          "calendar_entity": "Target calendar"
+        },
+        "data_description": {
+          "enable_sync": "Sync reservations to an external calendar (e.g. CalDAV)",
+          "calendar_entity": "Select which calendar to sync to"
+        }
+      },
+      "laundry_hours": {
+        "title": "Configure Laundry Opening Hours",
+        "description": "Set when the laundry opens and closes. This is used to display 'Closed until XX:XX' on machines.\n\nCurrent: Opens {current_opening}, Closes {current_closing}",
+        "data": {
+          "opening_time": "Opening time (e.g. 07:00)",
+          "closing_time": "Closing time (e.g. 21:00)"
+        },
+        "data_description": {
+          "opening_time": "When does the laundry open (format: HH:MM)",
+          "closing_time": "When does the laundry close (format: HH:MM)"
+        }
       }
     },
     "error": {
       "cannot_connect": "Could not connect to MieleLogic API",
       "invalid_auth": "Invalid credentials - check username and password",
       "server_error": "Server error, please try again later",
+      "calendar_not_found": "Selected calendar not found - check that it is still configured",
       "unknown": "Unknown error occurred"
     }
   },
