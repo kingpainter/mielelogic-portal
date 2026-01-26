@@ -1,6 +1,6 @@
 # MieleLogic Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/version-1.3.2-blue.svg)](https://github.com/kingpainter/mielelogic-portal)
+[![Version](https://img.shields.io/badge/version-1.3.3-blue.svg)](https://github.com/kingpainter/mielelogic-portal)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024%2B-blue.svg)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -10,7 +10,25 @@ Home Assistant custom integration for MieleLogic laundry service monitoring with
 
 ## 🎉 Features
 
-### v1.3.2 - Opening Hours & Enhanced Options ⭐ NEW!
+### v1.3.3 - Calendar Time & Name Fix ⭐ NEW!
+
+#### 🐛 Bug Fixes
+- **Correct calendar times** - Events now show exact reservation time (Denmark timezone)
+- **Simplified event names** - "Klatvask Reserveret" instead of "Klatvask #1 [MieleLogic]"
+- **Fixed timezone issue** - No more 1 hour offset in external calendar sync
+
+**Example:**
+```
+Before v1.3.3:
+  Event: "Klatvask #1 [MieleLogic]"
+  Time: 20:00 - 21:30  ❌ (1 hour late!)
+
+After v1.3.3:
+  Event: "Klatvask Reserveret"
+  Time: 19:00 - 20:30  ✅ (correct!)
+```
+
+### v1.3.2 - Opening Hours & Enhanced Options
 
 #### 🕐 Opening Hours Configuration
 - **Configure laundry hours** - Set when your laundry opens/closes
@@ -22,7 +40,7 @@ Home Assistant custom integration for MieleLogic laundry service monitoring with
 #### ⚙️ 3-Option Menu in Options Flow
 - **Update credentials** - Change login details without affecting other settings
 - **Configure calendar sync** - Enable/disable external calendar sync
-- **Configure opening hours** ⭐ NEW! - Set laundry opening/closing times
+- **Configure opening hours** - Set laundry opening/closing times
 - **Independent options** - Each setting is separate and safe
 
 #### 🏢 Professional Branding
@@ -97,13 +115,13 @@ Home Assistant custom integration for MieleLogic laundry service monitoring with
 **Required Information:**
 - **Username** - Your MieleLogic account username
 - **Password** - Your MieleLogic account password
-- **Client ID** - OAuth2 client ID (default: `YV1ZAQ7BTE9IT2ZBZXLJ`)
+- **Client ID** - OAuth2 client ID (default: `YV1ZAQ7BTE9IT2FBZXLJ`)
 - **Laundry ID** - Your laundry facility ID (e.g., `3444`)
 
 **Optional Information:**
 - **Client Secret** - Optional OAuth2 client secret
-- **Opening Time** ⭐ NEW! - When laundry opens (default: 07:00)
-- **Closing Time** ⭐ NEW! - When laundry closes (default: 21:00)
+- **Opening Time** - When laundry opens (default: 07:00)
+- **Closing Time** - When laundry closes (default: 21:00)
 
 ### Options Flow
 
@@ -115,7 +133,7 @@ Settings → Devices & Services → MieleLogic Portal → Configure
 Choose from:
 1. Update credentials
 2. Configure calendar sync
-3. Configure opening hours ⭐
+3. Configure opening hours
 ```
 
 ### Quick Start
@@ -152,6 +170,29 @@ Choose from:
 
 ## 💡 Example Usage
 
+### v1.3.3 Features - Fixed Calendar Sync
+
+#### Correct Calendar Times
+```yaml
+# Reservation in MieleLogic app:
+Time: 19:00 - 20:30
+
+# Calendar event (external calendar):
+Event: "Klatvask Reserveret"
+Time: 19:00 - 20:30  ✅ (matches exactly!)
+```
+
+#### Configure External Calendar Sync
+```
+Settings → Devices & Services → MieleLogic Portal
+→ Configure → Configure calendar sync
+→ ☑ Enable calendar sync
+→ Target: calendar.kun_flemming
+→ Save
+
+Result: Reservations appear in your external calendar with correct times!
+```
+
 ### v1.3.2 Features
 
 #### Opening Hours Display
@@ -173,17 +214,6 @@ Settings → Devices & Services → MieleLogic Portal
 → Opening: 07:00
 → Closing: 21:00
 → Save
-```
-
-#### External Calendar Sync
-```
-Settings → Devices & Services → MieleLogic Portal
-→ Configure → Configure calendar sync
-→ ☑ Enable calendar sync
-→ Target: calendar.kun_flemming
-→ Save
-
-Result: Reservations appear in your external calendar!
 ```
 
 ### Using Blueprints (Easy Way!) 📘
@@ -279,15 +309,18 @@ You can hide unused sensors in the UI:
 - **After setup:** Options Flow → Configure opening hours
 - **Default:** 07:00 - 21:00 (change to match your laundry)
 
-### Q: What if my laundry has different hours on weekends?
-**A:** v1.3.2 uses the same hours every day. Weekend-specific hours are planned for v1.3.3.
+### Q: My calendar events show wrong times?
+**A:** Update to v1.3.3! This version fixes the timezone issue:
+- Old events will remain with wrong times (delete manually)
+- New events will have correct Denmark timezone
+- Matches your MieleLogic app exactly
 
 ### Q: How does external calendar sync work?
 **A:** (v1.3.1+)
 - Enable in Options Flow → Configure calendar sync
 - Select target calendar (e.g., CalDAV)
 - Reservations sync automatically every 5 minutes
-- Events tagged with `[MieleLogic]` for easy identification
+- Events named "Klatvask Reserveret" or "Storvask Reserveret"
 - One-way sync: MieleLogic → External calendar
 
 ### Q: Can I sync to multiple calendars?
@@ -304,16 +337,17 @@ You can hide unused sensors in the UI:
 ## 🔧 Development
 
 ### Version History
-- **v1.3.2** (2026-01-24) - Opening hours configuration, enhanced Options Flow, MieleLogic Portal branding
-- **v1.3.1** (2026-01-24) - External calendar sync (optional), menu-based Options Flow
-- **v1.3.0** (2026-01-21) - Calendar integration, automation blueprints, timezone fixes
-- **v1.2.0** (2026-01-20) - Binary sensors, enhanced attributes, response caching
-- **v1.1.0** (2026-01-20) - HA 2024+ compliance, device organization, options flow
+- **v1.3.3** (2026-01-26) - Calendar time & name fix (Denmark timezone)
+- **v1.3.2** (2026-01-24) - Opening hours configuration, enhanced Options Flow
+- **v1.3.1** (2026-01-24) - External calendar sync (optional)
+- **v1.3.0** (2026-01-21) - Calendar integration, automation blueprints
+- **v1.2.0** (2026-01-20) - Binary sensors, enhanced attributes, caching
+- **v1.1.0** (2026-01-20) - HA 2024+ compliance, device organization
 - **v1.0.5** (2026-01-13) - Initial alpha release
 
 ### Roadmap
-- **v1.3.3** (Planned) - Weekend-specific opening hours, sync status sensor
-- **v1.4.0** (Planned) - Services (make/cancel reservations), advanced automation
+- **v1.3.4** (Planned) - Weekend-specific opening hours
+- **v1.4.0** (Planned) - Services (make/cancel reservations)
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
@@ -321,10 +355,10 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 ## 📄 Documentation
 
-- [Installation Guide](INSTALLATION_GUIDE.md)
-- [Changelog](CHANGELOG.md)
+- [Installation Guide](v1_3_3_INSTALLATION.md)
+- [Changelog v1.3.3](CHANGELOG_v1_3_3.md)
 - [Blueprints README](blueprints/README.md)
-- [v1.3.2 Release Notes](CHANGELOG_v1.3.2.md)
+- [Opening Hours Feature](OPENING_HOURS_FEATURE.md)
 
 ---
 
