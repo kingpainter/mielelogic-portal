@@ -1,4 +1,4 @@
-# VERSION = "1.3.2"
+# VERSION = "1.3.2.1"
 """
 MieleLogic sensor platform.
 
@@ -8,8 +8,15 @@ This module creates sensors for:
 3. Per-machine sensors (dynamically created for each machine)
 
 v1.3.2 Update: Per-machine sensors now combine status + reservation info
+v1.3.2.1 Update: 
+  - Fixed machine type detection (use UnitName instead of MachineType)
+  - Added time remaining parsing with persistence across HA restarts
+  - Calculated remaining time attribute updates every coordinator refresh
 """
 import logging
+import re
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorDeviceClass,
@@ -18,6 +25,7 @@ from homeassistant.components.sensor import (
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN
 
@@ -286,10 +294,12 @@ class MieleLogicDryerStatusSensor(SensorEntity):
         }
 
 
-class MieleLogicMachineStatusSensor(SensorEntity):
+class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
     """Sensor for individual machine status.
     
     v1.3.2: Now combines Text1 (status) + ReservationInfo for display.
+    v1.3.2.1: Fixed machine type detection + added time remaining parsing with persistence
+    
     Examples:
     - "Ledig indtil kl. 21:00" (Text1="Ledig indtil", ReservationInfo="kl. 21:00")
     - "Resttid: 55 min" (Text1="Resttid: 55 min", ReservationInfo="")
@@ -304,6 +314,10 @@ class MieleLogicMachineStatusSensor(SensorEntity):
         self._machine_number = machine_number
         self._machine_name = machine_name
         self._machine_type = machine_type
+        
+        # Persistent countdown data (survives HA restart)
+        self._countdown_started = None
+        self._countdown_duration = None
 
         # Clean name for entity_id (remove spaces, special chars)
         clean_name = machine_name.lower().replace(" ", "_").replace("æ", "ae").replace("ø", "oe").replace("å", "aa")
@@ -312,13 +326,44 @@ class MieleLogicMachineStatusSensor(SensorEntity):
         self._attr_name = f"{machine_name} {machine_number} Status"
         self._attr_device_info = coordinator.device_info
 
-        # Set icon based on machine type
-        if machine_type in ["51", "85"]:
+        # FIX: Use machine NAME to determine type (not MachineType code)
+        # This fixes Klatvask #2 showing as "Dryer" when it's actually a washer
+        machine_name_lower = machine_name.lower()
+        if "klatvask" in machine_name_lower or "storvask" in machine_name_lower or "vask" in machine_name_lower:
+            self._attr_icon = "mdi:washing-machine"
+        elif "tørre" in machine_name_lower or "dryer" in machine_name_lower:
+            self._attr_icon = "mdi:tumble-dryer"
+        elif machine_type in ["51", "85"]:
+            # Fallback to MachineType if name doesn't match
             self._attr_icon = "mdi:washing-machine"
         elif machine_type == "58":
             self._attr_icon = "mdi:tumble-dryer"
         else:
             self._attr_icon = "mdi:washing-machine"
+    
+    async def async_added_to_hass(self):
+        """Restore countdown data after HA restart."""
+        await super().async_added_to_hass()
+        
+        # Restore previous state
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.attributes:
+            # Restore countdown data if it existed
+            if "countdown_started" in last_state.attributes:
+                try:
+                    self._countdown_started = datetime.fromisoformat(
+                        last_state.attributes["countdown_started"]
+                    )
+                    self._countdown_duration = last_state.attributes.get("countdown_duration_minutes")
+                    _LOGGER.debug(
+                        "Restored countdown for %s #%s: started=%s, duration=%s min",
+                        self._machine_name,
+                        self._machine_number,
+                        self._countdown_started,
+                        self._countdown_duration,
+                    )
+                except (ValueError, KeyError) as err:
+                    _LOGGER.warning("Failed to restore countdown data: %s", err)
 
     @property
     def native_value(self):
@@ -354,32 +399,123 @@ class MieleLogicMachineStatusSensor(SensorEntity):
         if not machine_data:
             return {}
 
-        # Determine machine type name
-        machine_type_name = "Unknown"
-        if self._machine_type in ["51", "85"]:
+        # FIX: Determine machine type name from UnitName (not MachineType)
+        # This fixes Klatvask #2 being labeled as "Dryer"
+        machine_name_lower = self._machine_name.lower()
+        if "klatvask" in machine_name_lower or "storvask" in machine_name_lower or "vask" in machine_name_lower:
             machine_type_name = "Washer"
+            # Override incorrect API MachineType
+            corrected_machine_type = "51"  # Washer code
+        elif "tørre" in machine_name_lower or "dryer" in machine_name_lower:
+            machine_type_name = "Dryer"
+            corrected_machine_type = "58"  # Dryer code
+        elif self._machine_type in ["51", "85"]:
+            # Fallback to MachineType code (API is correct)
+            machine_type_name = "Washer"
+            corrected_machine_type = self._machine_type
         elif self._machine_type == "58":
             machine_type_name = "Dryer"
+            corrected_machine_type = self._machine_type
+        else:
+            machine_type_name = "Unknown"
+            corrected_machine_type = self._machine_type
 
         # Determine boolean flags from status
         status_text = machine_data.get("Text1", "").lower()
         is_available = "ledig" in status_text or "available" in status_text
         is_reserved = "reserveret" in status_text or "reserved" in status_text
         is_running = "resttid" in status_text or "remaining" in status_text
+        is_closed = "lukket" in status_text or "closed" in status_text
 
-        return {
+        # NEW: Parse time remaining from status text
+        time_remaining_minutes = None
+        if is_running:
+            time_remaining_minutes = self._parse_time_remaining(status_text)
+            
+            # If we got a new time, update countdown data
+            if time_remaining_minutes is not None:
+                now = datetime.now(ZoneInfo("UTC"))
+                
+                # Only update if it's a new countdown or significantly different
+                if (self._countdown_started is None or 
+                    self._countdown_duration is None or
+                    abs(self._countdown_duration - time_remaining_minutes) > 5):
+                    
+                    self._countdown_started = now
+                    self._countdown_duration = time_remaining_minutes
+                    _LOGGER.debug(
+                        "Started countdown for %s #%s: %s minutes",
+                        self._machine_name,
+                        self._machine_number,
+                        time_remaining_minutes,
+                    )
+
+        # Calculate current remaining time (even between API updates!)
+        calculated_remaining = None
+        if self._countdown_started and self._countdown_duration:
+            now = datetime.now(ZoneInfo("UTC"))
+            elapsed = (now - self._countdown_started).total_seconds() / 60
+            calculated_remaining = max(0, int(self._countdown_duration - elapsed))
+            
+            # Clear countdown if time is up
+            if calculated_remaining == 0:
+                self._countdown_started = None
+                self._countdown_duration = None
+
+        attributes = {
             "machine_number": self._machine_number,
             "unit_name": self._machine_name,
-            "machine_type": self._machine_type,
+            "machine_type": corrected_machine_type,  # Use corrected value, not API error!
             "machine_type_name": machine_type_name,
             "is_available": is_available,
             "is_reserved": is_reserved,
             "is_running": is_running,
+            "is_closed": is_closed,
             "status_text": machine_data.get("Text1", ""),
-            "reservation_info": machine_data.get("ReservationInfo", ""),  # Keep as separate attribute
+            "reservation_info": machine_data.get("ReservationInfo", ""),
             "color_code": machine_data.get("ColorCode", ""),
             "symbol_code": machine_data.get("SymbolCode", ""),
         }
+
+        # NEW: Add time remaining attributes
+        if time_remaining_minutes is not None:
+            attributes["time_remaining_minutes"] = time_remaining_minutes
+        
+        if calculated_remaining is not None:
+            attributes["calculated_remaining_minutes"] = calculated_remaining
+        
+        # Add countdown metadata for persistence
+        if self._countdown_started:
+            attributes["countdown_started"] = self._countdown_started.isoformat()
+            attributes["countdown_duration_minutes"] = self._countdown_duration
+
+        return attributes
+
+    def _parse_time_remaining(self, status_text: str) -> int | None:
+        """Parse time remaining from status text.
+        
+        Examples:
+        - "Resttid: 55 min" → 55
+        - "Resttid: 1 time 30 min" → 90
+        - "Remaining: 45 min" → 45
+        
+        Returns:
+            Minutes remaining as integer, or None if not found
+        """
+        # Try to match "X min" pattern
+        match = re.search(r'(\d+)\s*min', status_text, re.IGNORECASE)
+        if match:
+            minutes = int(match.group(1))
+            
+            # Check if there's also hours
+            hour_match = re.search(r'(\d+)\s*time', status_text, re.IGNORECASE)
+            if hour_match:
+                hours = int(hour_match.group(1))
+                minutes += hours * 60
+            
+            return minutes
+        
+        return None
 
     def _get_machine_data(self):
         """Get data for this specific machine from coordinator."""

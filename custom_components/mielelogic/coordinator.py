@@ -1,4 +1,4 @@
-# VERSION = "1.3.2"
+# VERSION = "1.3.3"
 import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -186,17 +186,21 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 # Parse datetime with timezone handling
                 start_time = self._parse_datetime(start_str)
                 end_time = self._parse_datetime(end_str)
+                
+                # Convert UTC to Denmark timezone for display
+                denmark_tz = ZoneInfo("Europe/Copenhagen")
+                start_time_denmark = start_time.astimezone(denmark_tz)
+                end_time_denmark = end_time.astimezone(denmark_tz)
 
-                # Create event summary (must match for duplicate detection)
-                summary = f"{machine_name}"
-                if machine_number:
-                    summary += f" #{machine_number}"
-                summary += " [MieleLogic]"  # Tag to identify our events
+                # Create event summary - simpler format without machine number
+                # "Klatvask Reserveret" instead of "Klatvask #1 [MieleLogic]"
+                summary = f"{machine_name} Reserveret"
 
                 # Check if event already exists (match on summary + start time)
+                # Compare times in Denmark timezone
                 already_exists = any(
                     event.get("summary") == summary
-                    and self._parse_datetime(event.get("start")) == start_time
+                    and self._parse_datetime(event.get("start")).astimezone(denmark_tz) == start_time_denmark
                     for event in existing_events
                 )
 
@@ -217,14 +221,14 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                     {
                         "entity_id": target_calendar,
                         "summary": summary,
-                        "start_date_time": start_time.isoformat(),
-                        "end_date_time": end_time.isoformat(),
+                        "start_date_time": start_time_denmark.isoformat(),
+                        "end_date_time": end_time_denmark.isoformat(),
                         "description": description,
                     },
                     blocking=False,
                 )
 
-                _LOGGER.info("✅ Created calendar event: %s", summary)
+                _LOGGER.info("âœ… Created calendar event: %s", summary)
 
             except Exception as err:
                 _LOGGER.warning(
@@ -267,10 +271,10 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         if self._is_cache_valid(cache_key):
             cached = self._cache[cache_key]
             age = (datetime.now(ZoneInfo("UTC")) - cached["timestamp"]).total_seconds()
-            _LOGGER.info("✅ Cache HIT for %s (age: %.1fs)", cache_key, age)
+            _LOGGER.info("âœ… Cache HIT for %s (age: %.1fs)", cache_key, age)
             return cached["data"]
 
-        _LOGGER.debug("❌ Cache MISS for %s", cache_key)
+        _LOGGER.debug("âŒ Cache MISS for %s", cache_key)
         return None
 
     def _save_to_cache(self, cache_key: str, data: dict):
@@ -279,7 +283,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             "data": data,
             "timestamp": datetime.now(ZoneInfo("UTC")),
         }
-        _LOGGER.debug("💾 Cached data for %s", cache_key)
+        _LOGGER.debug("ðŸ’¾ Cached data for %s", cache_key)
 
     async def _fetch_with_cache(
         self, session: aiohttp.ClientSession, url: str, cache_key: str, headers: dict
