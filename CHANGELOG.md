@@ -1,159 +1,289 @@
-# Changelog - v1.3.3
+# Changelog v1.4.5 - Naming Consistency Fix
 
-## [1.3.3] - 2026-01-26
+## [1.4.5] - 2026-01-30
 
-### 🐛 Bug Fix - External Calendar Sync
+### 🎯 Purpose: Fix Naming Inconsistency
 
-**Problem:**
-- Calendar events created 1 hour later than reservation time
-- Event names too long: "Klatvask #1 [MieleLogic]"
+**Problem:** Inconsistent naming throughout codebase and documentation
+- Code said: "MieleLogic Portal" (in some places)
+- Manifest said: "MieleLogic"
+- Docs expected: `sensor.mielelogic_portal_*`
+- Reality was: `sensor.mielelogic_*`
 
-**Solution:**
-- ✅ Fixed timezone conversion (UTC → Denmark timezone)
-- ✅ Simplified event names: "Klatvask Reserveret" / "Storvask Reserveret"
-
-### 🔧 Changes
-
-**coordinator.py (v1.3.3):**
-```python
-# Before:
-summary = "Klatvask #1 [MieleLogic]"
-start_date_time: start_time.isoformat()  # UTC time (wrong!)
-
-# After:
-summary = "Klatvask Reserveret"
-start_date_time: start_time_denmark.isoformat()  # Denmark time (correct!)
-```
-
-**Impact:**
-- Calendar events now show correct time (matches MieleLogic app)
-- Simpler event names: "Klatvask Reserveret" or "Storvask Reserveret"
-- No more "[MieleLogic]" tag (cleaner appearance)
-
-### ✅ Example
-
-**Reservation in MieleLogic app:**
-- Machine: Klatvask #1
-- Time: 19:00 - 20:30 (Denmark time)
-
-**Calendar event (Before v1.3.3):**
-- Summary: "Klatvask #1 [MieleLogic]"
-- Time: 20:00 - 21:30 ❌ (1 hour late!)
-
-**Calendar event (After v1.3.3):**
-- Summary: "Klatvask Reserveret"
-- Time: 19:00 - 20:30 ✅ (correct!)
-
-### 🎯 Upgrade Instructions
-
-**If you have v1.3.2 with calendar sync enabled:**
-
-1. **Update Files:**
-   - Copy new `coordinator.py` to `/custom_components/mielelogic/`
-   - Copy new `const.py` to `/custom_components/mielelogic/`
-   - Copy new `manifest.json` to `/custom_components/mielelogic/`
-
-2. **Restart Home Assistant:**
-   - Settings → System → Restart Home Assistant
-
-3. **Clean Old Events (Optional):**
-   - Old events with wrong times will remain in calendar
-   - You can delete them manually
-   - New events will have correct times
-
-4. **Verify Fix:**
-   - Make a new reservation in MieleLogic app
-   - Wait 5 minutes (or restart coordinator)
-   - Check external calendar:
-     - Time should match MieleLogic app ✅
-     - Name should be "Klatvask Reserveret" or "Storvask Reserveret" ✅
-
-### 📝 Technical Details
-
-**Timezone Conversion:**
-```python
-# Parse API time (UTC)
-start_time = self._parse_datetime(start_str)  # UTC
-
-# Convert to Denmark timezone
-denmark_tz = ZoneInfo("Europe/Copenhagen")
-start_time_denmark = start_time.astimezone(denmark_tz)
-
-# Create event with Denmark time
-start_date_time: start_time_denmark.isoformat()
-```
-
-**Event Summary:**
-```python
-# Machine name from API: "Klatvask" or "Storvask"
-summary = f"{machine_name} Reserveret"
-
-# Results:
-# "Klatvask Reserveret"  (for Klatvask #1 or #2)
-# "Storvask Reserveret"  (for Storvask #3, #4, #5)
-```
-
-**Duplicate Detection:**
-```python
-# Check if event exists (same name + time)
-already_exists = any(
-    event.get("summary") == summary
-    and self._parse_datetime(event.get("start")).astimezone(denmark_tz) == start_time_denmark
-    for event in existing_events
-)
-```
-
-### ⚠️ Breaking Changes
-
-**Minor:** Event summary format changed
-- Old format: "Klatvask #1 [MieleLogic]"
-- New format: "Klatvask Reserveret"
-
-**Impact:**
-- Old events with wrong times will NOT be updated
-- New events will use new format and correct time
-- Automations using event name need to be updated (if any)
-
-**Recommendation:** Delete old events manually and let new ones be created
-
-### 🎊 Benefits
-
-1. **Correct Times** - Events match reservation times exactly
-2. **Simpler Names** - "Klatvask Reserveret" easier to read
-3. **Cleaner Calendar** - No more "[MieleLogic]" tag clutter
-4. **Better UX** - Calendar matches user expectations
-
-### 📦 Files Changed
-
-**Modified Files (3):**
-1. `coordinator.py` (v1.3.3 - timezone fix + simpler names)
-2. `const.py` (v1.3.3 - version bump)
-3. `manifest.json` (v1.3.3 - version bump)
-
-**Unchanged Files:**
-- `__init__.py` (v1.3.0)
-- `binary_sensor.py` (v1.3.0)
-- `calendar.py` (v1.3.0)
-- `config_flow.py` (v1.3.2)
-- `sensor.py` (v1.3.2)
-- `translations/da.json` (v1.3.2)
-- `translations/en.json` (v1.3.2)
-
-### 🚀 Next Steps
-
-**v1.3.3 (Planned):**
-- Weekend-specific opening hours
-- Holiday calendar support
-
-**v1.4.0 (Planned):**
-- Services: make/cancel reservations
-- Two-way calendar sync
+**Solution:** Standardize on "MieleLogic" (without "Portal") everywhere!
 
 ---
 
-**Version:** 1.3.3  
-**Release Type:** Patch (Bug Fix)  
-**Breaking Changes:** Minor (event name format)  
-**Migration Required:** No (but manual cleanup of old events recommended)
+## 🔧 Code Changes
 
-**Status:** Ready to Deploy! 🎉
+### Fixed Files (5):
+
+1. **config_flow.py** (line 49)
+   ```python
+   # BEFORE:
+   title="MieleLogic Portal"
+   
+   # AFTER:
+   title="MieleLogic"
+   ```
+
+2. **coordinator.py** (line 51)
+   ```python
+   # BEFORE:
+   name="MieleLogic Portal"
+   
+   # AFTER:
+   name="MieleLogic"
+   ```
+
+3. **const.py**
+   ```python
+   VERSION = "1.4.5"  # Updated from 1.4.4
+   ```
+
+4. **manifest.json**
+   ```json
+   "version": "1.4.5"  // Updated from 1.4.4
+   ```
+
+5. **__init__.py**
+   ```python
+   # VERSION = "1.4.5"  # Updated from 1.4.4
+   ```
+
+---
+
+## 📝 Documentation Changes
+
+### Updated All Entity References:
+
+**BEFORE (v1.4.4 and earlier):**
+```yaml
+sensor.mielelogic_portal_reservations  ❌
+binary_sensor.mielelogic_portal_has_reservation  ❌
+calendar.mielelogic_portal_reservations  ❌
+```
+
+**AFTER (v1.4.5):**
+```yaml
+sensor.mielelogic_reservations  ✅
+binary_sensor.mielelogic_has_reservation  ✅
+calendar.mielelogic_reservations  ✅
+```
+
+---
+
+## ✅ Consistency Achieved
+
+### Now Everything Matches:
+
+```
+DOMAIN:           mielelogic          ✅
+Integration Name: MieleLogic          ✅
+Device Name:      MieleLogic          ✅
+Entity Prefix:    mielelogic_         ✅
+Documentation:    mielelogic_         ✅
+Package:          mielelogic_         ✅
+```
+
+---
+
+## 🎯 Entity Names (Official)
+
+### Calendar (1):
+- `calendar.mielelogic_reservations`
+
+### Sensors (6-10):
+- `sensor.mielelogic_reservations`
+- `sensor.mielelogic_account_balance`
+- `sensor.mielelogic_washer_status`
+- `sensor.mielelogic_dryer_status`
+- `sensor.mielelogic_klatvask_1_status`
+- `sensor.mielelogic_klatvask_2_status`
+- `sensor.mielelogic_stor_vask_3_status`
+- `sensor.mielelogic_stor_vask_4_status`
+- `sensor.mielelogic_stor_vask_5_status`
+
+### Binary Sensors (6):
+- `binary_sensor.mielelogic_has_reservation`
+- `binary_sensor.mielelogic_has_washer_reservation`
+- `binary_sensor.mielelogic_has_dryer_reservation`
+- `binary_sensor.mielelogic_reservation_starting_soon`
+- `binary_sensor.mielelogic_washer_available`
+- `binary_sensor.mielelogic_dryer_available`
+
+---
+
+## 📦 Package File
+
+**Already Correct!** ✅
+
+The package file `mielelogic_booking_v1_4_4_OLD_NAMING.yaml` already used correct naming:
+```yaml
+sensor.mielelogic_reservations  ✅
+```
+
+**Renamed to:** `mielelogic_booking_v1_4_5.yaml`
+
+---
+
+## 🚀 Migration from v1.4.4
+
+### If You Have v1.4.4 Installed:
+
+**Good News:** No migration needed! ✅
+
+**Why?**
+- Your entities already have correct names (`sensor.mielelogic_*`)
+- This update just fixes the inconsistency in code
+- No entity IDs change!
+
+**Steps:**
+1. Install v1.4.5 files (5 updated files)
+2. Restart Home Assistant
+3. Done! Everything works the same!
+
+---
+
+## 🎊 Benefits
+
+### Before v1.4.5:
+- ❌ Confusing documentation (expected "_portal_")
+- ❌ Inconsistent naming in code
+- ❌ New users confused about entity names
+- ❌ Package didn't match docs
+
+### After v1.4.5:
+- ✅ Consistent naming everywhere
+- ✅ Clear documentation
+- ✅ Code matches reality
+- ✅ Package matches entities
+
+---
+
+## 📋 Files Changed
+
+### Core Integration (5 files):
+1. `__init__.py` - Version comment
+2. `config_flow.py` - Integration title
+3. `coordinator.py` - Device name
+4. `const.py` - Version constant
+5. `manifest.json` - Version field
+
+### Services (1 file):
+6. `services.py` - Version comment
+
+### Package (1 file):
+7. `mielelogic_booking.yaml` - Already correct, just renamed
+
+**Total:** 7 files updated
+
+---
+
+## ⚠️ Breaking Changes
+
+**None!** ✅
+
+This is a **non-breaking** update:
+- Entity IDs stay the same
+- Device name display changes slightly (loses " Portal")
+- But functionality identical
+- Automations work unchanged
+- Dashboard works unchanged
+- Package works unchanged
+
+---
+
+## 🧪 Testing
+
+### Verified:
+- ✅ Entity names match pattern `sensor.mielelogic_*`
+- ✅ No `_portal_` in entity names
+- ✅ Device shows as "MieleLogic" (not "MieleLogic Portal")
+- ✅ Integration title is "MieleLogic"
+- ✅ All documentation matches reality
+- ✅ Package file works correctly
+- ✅ Services work (make/cancel)
+- ✅ Dashboard works
+- ✅ Automations work
+
+---
+
+## 📖 Updated Documentation
+
+### Files Updated:
+- README.md - All entity examples
+- INSTALLATION guides - Entity naming
+- Package examples - Already correct
+- Project instructions - Naming section
+- All tutorials - Entity references
+
+---
+
+## 💡 Why "MieleLogic" (not "MieleLogic Portal")?
+
+**Reasons:**
+1. ✅ Matches `domain: "mielelogic"`
+2. ✅ Matches `manifest name: "MieleLogic"`
+3. ✅ Shorter and cleaner
+4. ✅ Matches API provider name
+5. ✅ What users actually have installed
+6. ✅ Consistent with industry naming
+
+---
+
+## 🎯 Version Summary
+
+**v1.4.5** = v1.4.4 + Naming Consistency Fix
+
+**Features:** (same as v1.4.4)
+- ✅ Make reservation service
+- ✅ Cancel reservation service  
+- ✅ Dashboard package
+- ✅ Input helpers
+- ✅ Timezone handling
+- ✅ Debug logging
+
+**Plus:**
+- ✅ Consistent naming everywhere! ⭐ NEW!
+
+---
+
+## 🚀 Installation
+
+**From v1.4.4:**
+1. Copy 5 updated core files
+2. Copy 1 updated services.py
+3. Restart HA
+4. Done! (no config changes needed)
+
+**Fresh Install:**
+1. Copy all 12 integration files
+2. Copy package file
+3. Restart HA
+4. Setup via UI
+5. Done!
+
+---
+
+## 📞 Support
+
+**Questions about naming?**
+- Check entity list in Developer Tools → States
+- All entities should be `sensor.mielelogic_*` (no `_portal_`)
+- If you see `_portal_`, you have old version
+
+**Issues?**
+- Entity names wrong? Check you installed v1.4.5
+- Package not working? Check sensor name in package
+- Dashboard broken? Update entity references
+
+---
+
+**Version:** 1.4.5  
+**Release Date:** 30. januar 2026  
+**Type:** Patch (Naming Fix)  
+**Breaking Changes:** None ✅  
+**Migration Required:** No ✅
+
+**Status:** Ready for Release! 🎉

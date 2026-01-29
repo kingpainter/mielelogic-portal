@@ -48,7 +48,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         # Device info for all entities
         self.device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{self.username}_{self.laundry_id}")},
-            name="MieleLogic Portal",
+            name="MieleLogic",
             manufacturer="MieleLogic",
             model="Laundry Service",
             sw_version="v7",
@@ -228,7 +228,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                     blocking=False,
                 )
 
-                _LOGGER.info("âœ… Created calendar event: %s", summary)
+                _LOGGER.info("Ã¢Å“â€¦ Created calendar event: %s", summary)
 
             except Exception as err:
                 _LOGGER.warning(
@@ -271,10 +271,10 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         if self._is_cache_valid(cache_key):
             cached = self._cache[cache_key]
             age = (datetime.now(ZoneInfo("UTC")) - cached["timestamp"]).total_seconds()
-            _LOGGER.info("âœ… Cache HIT for %s (age: %.1fs)", cache_key, age)
+            _LOGGER.info("Ã¢Å“â€¦ Cache HIT for %s (age: %.1fs)", cache_key, age)
             return cached["data"]
 
-        _LOGGER.debug("âŒ Cache MISS for %s", cache_key)
+        _LOGGER.debug("Ã¢ÂÅ’ Cache MISS for %s", cache_key)
         return None
 
     def _save_to_cache(self, cache_key: str, data: dict):
@@ -283,7 +283,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             "data": data,
             "timestamp": datetime.now(ZoneInfo("UTC")),
         }
-        _LOGGER.debug("ðŸ’¾ Cached data for %s", cache_key)
+        _LOGGER.debug("Ã°Å¸â€™Â¾ Cached data for %s", cache_key)
 
     async def _fetch_with_cache(
         self, session: aiohttp.ClientSession, url: str, cache_key: str, headers: dict

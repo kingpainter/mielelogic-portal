@@ -46,7 +46,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 # Create entry with calendar sync disabled by default
                 return self.async_create_entry(
-                    title="MieleLogic Portal",
+                    title="MieleLogic",
                     data={
                         CONF_USERNAME: user_input[CONF_USERNAME],
                         CONF_PASSWORD: user_input[CONF_PASSWORD],
