@@ -1,0 +1,416 @@
+# MieleLogic Booking Dashboard
+# Version: 1.4.0
+#
+# Add this to your dashboard to get a complete booking interface!
+# Copy the cards you want to your own dashboard.
+
+# ===== OPTION 1: COMPACT BOOKING CARD =====
+# Quick and simple - all in one card
+
+type: entities
+title: 🧺 Book Vaskemaskine
+icon: mdi:washing-machine
+show_header_toggle: false
+entities:
+  # Status info
+  - type: section
+    label: Status
+  - entity: sensor.mielelogic_antal_bookinger
+    name: Aktive Bookinger
+  - entity: sensor.mielelogic_næste_booking
+    name: Næste Booking
+  
+  # Booking inputs
+  - type: section
+    label: Ny Booking
+  - entity: input_select.mielelogic_booking_preset
+    name: Genveje
+  - entity: input_datetime.mielelogic_booking_time
+    name: Start Tidspunkt
+  - entity: input_number.mielelogic_booking_machine
+    name: Maskine
+  - entity: input_number.mielelogic_booking_duration
+    name: Varighed
+  
+  # Action buttons
+  - type: section
+    label: Handlinger
+  - type: button
+    name: 📅 Book Nu
+    icon: mdi:check-circle
+    action_row: true
+    tap_action:
+      action: call-service
+      service: script.mielelogic_book_now
+    hold_action:
+      action: none
+  - type: button
+    name: ❌ Annuller Booking
+    icon: mdi:cancel
+    action_row: true
+    tap_action:
+      action: call-service
+      service: script.mielelogic_cancel_booking
+      confirmation:
+        text: "Er du sikker på du vil annullere din booking?"
+
+---
+
+# ===== OPTION 2: VISUAL BOOKING CARD =====
+# More visual with separate sections
+
+type: vertical-stack
+cards:
+  # Current bookings
+  - type: entities
+    title: 📋 Dine Bookinger
+    icon: mdi:calendar-check
+    show_header_toggle: false
+    entities:
+      - entity: sensor.mielelogic_antal_bookinger
+        name: Antal Bookinger
+      - entity: sensor.mielelogic_næste_booking
+        name: Næste Booking
+      - type: conditional
+        conditions:
+          - entity: binary_sensor.mielelogic_portal_has_reservation
+            state: "on"
+        row:
+          type: button
+          name: ❌ Annuller Næste Booking
+          icon: mdi:cancel
+          tap_action:
+            action: call-service
+            service: script.mielelogic_cancel_booking
+            confirmation:
+              text: "Annuller booking?"
+  
+  # Quick booking
+  - type: entities
+    title: ⚡ Hurtig Booking
+    icon: mdi:lightning-bolt
+    show_header_toggle: false
+    entities:
+      - entity: input_select.mielelogic_booking_preset
+        name: Vælg Tidspunkt
+      - entity: input_number.mielelogic_booking_machine
+        name: Maskine
+      - type: button
+        name: 📅 Book Med Genvej
+        icon: mdi:check-circle
+        tap_action:
+          action: call-service
+          service: script.mielelogic_book_now
+  
+  # Advanced booking
+  - type: entities
+    title: ⚙️ Avanceret Booking
+    icon: mdi:cog
+    show_header_toggle: false
+    state_color: false
+    entities:
+      - entity: input_datetime.mielelogic_booking_time
+        name: Præcist Tidspunkt
+      - entity: input_number.mielelogic_booking_machine
+        name: Maskine
+      - entity: input_number.mielelogic_booking_duration
+        name: Varighed (min)
+      - type: button
+        name: 📅 Book Nu
+        icon: mdi:check-circle
+        tap_action:
+          action: call-service
+          service: script.mielelogic_book_now
+
+---
+
+# ===== OPTION 3: MUSHROOM CARDS (Modern Design) =====
+# Requires: mushroom card (HACS)
+
+type: vertical-stack
+cards:
+  # Status card
+  - type: custom:mushroom-template-card
+    primary: >
+      {% if is_state('binary_sensor.mielelogic_portal_has_reservation', 'on') %}
+        {{ states('sensor.mielelogic_antal_bookinger') }} Booking{{ 's' if states('sensor.mielelogic_antal_bookinger') | int > 1 else '' }}
+      {% else %}
+        Ingen Bookinger
+      {% endif %}
+    secondary: >
+      {% if is_state('binary_sensor.mielelogic_portal_has_reservation', 'on') %}
+        Næste: {{ state_attr('sensor.mielelogic_næste_booking', 'start_time') }}
+      {% else %}
+        Book en maskine nu!
+      {% endif %}
+    icon: >
+      {% if is_state('binary_sensor.mielelogic_portal_has_reservation', 'on') %}
+        mdi:calendar-check
+      {% else %}
+        mdi:calendar-blank
+      {% endif %}
+    icon_color: >
+      {% if is_state('binary_sensor.mielelogic_portal_has_reservation', 'on') %}
+        green
+      {% else %}
+        grey
+      {% endif %}
+    tap_action:
+      action: none
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, rgba(6, 214, 160, 0.1) 0%, rgba(6, 214, 160, 0.05) 100%);
+          border-left: 4px solid #06D6A0;
+        }
+  
+  # Quick actions
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      # Tonight booking
+      - type: custom:mushroom-template-card
+        primary: "I Aften"
+        secondary: "kl. 19:00"
+        icon: mdi:weather-night
+        icon_color: blue
+        tap_action:
+          action: call-service
+          service: script.mielelogic_quick_book
+          data:
+            machine: 1
+            preset: "tonight_19"
+            duration: 120
+        card_mod:
+          style: |
+            ha-card {
+              height: 100px;
+            }
+      
+      # Tomorrow booking
+      - type: custom:mushroom-template-card
+        primary: "I Morgen"
+        secondary: "kl. 10:00"
+        icon: mdi:weather-sunny
+        icon_color: orange
+        tap_action:
+          action: call-service
+          service: script.mielelogic_quick_book
+          data:
+            machine: 1
+            preset: "tomorrow_10"
+            duration: 120
+        card_mod:
+          style: |
+            ha-card {
+              height: 100px;
+            }
+  
+  # Full booking form
+  - type: entities
+    title: ⚙️ Fuld Booking
+    entities:
+      - entity: input_select.mielelogic_booking_preset
+      - entity: input_datetime.mielelogic_booking_time
+      - entity: input_number.mielelogic_booking_machine
+      - entity: input_number.mielelogic_booking_duration
+      - type: button
+        name: 📅 Book Nu
+        icon: mdi:check-circle
+        tap_action:
+          action: call-service
+          service: script.mielelogic_book_now
+  
+  # Cancel button
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.mielelogic_portal_has_reservation
+        state: "on"
+    card:
+      type: custom:mushroom-template-card
+      primary: "Annuller Booking"
+      secondary: "{{ states('sensor.mielelogic_næste_booking') }}"
+      icon: mdi:cancel
+      icon_color: red
+      tap_action:
+        action: call-service
+        service: script.mielelogic_cancel_booking
+        confirmation:
+          text: "Annuller {{ states('sensor.mielelogic_næste_booking') }}?"
+
+---
+
+# ===== OPTION 4: BUTTON GRID (Fastest!) =====
+# Quick action buttons for common scenarios
+
+type: grid
+columns: 2
+square: false
+cards:
+  # Klatvask 1 - Tonight
+  - type: button
+    name: Klatvask 1
+    icon: mdi:washing-machine
+    show_name: true
+    show_icon: true
+    tap_action:
+      action: call-service
+      service: script.mielelogic_quick_book
+      data:
+        machine: 1
+        preset: "tonight_19"
+        duration: 120
+    entity: binary_sensor.mielelogic_portal_has_washer_reservation
+    icon_height: 40px
+  
+  # Klatvask 2 - Tonight
+  - type: button
+    name: Klatvask 2
+    icon: mdi:washing-machine
+    tap_action:
+      action: call-service
+      service: script.mielelogic_quick_book
+      data:
+        machine: 2
+        preset: "tonight_19"
+        duration: 120
+    icon_height: 40px
+  
+  # Storvask 4 - Tonight
+  - type: button
+    name: Storvask 4
+    icon: mdi:washing-machine
+    tap_action:
+      action: call-service
+      service: script.mielelogic_quick_book
+      data:
+        machine: 4
+        preset: "tonight_19"
+        duration: 120
+    icon_height: 40px
+  
+  # Storvask 5 - Tonight
+  - type: button
+    name: Storvask 5
+    icon: mdi:washing-machine
+    tap_action:
+      action: call-service
+      service: script.mielelogic_quick_book
+      data:
+        machine: 5
+        preset: "tonight_19"
+        duration: 120
+    icon_height: 40px
+
+---
+
+# ===== OPTION 5: MOBILE-FRIENDLY CARD =====
+# Optimized for phone screens
+
+type: vertical-stack
+cards:
+  # Status banner
+  - type: custom:mushroom-chips-card
+    chips:
+      - type: entity
+        entity: sensor.mielelogic_antal_bookinger
+        icon: mdi:calendar-check
+        icon_color: green
+        tap_action:
+          action: none
+      - type: entity
+        entity: sensor.mielelogic_portal_account_balance
+        icon: mdi:cash
+        icon_color: blue
+        tap_action:
+          action: none
+  
+  # Quick preset selector
+  - type: entities
+    entities:
+      - entity: input_select.mielelogic_booking_preset
+        name: Hvornår?
+      - entity: input_number.mielelogic_booking_machine
+        name: Hvilken maskine?
+  
+  # Big book button
+  - type: button
+    name: BOOK NU
+    icon: mdi:check-circle-outline
+    show_name: true
+    show_icon: true
+    tap_action:
+      action: call-service
+      service: script.mielelogic_book_now
+    icon_height: 60px
+    card_mod:
+      style: |
+        ha-card {
+          height: 100px;
+          background: linear-gradient(135deg, #06D6A0 0%, #00B4D8 100%);
+          color: white;
+          font-size: 24px;
+          font-weight: bold;
+        }
+  
+  # Cancel button (conditional)
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.mielelogic_portal_has_reservation
+        state: "on"
+    card:
+      type: button
+      name: ANNULLER
+      icon: mdi:cancel
+      tap_action:
+        action: call-service
+        service: script.mielelogic_cancel_booking
+        confirmation:
+          text: "Annuller booking?"
+      icon_height: 40px
+      card_mod:
+        style: |
+          ha-card {
+            height: 80px;
+            background: #EF476F;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+          }
+
+---
+
+# ===== TIPS =====
+#
+# 1. START MED OPTION 1 (Compact Card)
+#    - Simplest og har alt
+#    - Fungerer uden ekstra cards
+#
+# 2. UPGRADE TIL OPTION 3 (Mushroom)
+#    - Installer mushroom-card fra HACS først
+#    - Pænere design
+#    - Bedre på mobil
+#
+# 3. BRUG OPTION 4 (Button Grid)
+#    - Til quick booking
+#    - Altid samme tid (i aften kl. 19)
+#    - Én knap = én maskine booket
+#
+# 4. KOMBINER!
+#    - Option 4 (buttons) til hurtig booking
+#    - Option 1 (compact) til avanceret booking
+#    - Bedst af begge verdener!
+#
+# ===== CUSTOMIZATION =====
+#
+# Skift standard tid i Option 4:
+#   preset: "tonight_19"  → "tomorrow_10"  (i morgen kl. 10)
+#   preset: "tonight_19"  → "now_30"       (om 30 min)
+#
+# Skift standard varighed:
+#   duration: 120  → 90   (1.5 timer)
+#   duration: 120  → 180  (3 timer)
+#
+# Skift maskine:
+#   machine: 1  → 4  (Storvask i stedet)

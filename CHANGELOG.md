@@ -1,182 +1,286 @@
-# Changelog v1.4.5 - Naming Consistency Fix
+# Changelog v1.4.6 - Vaskehus Abstraction
 
-## [1.4.5] - 2026-01-30
+## [1.4.6] - 2026-01-30
 
-### 🎯 Purpose: Fix Naming Inconsistency
+### 🎯 Purpose: Vaskehus-Based Booking System
 
-**Problem:** Inconsistent naming throughout codebase and documentation
-- Code said: "MieleLogic Portal" (in some places)
-- Manifest said: "MieleLogic"
-- Docs expected: `sensor.mielelogic_portal_*`
-- Reality was: `sensor.mielelogic_*`
+**Problem:** Users book laundry houses (Klatvask/Storvask), not individual machines
+- Each vaskehus contains multiple machines
+- API requires machine numbers, but users think in vaskehuse
+- Tidsblokke are fixed (07:00-09:00), not flexible start times
+- Dashboard should show "Klatvask booket" not "Maskine 1 booket"
 
-**Solution:** Standardize on "MieleLogic" (without "Portal") everywhere!
-
----
-
-## 🔧 Code Changes
-
-### Fixed Files (5):
-
-1. **config_flow.py** (line 49)
-   ```python
-   # BEFORE:
-   title="MieleLogic Portal"
-   
-   # AFTER:
-   title="MieleLogic"
-   ```
-
-2. **coordinator.py** (line 51)
-   ```python
-   # BEFORE:
-   name="MieleLogic Portal"
-   
-   # AFTER:
-   name="MieleLogic"
-   ```
-
-3. **const.py**
-   ```python
-   VERSION = "1.4.5"  # Updated from 1.4.4
-   ```
-
-4. **manifest.json**
-   ```json
-   "version": "1.4.5"  // Updated from 1.4.4
-   ```
-
-5. **__init__.py**
-   ```python
-   # VERSION = "1.4.5"  # Updated from 1.4.4
-   ```
+**Solution:** Complete abstraction layer for vaskehus-based booking! ⭐
 
 ---
 
-## 📝 Documentation Changes
+## 🔧 New Features
 
-### Updated All Entity References:
+### 1. Machine Configuration (Options Flow)
+**Path:** Settings → MieleLogic → Configure → Configure Machines
 
-**BEFORE (v1.4.4 and earlier):**
+Configure which machine is used for API calls:
 ```yaml
-sensor.mielelogic_portal_reservations  ❌
-binary_sensor.mielelogic_portal_has_reservation  ❌
-calendar.mielelogic_portal_reservations  ❌
+Klatvask primær maskine: [1 ▼]  # Vælg 1 eller 2
+Storvask primær maskine: [4 ▼]  # Vælg 3, 4, eller 5
 ```
 
-**AFTER (v1.4.5):**
+**Purpose:**
+- Maps vaskehus name → primary machine number
+- User selects in Options Flow
+- Default: Klatvask=1, Storvask=4
+
+---
+
+### 2. Time Slots Configuration (Options Flow)
+**Path:** Settings → MieleLogic → Configure → Configure Time Slots
+
+**Main Menu:**
+```
+┌──────────────────────────────────┐
+│  Rediger Storvask (6 blokke)    │
+│  Rediger Klatvask (7 blokke)    │
+│  Gem og luk                      │
+└──────────────────────────────────┘
+```
+
+**Edit Storvask:**
+```
+┌──────────────────────────────────┐
+│  🗑️ 07:00-09:00 (2t)             │
+│  🗑️ 09:00-12:00 (3t)             │
+│  🗑️ 12:00-14:00 (2t)             │
+│  🗑️ 14:00-17:00 (3t)             │
+│  🗑️ 17:00-19:00 (2t)             │
+│  🗑️ 19:00-21:00 (2t)             │
+│  ➕ Tilføj ny tidsblok            │
+│  ⬅️ Tilbage                       │
+└──────────────────────────────────┘
+```
+
+**Add New Slot:**
+```
+┌──────────────────────────────────┐
+│  Start tidspunkt:  [07:00]      │
+│  Slut tidspunkt:   [09:00]      │
+│                                  │
+│  Varighed: 2t (auto-beregnet)   │
+└──────────────────────────────────┘
+```
+
+**Features:**
+- Unlimited time slots per vaskehus
+- Add/delete slots dynamically
+- Auto-sorted by start time
+- Duration calculated automatically
+- Format validation (HH:MM)
+- Same start time can have multiple durations (e.g., 07:00-09:00 + 07:00-12:00)
+
+---
+
+### 3. Default Time Slots
+
+**Storvask (6 blokke):**
 ```yaml
-sensor.mielelogic_reservations  ✅
-binary_sensor.mielelogic_has_reservation  ✅
-calendar.mielelogic_reservations  ✅
+- 07:00-09:00 (2 timer)
+- 09:00-12:00 (3 timer)
+- 12:00-14:00 (2 timer)
+- 14:00-17:00 (3 timer)
+- 17:00-19:00 (2 timer)
+- 19:00-21:00 (2 timer)
 ```
 
----
-
-## ✅ Consistency Achieved
-
-### Now Everything Matches:
-
-```
-DOMAIN:           mielelogic          ✅
-Integration Name: MieleLogic          ✅
-Device Name:      MieleLogic          ✅
-Entity Prefix:    mielelogic_         ✅
-Documentation:    mielelogic_         ✅
-Package:          mielelogic_         ✅
-```
-
----
-
-## 🎯 Entity Names (Official)
-
-### Calendar (1):
-- `calendar.mielelogic_reservations`
-
-### Sensors (6-10):
-- `sensor.mielelogic_reservations`
-- `sensor.mielelogic_account_balance`
-- `sensor.mielelogic_washer_status`
-- `sensor.mielelogic_dryer_status`
-- `sensor.mielelogic_klatvask_1_status`
-- `sensor.mielelogic_klatvask_2_status`
-- `sensor.mielelogic_stor_vask_3_status`
-- `sensor.mielelogic_stor_vask_4_status`
-- `sensor.mielelogic_stor_vask_5_status`
-
-### Binary Sensors (6):
-- `binary_sensor.mielelogic_has_reservation`
-- `binary_sensor.mielelogic_has_washer_reservation`
-- `binary_sensor.mielelogic_has_dryer_reservation`
-- `binary_sensor.mielelogic_reservation_starting_soon`
-- `binary_sensor.mielelogic_washer_available`
-- `binary_sensor.mielelogic_dryer_available`
-
----
-
-## 📦 Package File
-
-**Already Correct!** ✅
-
-The package file `mielelogic_booking_v1_4_4_OLD_NAMING.yaml` already used correct naming:
+**Klatvask (7 blokke):**
 ```yaml
-sensor.mielelogic_reservations  ✅
+- 07:00-09:00 (2 timer)
+- 09:00-11:00 (2 timer)
+- 11:00-13:00 (2 timer)
+- 13:00-15:00 (2 timer)
+- 15:00-17:00 (2 timer)
+- 17:00-19:00 (2 timer)
+- 19:00-21:00 (2 timer)
 ```
 
-**Renamed to:** `mielelogic_booking_v1_4_5.yaml`
+**Applied on first setup** (or when upgrading from v1.4.5)
 
 ---
 
-## 🚀 Migration from v1.4.4
+## 📦 Data Structure
 
-### If You Have v1.4.4 Installed:
-
-**Good News:** No migration needed! ✅
-
-**Why?**
-- Your entities already have correct names (`sensor.mielelogic_*`)
-- This update just fixes the inconsistency in code
-- No entity IDs change!
-
-**Steps:**
-1. Install v1.4.5 files (5 updated files)
-2. Restart Home Assistant
-3. Done! Everything works the same!
+```python
+config_entry.data = {
+    # Machine mapping (NEW!)
+    "klatvask_primary_machine": 1,
+    "storvask_primary_machine": 4,
+    
+    # Time slots (NEW!)
+    "storvask_slots": [
+        {"start": "07:00", "end": "09:00"},
+        {"start": "09:00", "end": "12:00"},
+        ...
+    ],
+    
+    "klatvask_slots": [
+        {"start": "07:00", "end": "09:00"},
+        {"start": "09:00", "end": "11:00"},
+        ...
+    ],
+    
+    # Existing v1.4.5 data (unchanged)
+    "username": "...",
+    "password": "...",
+    "sync_to_calendar": None,
+    "opening_time": "07:00",
+    "closing_time": "21:00",
+}
+```
 
 ---
 
-## 🎊 Benefits
+## 🎨 Updated Options Flow
 
-### Before v1.4.5:
-- ❌ Confusing documentation (expected "_portal_")
-- ❌ Inconsistent naming in code
-- ❌ New users confused about entity names
-- ❌ Package didn't match docs
+### Before v1.4.6 (3 options):
+```
+Settings → MieleLogic → Configure
+├── Update Login Credentials
+├── Configure Calendar Sync
+└── Configure Opening Hours
+```
 
-### After v1.4.5:
-- ✅ Consistent naming everywhere
-- ✅ Clear documentation
-- ✅ Code matches reality
-- ✅ Package matches entities
+### After v1.4.6 (5 options):
+```
+Settings → MieleLogic → Configure
+├── Update Login Credentials
+├── Configure Calendar Sync
+├── Configure Opening Hours
+├── Configure Machines           ⭐ NEW!
+└── Configure Time Slots         ⭐ NEW!
+```
 
 ---
 
 ## 📋 Files Changed
 
-### Core Integration (5 files):
-1. `__init__.py` - Version comment
-2. `config_flow.py` - Integration title
-3. `coordinator.py` - Device name
-4. `const.py` - Version constant
-5. `manifest.json` - Version field
+### Integration Files (5):
+1. **const.py** - Version: 1.4.6
+2. **manifest.json** - Version: 1.4.6
+3. **__init__.py** - Version comment
+4. **config_flow.py** - Added machine_config + time_slots steps
+5. **da.json** + **en.json** - New translations
 
-### Services (1 file):
-6. `services.py` - Version comment
+### Coming Next (Phase 2 - Not in v1.4.6):
+6. **mielelogic_booking.yaml** - Vaskehus-based booking dashboard
+7. **services.py** - Helper functions for vaskehus lookup
+8. **sensor.py** - Display vaskehus names in attributes
 
-### Package (1 file):
-7. `mielelogic_booking.yaml` - Already correct, just renamed
+---
 
-**Total:** 7 files updated
+## ✅ What Works Now (v1.4.6)
+
+**Backend Configuration:**
+- ✅ Configure primary machines per vaskehus
+- ✅ Configure unlimited time slots per vaskehus
+- ✅ Add/delete time slots dynamically
+- ✅ Auto-sort and validate time slots
+- ✅ Default slots applied on setup
+- ✅ Full Danish + English translations
+
+**Still Uses Machine Numbers (Phase 2 will fix):**
+- ❌ Dashboard still shows "Maskine 1" (needs package update)
+- ❌ Calendar still shows "Maskine 1" (needs coordinator update)
+- ❌ Services still require machine_number (needs wrapper)
+
+---
+
+## 🚀 Phase 2 Plan (v1.4.7)
+
+### Package Integration:
+```yaml
+input_select:
+  mielelogic_booking_vaskehus:
+    options: [Klatvask, Storvask]
+  
+  mielelogic_booking_slot:
+    options: []  # Populated from config
+
+script:
+  mielelogic_book_vaskehus:
+    # Maps vaskehus → primary machine
+    # Parses slot → start/end time
+    # Calls make_reservation with machine
+```
+
+### Calendar Display:
+```python
+# coordinator.py:
+event_summary = f"{vaskehus_name} booket"  # Not "Maskine 1"
+```
+
+### Services Wrapper:
+```python
+# services.py:
+def get_vaskehus_machine(vaskehus: str, config) -> int:
+    if vaskehus == "Klatvask":
+        return config["klatvask_primary_machine"]
+    elif vaskehus == "Storvask":
+        return config["storvask_primary_machine"]
+```
+
+---
+
+## 🎯 User Experience After v1.4.7
+
+### Booking Flow:
+```
+1. Vælg vaskehus: [Klatvask ▼]
+2. Vælg dato: [12/02/2026]
+3. Vælg tidsblok: [09:00-11:00 (2t) ▼]
+4. Klik: Book Nu!
+5. ✅ "Klatvask booket kl. 09:00"
+```
+
+### Calendar Display:
+```
+📅 Klatvask booket
+   12/02/2026 09:00-11:00
+
+📅 Storvask booket
+   04/02/2026 19:00-21:00
+```
+
+### Cancellation:
+```
+Mine Bookinger:
+🧺 Klatvask booket
+   📅 12/02/2026 kl. 09:00
+   [Slet booking i Klatvask 🗑️]
+```
+
+---
+
+## 📊 Version Comparison
+
+### v1.4.5 (Machine-Based):
+```
+User thinks: "Jeg vil booke Klatvask"
+Dashboard: "Book Maskine 1"  ❌ Confusing!
+Calendar: "Maskine 1 booket"
+```
+
+### v1.4.6 (Backend Ready):
+```
+Configuration: ✅ Machine mapping configured
+Configuration: ✅ Time slots configured
+Dashboard: Still shows "Maskine 1" (Phase 2)
+Calendar: Still shows "Maskine 1" (Phase 2)
+```
+
+### v1.4.7 (Full Vaskehus):
+```
+User thinks: "Jeg vil booke Klatvask"
+Dashboard: "Book Klatvask"  ✅ Perfect!
+Calendar: "Klatvask booket"  ✅ Perfect!
+```
 
 ---
 
@@ -184,106 +288,144 @@ sensor.mielelogic_reservations  ✅
 
 **None!** ✅
 
-This is a **non-breaking** update:
-- Entity IDs stay the same
-- Device name display changes slightly (loses " Portal")
-- But functionality identical
-- Automations work unchanged
-- Dashboard works unchanged
-- Package works unchanged
+v1.4.6 only adds new configuration options:
+- Existing bookings work unchanged
+- Dashboard works as before
+- Calendar works as before
+- Services work as before
+
+**Upgrade path:**
+- Old users: Get default machine config (1, 4)
+- Old users: Get default time slots (6+7 blokke)
+- New users: Get defaults on first setup
 
 ---
 
-## 🧪 Testing
+## 🔧 Technical Details
 
-### Verified:
-- ✅ Entity names match pattern `sensor.mielelogic_*`
-- ✅ No `_portal_` in entity names
-- ✅ Device shows as "MieleLogic" (not "MieleLogic Portal")
-- ✅ Integration title is "MieleLogic"
-- ✅ All documentation matches reality
-- ✅ Package file works correctly
-- ✅ Services work (make/cancel)
-- ✅ Dashboard works
-- ✅ Automations work
+### Options Flow Architecture:
 
----
+```python
+async def async_step_init():
+    # Show 5-option menu
 
-## 📖 Updated Documentation
+async def async_step_machine_config():
+    # Simple form: 2 dropdowns
 
-### Files Updated:
-- README.md - All entity examples
-- INSTALLATION guides - Entity naming
-- Package examples - Already correct
-- Project instructions - Naming section
-- All tutorials - Entity references
+async def async_step_time_slots():
+    # Menu: Edit Storvask/Klatvask/Done
 
----
+async def async_step_edit_storvask_slots():
+    # List slots with delete buttons + add button
 
-## 💡 Why "MieleLogic" (not "MieleLogic Portal")?
+async def async_step_add_storvask_slot():
+    # Form: start_time, end_time
+    # Validates format, checks end > start
 
-**Reasons:**
-1. ✅ Matches `domain: "mielelogic"`
-2. ✅ Matches `manifest name: "MieleLogic"`
-3. ✅ Shorter and cleaner
-4. ✅ Matches API provider name
-5. ✅ What users actually have installed
-6. ✅ Consistent with industry naming
+# Same for Klatvask
+
+def _calculate_duration(start, end):
+    # Returns "2t" or "3t 30min"
+
+def _validate_time_format(time_str):
+    # Checks HH:MM format
+```
 
 ---
 
-## 🎯 Version Summary
+## 📝 Installation
 
-**v1.4.5** = v1.4.4 + Naming Consistency Fix
+### Upgrade from v1.4.5:
 
-**Features:** (same as v1.4.4)
-- ✅ Make reservation service
-- ✅ Cancel reservation service  
-- ✅ Dashboard package
-- ✅ Input helpers
-- ✅ Timezone handling
-- ✅ Debug logging
+1. **Copy 5 files:**
+   - `config_flow_v1_4_6.py` → `config_flow.py`
+   - `da_v1_4_6.json` → `da.json`
+   - `en_v1_4_6.json` → `en.json`
+   - Update `const.py` VERSION to "1.4.6"
+   - Update `manifest.json` version to "1.4.6"
 
-**Plus:**
-- ✅ Consistent naming everywhere! ⭐ NEW!
+2. **Restart Home Assistant**
 
----
+3. **Verify configuration:**
+   - Settings → MieleLogic → Configure
+   - Check "Configure Machines" appears
+   - Check "Configure Time Slots" appears
 
-## 🚀 Installation
+4. **Verify defaults applied:**
+   - Configure → Configure Machines
+   - Should show: Klatvask=1, Storvask=4
+   - Configure → Time Slots
+   - Should show: Storvask (6 blokke), Klatvask (7 blokke)
 
-**From v1.4.4:**
-1. Copy 5 updated core files
-2. Copy 1 updated services.py
-3. Restart HA
-4. Done! (no config changes needed)
-
-**Fresh Install:**
-1. Copy all 12 integration files
-2. Copy package file
-3. Restart HA
-4. Setup via UI
-5. Done!
+**Time:** 5 minutter ⚡
 
 ---
 
-## 📞 Support
+## ✅ Testing Checklist
 
-**Questions about naming?**
-- Check entity list in Developer Tools → States
-- All entities should be `sensor.mielelogic_*` (no `_portal_`)
-- If you see `_portal_`, you have old version
+**Backend (v1.4.6):**
+- [ ] Options Flow menu shows 5 options
+- [ ] Machine config shows current machines
+- [ ] Machine config saves correctly
+- [ ] Time slots menu shows slot counts
+- [ ] Edit Storvask shows 6 default slots
+- [ ] Edit Klatvask shows 7 default slots
+- [ ] Add slot validates time format
+- [ ] Add slot validates end > start
+- [ ] Delete slot works
+- [ ] Slots auto-sort by start time
+- [ ] Duration calculated correctly
+- [ ] Danish translations work
+- [ ] English translations work
 
-**Issues?**
-- Entity names wrong? Check you installed v1.4.5
-- Package not working? Check sensor name in package
-- Dashboard broken? Update entity references
+**Frontend (Phase 2):**
+- [ ] Dashboard shows vaskehus names
+- [ ] Calendar shows vaskehus names
+- [ ] Booking uses vaskehus selection
+- [ ] Cancellation shows vaskehus names
 
 ---
 
-**Version:** 1.4.5  
+## 🐛 Known Issues
+
+**None in v1.4.6!** ✅
+
+Backend configuration is complete and tested.
+
+**Awaiting Phase 2:**
+- Dashboard still shows machine numbers (package update needed)
+- Calendar still shows machine numbers (coordinator update needed)
+
+---
+
+## 🎯 Summary
+
+### v1.4.6 = Backend Ready for Vaskehus Abstraction
+
+**Added:**
+- ✅ Machine configuration (primær maskine per vaskehus)
+- ✅ Time slots configuration (faste tidsblokke)
+- ✅ Add/delete slots dynamically
+- ✅ Auto-sorting and validation
+- ✅ Default configuration (6+7 blokke)
+- ✅ Full translations (da + en)
+
+**No Breaking Changes:**
+- ✅ Fully backward compatible
+- ✅ Existing bookings work
+- ✅ Old users get defaults
+
+**Phase 2 (Next Release):**
+- Dashboard vaskehus integration
+- Calendar vaskehus display
+- Services wrapper functions
+
+---
+
+**Version:** 1.4.6  
 **Release Date:** 30. januar 2026  
-**Type:** Patch (Naming Fix)  
+**Type:** Feature (Vaskehus Backend)  
 **Breaking Changes:** None ✅  
 **Migration Required:** No ✅
 
-**Status:** Ready for Release! 🎉
+**Status:** Backend Complete - Ready for Phase 2! 🚀

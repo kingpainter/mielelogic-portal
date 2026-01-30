@@ -1,4 +1,4 @@
-# VERSION = "1.3.3"
+# VERSION = "1.4.6"
 import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -187,20 +187,17 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 start_time = self._parse_datetime(start_str)
                 end_time = self._parse_datetime(end_str)
                 
-                # Convert UTC to Denmark timezone for display
-                denmark_tz = ZoneInfo("Europe/Copenhagen")
-                start_time_denmark = start_time.astimezone(denmark_tz)
-                end_time_denmark = end_time.astimezone(denmark_tz)
+                # Datetime is already in Denmark timezone from _parse_datetime
+                # No conversion needed!
 
-                # Create event summary - simpler format without machine number
-                # "Klatvask Reserveret" instead of "Klatvask #1 [MieleLogic]"
-                summary = f"{machine_name} Reserveret"
+                # NEW v1.4.6: Use vaskehus name instead of machine name
+                vaskehus_name = self._get_vaskehus_name(machine_number)
+                summary = f"{vaskehus_name} booket"
 
                 # Check if event already exists (match on summary + start time)
-                # Compare times in Denmark timezone
                 already_exists = any(
                     event.get("summary") == summary
-                    and self._parse_datetime(event.get("start")).astimezone(denmark_tz) == start_time_denmark
+                    and self._parse_datetime(event.get("start")) == start_time
                     for event in existing_events
                 )
 
@@ -211,9 +208,9 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 # Create new event in target calendar
                 duration = reservation.get("Duration", 0)
                 description = f"MieleLogic Reservation\n"
-                description += f"Machine: {machine_name}\n"
-                description += f"Duration: {duration} minutter\n"
-                description += f"Type: {reservation.get('MachineType', 'Unknown')}"
+                description += f"Vaskehus: {vaskehus_name}\n"
+                description += f"Maskine: {machine_name} #{machine_number}\n"
+                description += f"Varighed: {duration} minutter"
 
                 await self.hass.services.async_call(
                     "calendar",
@@ -221,14 +218,14 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                     {
                         "entity_id": target_calendar,
                         "summary": summary,
-                        "start_date_time": start_time_denmark.isoformat(),
-                        "end_date_time": end_time_denmark.isoformat(),
+                        "start_date_time": start_time.isoformat(),
+                        "end_date_time": end_time.isoformat(),
                         "description": description,
                     },
                     blocking=False,
                 )
 
-                _LOGGER.info("Ã¢Å“â€¦ Created calendar event: %s", summary)
+                _LOGGER.info("ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Created calendar event: %s", summary)
 
             except Exception as err:
                 _LOGGER.warning(
@@ -239,7 +236,11 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 continue
 
     def _parse_datetime(self, datetime_str: str) -> datetime:
-        """Parse datetime string - handle both with and without timezone."""
+        """Parse datetime string - handle both with and without timezone.
+        
+        IMPORTANT: MieleLogic API returns naive datetimes in Europe/Copenhagen local time,
+        NOT in UTC! This is critical for correct time display.
+        """
         if not datetime_str:
             raise ValueError("Empty datetime string")
 
@@ -248,8 +249,24 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             # Has timezone info
             return datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
         else:
-            # No timezone info - assume UTC
-            return datetime.fromisoformat(datetime_str).replace(tzinfo=ZoneInfo("UTC"))
+            # No timezone info - API returns Europe/Copenhagen local time
+            return datetime.fromisoformat(datetime_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
+    
+    def _get_vaskehus_name(self, machine_number: int) -> str:
+        """Get vaskehus name from machine number.
+        
+        NEW v1.4.6: Maps machine number to vaskehus name for display.
+        Returns "Klatvask", "Storvask", or "Maskine X" (fallback).
+        """
+        klatvask_machine = self.config_entry.data.get("klatvask_primary_machine", 1)
+        storvask_machine = self.config_entry.data.get("storvask_primary_machine", 4)
+        
+        if machine_number == klatvask_machine:
+            return "Klatvask"
+        elif machine_number == storvask_machine:
+            return "Storvask"
+        else:
+            return f"Maskine {machine_number}"
 
     # ===== CACHING METHODS (from v1.2.0) =====
 
@@ -271,10 +288,10 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         if self._is_cache_valid(cache_key):
             cached = self._cache[cache_key]
             age = (datetime.now(ZoneInfo("UTC")) - cached["timestamp"]).total_seconds()
-            _LOGGER.info("Ã¢Å“â€¦ Cache HIT for %s (age: %.1fs)", cache_key, age)
+            _LOGGER.info("ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Cache HIT for %s (age: %.1fs)", cache_key, age)
             return cached["data"]
 
-        _LOGGER.debug("Ã¢ÂÅ’ Cache MISS for %s", cache_key)
+        _LOGGER.debug("ÃƒÂ¢Ã‚ÂÃ…â€™ Cache MISS for %s", cache_key)
         return None
 
     def _save_to_cache(self, cache_key: str, data: dict):
@@ -283,7 +300,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             "data": data,
             "timestamp": datetime.now(ZoneInfo("UTC")),
         }
-        _LOGGER.debug("Ã°Å¸â€™Â¾ Cached data for %s", cache_key)
+        _LOGGER.debug("ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¾ Cached data for %s", cache_key)
 
     async def _fetch_with_cache(
         self, session: aiohttp.ClientSession, url: str, cache_key: str, headers: dict

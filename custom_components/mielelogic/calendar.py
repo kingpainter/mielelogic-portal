@@ -1,4 +1,4 @@
-# VERSION = "1.3.0"
+# VERSION = "1.4.6"
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
@@ -60,8 +60,8 @@ class MieleLogicReservationCalendar(CalendarEntity):
                     # Has timezone info
                     start_time = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
                 else:
-                    # No timezone info - assume UTC
-                    start_time = datetime.fromisoformat(start_str).replace(tzinfo=ZoneInfo("UTC"))
+                    # No timezone info - API returns Europe/Copenhagen local time
+                    start_time = datetime.fromisoformat(start_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
                 
                 if start_time > now:
                     upcoming.append((start_time, res))
@@ -96,8 +96,8 @@ class MieleLogicReservationCalendar(CalendarEntity):
                     # Has timezone info
                     start_time = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
                 else:
-                    # No timezone info - assume UTC
-                    start_time = datetime.fromisoformat(start_str).replace(tzinfo=ZoneInfo("UTC"))
+                    # No timezone info - API returns Europe/Copenhagen local time
+                    start_time = datetime.fromisoformat(start_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
                 
                 # Check if event is in requested range
                 if start_date <= start_time <= end_date:
@@ -134,29 +134,31 @@ class MieleLogicReservationCalendar(CalendarEntity):
                 # Has timezone info
                 start_time = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
             else:
-                # No timezone info - assume UTC
-                start_time = datetime.fromisoformat(start_str).replace(tzinfo=ZoneInfo("UTC"))
+                # No timezone info - API returns Europe/Copenhagen local time
+                start_time = datetime.fromisoformat(start_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
             
             if "Z" in end_str or "+" in end_str or end_str.count("-") > 2:
                 # Has timezone info
                 end_time = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
             else:
-                # No timezone info - assume UTC
-                end_time = datetime.fromisoformat(end_str).replace(tzinfo=ZoneInfo("UTC"))
+                # No timezone info - API returns Europe/Copenhagen local time
+                end_time = datetime.fromisoformat(end_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
             
             machine_name = reservation.get("MachineName", "Unknown")
             machine_number = reservation.get("MachineNumber", "")
             
-            # Create summary
-            summary = f"{machine_name}"
-            if machine_number:
-                summary += f" #{machine_number}"
+            # NEW v1.4.6: Get vaskehus name from config
+            vaskehus_name = self._get_vaskehus_name(machine_number)
+            
+            # Create summary with vaskehus name
+            summary = f"{vaskehus_name} booket"
             
             # Create description
             duration = reservation.get("Duration", 0)
-            description = f"Reservation: {machine_name}\n"
-            description += f"Duration: {duration} minutter\n"
-            description += f"Machine type: {reservation.get('MachineType', 'Unknown')}"
+            description = f"MieleLogic Reservation\n"
+            description += f"Vaskehus: {vaskehus_name}\n"
+            description += f"Maskine: {machine_name} #{machine_number}\n"
+            description += f"Varighed: {duration} minutter"
             
             return CalendarEvent(
                 start=start_time,
@@ -167,3 +169,20 @@ class MieleLogicReservationCalendar(CalendarEntity):
         except (ValueError, TypeError) as err:
             _LOGGER.warning("Failed to create calendar event: %s", err)
             return None
+    
+    def _get_vaskehus_name(self, machine_number: int) -> str:
+        """Get vaskehus name from machine number.
+        
+        NEW v1.4.6: Maps machine number to vaskehus name for display.
+        Returns "Klatvask", "Storvask", or "Maskine X" (fallback).
+        """
+        config_entry = self.coordinator.config_entry
+        klatvask_machine = config_entry.data.get("klatvask_primary_machine", 1)
+        storvask_machine = config_entry.data.get("storvask_primary_machine", 4)
+        
+        if machine_number == klatvask_machine:
+            return "Klatvask"
+        elif machine_number == storvask_machine:
+            return "Storvask"
+        else:
+            return f"Maskine {machine_number}"

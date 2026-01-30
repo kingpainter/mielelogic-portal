@@ -1,0 +1,73 @@
+# MieleLogic Services
+# Version: 1.4.0
+
+make_reservation:
+  name: Make Reservation
+  description: Book a washing machine for a specific time
+  fields:
+    machine_number:
+      name: Machine Number
+      description: Which machine to book (1 = Klatvask 1, 2 = Klatvask 2, 3 = Storvask 3, 4 = Storvask 4, 5 = Storvask 5)
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 5
+          mode: box
+    start_time:
+      name: Start Time
+      description: When the reservation starts (must be in the future and within laundry hours 07:00-21:00)
+      required: true
+      example: "2026-01-31 17:00:00"
+      selector:
+        datetime:
+    duration:
+      name: Duration (minutes)
+      description: How long to reserve the machine (30-180 minutes). Default is 120 minutes (2 hours).
+      required: false
+      default: 120
+      example: 120
+      selector:
+        number:
+          min: 30
+          max: 180
+          step: 15
+          unit_of_measurement: "min"
+          mode: slider
+    end_time:
+      name: End Time (Advanced)
+      description: Optional - specify exact end time instead of duration. If provided, duration is ignored.
+      required: false
+      example: "2026-01-31 19:00:00"
+      selector:
+        datetime:
+
+cancel_reservation:
+  name: Cancel Reservation
+  description: Cancel an existing reservation
+  fields:
+    machine_number:
+      name: Machine Number
+      description: Which machine the reservation is for
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 5
+          mode: box
+    start_time:
+      name: Start Time
+      description: The start time of the reservation to cancel (must match exactly)
+      required: true
+      example: "2026-01-31 17:00:00"
+      selector:
+        datetime:
+    end_time:
+      name: End Time
+      description: The end time of the reservation to cancel (must match exactly)
+      required: true
+      example: "2026-01-31 19:00:00"
+      selector:
+        datetime:

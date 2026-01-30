@@ -33,7 +33,9 @@
         "menu_options": {
           "credentials": "Update Login Credentials",
           "calendar": "Configure Calendar Sync",
-          "laundry_hours": "Configure Opening Hours"
+          "laundry_hours": "Configure Opening Hours",
+          "machine_config": "Configure Machines",
+          "time_slots": "Configure Time Slots"
         }
       },
       "credentials": {
@@ -75,6 +77,51 @@
           "opening_time": "When does the laundry open (format: HH:MM)",
           "closing_time": "When does the laundry close (format: HH:MM)"
         }
+      },
+      "machine_config": {
+        "title": "Configure Primary Machines",
+        "description": "Select which machine is used for API calls for each laundry house.\n\nCurrent: Klatvask machine {current_klatvask}, Storvask machine {current_storvask}",
+        "data": {
+          "klatvask_machine": "Klatvask primary machine",
+          "storvask_machine": "Storvask primary machine"
+        }
+      },
+      "time_slots": {
+        "title": "Configure Time Slots",
+        "description": "Manage fixed time slots for each laundry house.",
+        "data": {
+          "action": "Select action"
+        }
+      },
+      "edit_storvask_slots": {
+        "title": "Edit Storvask Time Slots",
+        "description": "Add or delete time slots for Storvask.",
+        "data": {
+          "action": "Select action"
+        }
+      },
+      "edit_klatvask_slots": {
+        "title": "Edit Klatvask Time Slots",
+        "description": "Add or delete time slots for Klatvask.",
+        "data": {
+          "action": "Select action"
+        }
+      },
+      "add_storvask_slot": {
+        "title": "Add Storvask Time Slot",
+        "description": "Enter start and end time for the new time slot.\nFormat: HH:MM (e.g. 07:00 or 19:30)",
+        "data": {
+          "start_time": "Start time",
+          "end_time": "End time"
+        }
+      },
+      "add_klatvask_slot": {
+        "title": "Add Klatvask Time Slot",
+        "description": "Enter start and end time for the new time slot.\nFormat: HH:MM (e.g. 07:00 or 19:30)",
+        "data": {
+          "start_time": "Start time",
+          "end_time": "End time"
+        }
       }
     },
     "error": {
@@ -82,6 +129,8 @@
       "invalid_auth": "Invalid credentials - check username and password",
       "server_error": "Server error, please try again later",
       "calendar_not_found": "Selected calendar not found - check that it is still configured",
+      "invalid_time_format": "Invalid time format - use HH:MM (e.g. 07:00)",
+      "end_before_start": "End time must be after start time",
       "unknown": "Unknown error occurred"
     }
   },

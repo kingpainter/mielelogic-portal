@@ -16,7 +16,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _parse_datetime(datetime_str: str) -> datetime:
-    """Parse datetime string - handle both with and without timezone."""
+    """Parse datetime string - handle both with and without timezone.
+    
+    IMPORTANT: MieleLogic API returns naive datetimes in Europe/Copenhagen local time,
+    NOT in UTC!
+    """
     if not datetime_str:
         raise ValueError("Empty datetime string")
     
@@ -25,8 +29,8 @@ def _parse_datetime(datetime_str: str) -> datetime:
         # Has timezone info
         return datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
     else:
-        # No timezone info - assume UTC
-        return datetime.fromisoformat(datetime_str).replace(tzinfo=ZoneInfo("UTC"))
+        # No timezone info - API returns Europe/Copenhagen local time
+        return datetime.fromisoformat(datetime_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
 
 
 async def async_setup_entry(

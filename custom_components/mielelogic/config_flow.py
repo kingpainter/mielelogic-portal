@@ -1,7 +1,8 @@
-# VERSION = "1.3.2"
+# VERSION = "1.4.6"
 import logging
 import aiohttp
 import voluptuous as vol
+from datetime import datetime
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
@@ -17,6 +18,27 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+# Default time slots
+DEFAULT_STORVASK_SLOTS = [
+    {"start": "07:00", "end": "09:00"},
+    {"start": "09:00", "end": "12:00"},
+    {"start": "12:00", "end": "14:00"},
+    {"start": "14:00", "end": "17:00"},
+    {"start": "17:00", "end": "19:00"},
+    {"start": "19:00", "end": "21:00"},
+]
+
+DEFAULT_KLATVASK_SLOTS = [
+    {"start": "07:00", "end": "09:00"},
+    {"start": "09:00", "end": "11:00"},
+    {"start": "11:00", "end": "13:00"},
+    {"start": "13:00", "end": "15:00"},
+    {"start": "15:00", "end": "17:00"},
+    {"start": "17:00", "end": "19:00"},
+    {"start": "19:00", "end": "21:00"},
+]
 
 
 class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -44,7 +66,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 self._abort_if_unique_id_configured()
 
-                # Create entry with calendar sync disabled by default
+                # Create entry with defaults
                 return self.async_create_entry(
                     title="MieleLogic",
                     data={
@@ -56,6 +78,11 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "sync_to_calendar": None,  # Default: disabled
                         "opening_time": user_input.get("opening_time", "07:00"),
                         "closing_time": user_input.get("closing_time", "21:00"),
+                        # NEW v1.4.6: Vaskehus configuration
+                        "klatvask_primary_machine": 1,
+                        "storvask_primary_machine": 4,
+                        "klatvask_slots": DEFAULT_KLATVASK_SLOTS,
+                        "storvask_slots": DEFAULT_STORVASK_SLOTS,
                     },
                 )
 
@@ -147,13 +174,13 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options flow for MieleLogic - THREE SEPARATE OPTIONS."""
+    """Handle options flow for MieleLogic - FIVE OPTIONS."""
 
     async def async_step_init(self, user_input=None):
-        """Show menu: credentials, calendar, or laundry hours."""
+        """Show menu: credentials, calendar, laundry hours, machine config, time slots."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["credentials", "calendar", "laundry_hours"],
+            menu_options=["credentials", "calendar", "laundry_hours", "machine_config", "time_slots"],
         )
 
     async def async_step_credentials(self, user_input=None):
@@ -330,6 +357,278 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
                 "current_closing": current_closing,
             },
         )
+
+    async def async_step_machine_config(self, user_input=None):
+        """Configure primary machines for each vaskehus."""
+        errors = {}
+
+        if user_input is not None:
+            try:
+                # Update machine configuration
+                new_data = dict(self.config_entry.data)
+                new_data["klatvask_primary_machine"] = user_input["klatvask_machine"]
+                new_data["storvask_primary_machine"] = user_input["storvask_machine"]
+
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry, data=new_data
+                )
+                return self.async_create_entry(title="", data={})
+
+            except Exception as err:
+                _LOGGER.exception("Unexpected exception: %s", err)
+                errors["base"] = "unknown"
+
+        # Current settings
+        current_klatvask = self.config_entry.data.get("klatvask_primary_machine", 1)
+        current_storvask = self.config_entry.data.get("storvask_primary_machine", 4)
+
+        return self.async_show_form(
+            step_id="machine_config",
+            data_schema=vol.Schema({
+                vol.Required(
+                    "klatvask_machine",
+                    default=current_klatvask
+                ): vol.In({1: "Maskine 1", 2: "Maskine 2"}),
+                vol.Required(
+                    "storvask_machine",
+                    default=current_storvask
+                ): vol.In({3: "Maskine 3", 4: "Maskine 4", 5: "Maskine 5"}),
+            }),
+            errors=errors,
+            description_placeholders={
+                "current_klatvask": str(current_klatvask),
+                "current_storvask": str(current_storvask),
+            },
+        )
+
+    async def async_step_time_slots(self, user_input=None):
+        """Configure time slots menu."""
+        if user_input is not None:
+            action = user_input.get("action", "")
+            
+            if action == "edit_storvask":
+                return await self.async_step_edit_storvask_slots()
+            elif action == "edit_klatvask":
+                return await self.async_step_edit_klatvask_slots()
+            elif action == "done":
+                return self.async_create_entry(title="", data={})
+
+        # Get current slots
+        storvask_slots = self.config_entry.data.get("storvask_slots", [])
+        klatvask_slots = self.config_entry.data.get("klatvask_slots", [])
+
+        return self.async_show_form(
+            step_id="time_slots",
+            data_schema=vol.Schema({
+                vol.Required("action"): vol.In({
+                    "edit_storvask": f"Rediger Storvask ({len(storvask_slots)} blokke)",
+                    "edit_klatvask": f"Rediger Klatvask ({len(klatvask_slots)} blokke)",
+                    "done": "Gem og luk",
+                }),
+            }),
+        )
+
+    async def async_step_edit_storvask_slots(self, user_input=None):
+        """Edit Storvask time slots."""
+        if user_input is not None:
+            action = user_input.get("action", "")
+            
+            if action == "add_new":
+                return await self.async_step_add_storvask_slot()
+            elif action.startswith("delete_"):
+                # Delete slot
+                slot_index = int(action.split("_")[1])
+                slots = list(self.config_entry.data.get("storvask_slots", []))
+                if 0 <= slot_index < len(slots):
+                    del slots[slot_index]
+                    
+                    new_data = dict(self.config_entry.data)
+                    new_data["storvask_slots"] = slots
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=new_data
+                    )
+                # Refresh same screen
+                return await self.async_step_edit_storvask_slots()
+            elif action == "back":
+                return await self.async_step_time_slots()
+
+        # Build current slots display
+        slots = self.config_entry.data.get("storvask_slots", [])
+        
+        # Build action menu
+        actions = {}
+        for i, slot in enumerate(slots):
+            duration = self._calculate_duration(slot["start"], slot["end"])
+            actions[f"delete_{i}"] = f"🗑️ {slot['start']}-{slot['end']} ({duration})"
+        
+        actions["add_new"] = "➕ Tilføj ny tidsblok"
+        actions["back"] = "⬅️ Tilbage"
+
+        return self.async_show_form(
+            step_id="edit_storvask_slots",
+            data_schema=vol.Schema({
+                vol.Required("action"): vol.In(actions),
+            }),
+        )
+
+    async def async_step_edit_klatvask_slots(self, user_input=None):
+        """Edit Klatvask time slots."""
+        if user_input is not None:
+            action = user_input.get("action", "")
+            
+            if action == "add_new":
+                return await self.async_step_add_klatvask_slot()
+            elif action.startswith("delete_"):
+                # Delete slot
+                slot_index = int(action.split("_")[1])
+                slots = list(self.config_entry.data.get("klatvask_slots", []))
+                if 0 <= slot_index < len(slots):
+                    del slots[slot_index]
+                    
+                    new_data = dict(self.config_entry.data)
+                    new_data["klatvask_slots"] = slots
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=new_data
+                    )
+                # Refresh same screen
+                return await self.async_step_edit_klatvask_slots()
+            elif action == "back":
+                return await self.async_step_time_slots()
+
+        # Build current slots display
+        slots = self.config_entry.data.get("klatvask_slots", [])
+        
+        # Build action menu
+        actions = {}
+        for i, slot in enumerate(slots):
+            duration = self._calculate_duration(slot["start"], slot["end"])
+            actions[f"delete_{i}"] = f"🗑️ {slot['start']}-{slot['end']} ({duration})"
+        
+        actions["add_new"] = "➕ Tilføj ny tidsblok"
+        actions["back"] = "⬅️ Tilbage"
+
+        return self.async_show_form(
+            step_id="edit_klatvask_slots",
+            data_schema=vol.Schema({
+                vol.Required("action"): vol.In(actions),
+            }),
+        )
+
+    async def async_step_add_storvask_slot(self, user_input=None):
+        """Add new Storvask time slot."""
+        errors = {}
+
+        if user_input is not None:
+            try:
+                start = user_input["start_time"]
+                end = user_input["end_time"]
+                
+                # Validate time format
+                self._validate_time_format(start)
+                self._validate_time_format(end)
+                
+                if start >= end:
+                    errors["end_time"] = "end_before_start"
+                else:
+                    # Add slot
+                    slots = list(self.config_entry.data.get("storvask_slots", []))
+                    slots.append({"start": start, "end": end})
+                    
+                    # Sort by start time
+                    slots.sort(key=lambda s: s["start"])
+                    
+                    new_data = dict(self.config_entry.data)
+                    new_data["storvask_slots"] = slots
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=new_data
+                    )
+                    
+                    return await self.async_step_edit_storvask_slots()
+                    
+            except ValueError:
+                errors["base"] = "invalid_time_format"
+            except Exception as err:
+                _LOGGER.exception("Unexpected exception: %s", err)
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="add_storvask_slot",
+            data_schema=vol.Schema({
+                vol.Required("start_time", default="07:00"): str,
+                vol.Required("end_time", default="09:00"): str,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_add_klatvask_slot(self, user_input=None):
+        """Add new Klatvask time slot."""
+        errors = {}
+
+        if user_input is not None:
+            try:
+                start = user_input["start_time"]
+                end = user_input["end_time"]
+                
+                # Validate time format
+                self._validate_time_format(start)
+                self._validate_time_format(end)
+                
+                if start >= end:
+                    errors["end_time"] = "end_before_start"
+                else:
+                    # Add slot
+                    slots = list(self.config_entry.data.get("klatvask_slots", []))
+                    slots.append({"start": start, "end": end})
+                    
+                    # Sort by start time
+                    slots.sort(key=lambda s: s["start"])
+                    
+                    new_data = dict(self.config_entry.data)
+                    new_data["klatvask_slots"] = slots
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=new_data
+                    )
+                    
+                    return await self.async_step_edit_klatvask_slots()
+                    
+            except ValueError:
+                errors["base"] = "invalid_time_format"
+            except Exception as err:
+                _LOGGER.exception("Unexpected exception: %s", err)
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="add_klatvask_slot",
+            data_schema=vol.Schema({
+                vol.Required("start_time", default="07:00"): str,
+                vol.Required("end_time", default="09:00"): str,
+            }),
+            errors=errors,
+        )
+
+    def _calculate_duration(self, start: str, end: str) -> str:
+        """Calculate duration between two times."""
+        try:
+            start_dt = datetime.strptime(start, "%H:%M")
+            end_dt = datetime.strptime(end, "%H:%M")
+            
+            duration_minutes = int((end_dt - start_dt).total_seconds() / 60)
+            hours = duration_minutes // 60
+            minutes = duration_minutes % 60
+            
+            if minutes == 0:
+                return f"{hours}t"
+            else:
+                return f"{hours}t {minutes}min"
+        except Exception:
+            return "?"
+
+    def _validate_time_format(self, time_str: str):
+        """Validate time format HH:MM."""
+        try:
+            datetime.strptime(time_str, "%H:%M")
+        except ValueError:
+            raise ValueError(f"Invalid time format: {time_str}")
 
     async def _test_credentials(
         self, username: str, password: str, client_id: str, client_secret: str = None

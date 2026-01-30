@@ -101,7 +101,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
         }
         
         _LOGGER.info(
-            "🔵 Making reservation: Machine %s from %s to %s (%s min)",
+            "ðŸ”µ Making reservation: Machine %s from %s to %s (%s min)",
             machine_number,
             start_str,
             end_str,
@@ -140,11 +140,11 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             _LOGGER.debug("API Result: %s", result)
             if not result.get("ResultOK"):
                 error_msg = result.get("ResultText", "Unknown error")
-                _LOGGER.error("❌ Reservation failed: %s", error_msg)
+                _LOGGER.error("âŒ Reservation failed: %s", error_msg)
                 _LOGGER.error("Full API response: %s", result)
                 raise HomeAssistantError(f"Reservation failed: {error_msg}")
             
-            _LOGGER.info("✅ Reservation successful!")
+            _LOGGER.info("âœ… Reservation successful!")
             
             # Force refresh coordinator to update sensors
             await coordinator.async_request_refresh()
@@ -205,7 +205,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
         }
         
         _LOGGER.info(
-            "🔴 Canceling reservation: Machine %s from %s to %s",
+            "ðŸ”´ Canceling reservation: Machine %s from %s to %s",
             machine_number,
             start_str,
             end_str,
@@ -245,11 +245,11 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             _LOGGER.debug("Cancel API Result: %s", result)
             if not result.get("ResultOK"):
                 error_msg = result.get("ResultText", "Unknown error")
-                _LOGGER.error("❌ Cancellation failed: %s", error_msg)
+                _LOGGER.error("âŒ Cancellation failed: %s", error_msg)
                 _LOGGER.error("Full cancel API response: %s", result)
                 raise HomeAssistantError(f"Cancellation failed: {error_msg}")
             
-            _LOGGER.info("✅ Cancellation successful!")
+            _LOGGER.info("âœ… Cancellation successful!")
             
             # Force refresh coordinator to update sensors
             await coordinator.async_request_refresh()
@@ -276,7 +276,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
         schema=CANCEL_RESERVATION_SCHEMA,
     )
     
-    _LOGGER.info("✅ MieleLogic services registered: make_reservation, cancel_reservation")
+    _LOGGER.info("âœ… MieleLogic services registered: make_reservation, cancel_reservation")
 
 
 # ===== VALIDATION HELPERS =====
@@ -390,29 +390,83 @@ async def _verify_reservation_exists(
     if end_time.tzinfo is None:
         end_time = end_time.replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
     
-    start_str = start_time.strftime("%Y-%m-%dT%H:%M:%S")
-    end_str = end_time.strftime("%Y-%m-%dT%H:%M:%S")
-    
     # Find matching reservation
     found = False
+    found_reservation = None
+    
     for res in reservations:
         res_machine = res.get("MachineNumber")
-        res_start = res.get("Start", "")
-        res_end = res.get("End", "")
+        res_start_str = res.get("Start", "")
+        res_end_str = res.get("End", "")
         
-        # Match on machine, start, and end (strip timezone for comparison)
-        if (
-            res_machine == machine_number
-            and res_start.startswith(start_str)
-            and res_end.startswith(end_str)
-        ):
-            found = True
-            break
+        if not res_start_str or not res_end_str:
+            continue
+        
+        # Parse reservation times (handle both with/without timezone)
+        try:
+            # Handle timezone in API response
+            if "Z" in res_start_str or "+" in res_start_str:
+                res_start = datetime.fromisoformat(res_start_str.replace("Z", "+00:00"))
+            else:
+                # Naive datetime - API returns Europe/Copenhagen local time
+                res_start = datetime.fromisoformat(res_start_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
+            
+            if "Z" in res_end_str or "+" in res_end_str:
+                res_end = datetime.fromisoformat(res_end_str.replace("Z", "+00:00"))
+            else:
+                # Naive datetime - API returns Europe/Copenhagen local time
+                res_end = datetime.fromisoformat(res_end_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
+            
+            # Both datetimes are now in Europe/Copenhagen timezone
+            # Compare directly without conversion
+            
+            # Match on machine and times (with 1 minute tolerance for rounding)
+            if res_machine == machine_number:
+                start_diff = abs((res_start - start_time).total_seconds())
+                end_diff = abs((res_end - end_time).total_seconds())
+                
+                # Allow 60 second tolerance (handles seconds/milliseconds differences)
+                if start_diff <= 60 and end_diff <= 60:
+                    found = True
+                    found_reservation = res
+                    _LOGGER.debug(
+                        "✅ Found matching reservation: Machine %s, Start: %s, End: %s",
+                        res_machine,
+                        res_start.strftime("%Y-%m-%d %H:%M"),
+                        res_end.strftime("%Y-%m-%d %H:%M"),
+                    )
+                    break
+                else:
+                    _LOGGER.debug(
+                        "⏰ Time mismatch for machine %s: start_diff=%ds, end_diff=%ds",
+                        res_machine,
+                        start_diff,
+                        end_diff,
+                    )
+        except (ValueError, TypeError) as err:
+            _LOGGER.warning("Failed to parse reservation time: %s", err)
+            continue
     
     if not found:
+        # Log available reservations for debugging
+        _LOGGER.error(
+            "❌ No reservation found for machine %s from %s to %s",
+            machine_number,
+            start_time.strftime("%Y-%m-%d %H:%M"),
+            end_time.strftime("%Y-%m-%d %H:%M"),
+        )
+        _LOGGER.error("Available reservations: %s", [
+            {
+                "machine": r.get("MachineNumber"),
+                "start": r.get("Start"),
+                "end": r.get("End"),
+            }
+            for r in reservations
+        ])
         raise ServiceValidationError(
             f"No reservation found for machine {machine_number} "
-            f"from {start_str} to {end_str}"
+            f"from {start_time.strftime('%Y-%m-%d %H:%M')} to {end_time.strftime('%Y-%m-%d %H:%M')}. "
+            f"Please check Developer Tools → States → sensor.mielelogic_reservations for available reservations."
         )
 
 
