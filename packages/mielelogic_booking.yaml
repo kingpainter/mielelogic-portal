@@ -1,20 +1,15 @@
 # MieleLogic Booking Package
 # Version: 1.4.6 - Vaskehus Abstraction
 # 
-# This package provides vaskehus-based booking interface for MieleLogic.
+# ENGLISH version with proper UTF-8 encoding
+# Danish characters handled correctly
+# 
 # Place this file in: /config/packages/mielelogic_booking.yaml
-#
-# NEW v1.4.6 Features:
-# - Book by vaskehus name (Klatvask/Storvask) instead of machine number
-# - Fixed time slots from configuration
-# - Smart machine mapping (vaskehus → primary machine)
-# - Calendar shows "Klatvask booket" not "Maskine 1"
-# - Cancellation shows vaskehus names
 
 # ===== INPUT HELPERS =====
 
 input_select:
-  # Vaskehus selection (NEW v1.4.6)
+  # Laundry house selection
   mielelogic_booking_vaskehus:
     name: "Vaskehus"
     icon: mdi:washing-machine
@@ -23,7 +18,7 @@ input_select:
       - "Storvask"
     initial: "Klatvask"
   
-  # Time slot selection (NEW v1.4.6 - populated dynamically)
+  # Time slot selection (populated dynamically)
   mielelogic_booking_slot:
     name: "Tidsblok"
     icon: mdi:clock-outline
@@ -32,7 +27,7 @@ input_select:
     initial: "Vælg først vaskehus..."
 
 input_datetime:
-  # Booking date (NEW v1.4.6 - date only, time comes from slot)
+  # Booking date
   mielelogic_booking_date:
     name: "Dato"
     icon: mdi:calendar
@@ -43,22 +38,22 @@ input_datetime:
 
 template:
   - sensor:
-      # Expose config slots for templates (NEW v1.4.6)
+      # Expose config slots for templates
       - name: "MieleLogic Vaskehus Config"
         unique_id: mielelogic_vaskehus_config
         state: "OK"
         attributes:
           klatvask_machine: >
-            {% set config = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
-            {% if config | length > 0 %}
-              {{ state_attr(config[0], 'klatvask_primary_machine') | default(1) }}
+            {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
+            {% if entities | length > 0 %}
+              {{ state_attr(entities[0], 'klatvask_primary_machine') | default(1) }}
             {% else %}
               1
             {% endif %}
           storvask_machine: >
-            {% set config = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
-            {% if config | length > 0 %}
-              {{ state_attr(config[0], 'storvask_primary_machine') | default(4) }}
+            {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
+            {% if entities | length > 0 %}
+              {{ state_attr(entities[0], 'storvask_primary_machine') | default(4) }}
             {% else %}
               4
             {% endif %}
@@ -82,7 +77,7 @@ template:
               {"start": "19:00", "end": "21:00"}
             ] }}
       
-      # Next booking with vaskehus name (NEW v1.4.6)
+      # Next booking with vaskehus name
       - name: "MieleLogic Næste Booking Display"
         unique_id: mielelogic_next_booking_display
         icon: mdi:calendar-clock
@@ -137,7 +132,7 @@ template:
 # ===== SCRIPTS =====
 
 script:
-  # Main vaskehus booking script (NEW v1.4.6)
+  # Main vaskehus booking script
   mielelogic_book_vaskehus:
     alias: "Book Vaskehus"
     icon: mdi:washing-machine
@@ -172,9 +167,11 @@ script:
           
           # Calculate duration in minutes
           duration: >
-            {% set start = strptime(start_time, '%H:%M') %}
-            {% set end = strptime(end_time_raw, '%H:%M') %}
-            {{ ((end - start).total_seconds() / 60) | int }}
+            {% set start_h = start_time.split(':')[0] | int %}
+            {% set start_m = start_time.split(':')[1] | int %}
+            {% set end_h = end_time_raw.split(':')[0] | int %}
+            {% set end_m = end_time_raw.split(':')[1] | int %}
+            {{ (end_h * 60 + end_m) - (start_h * 60 + start_m) }}
           
           # Build full datetime
           start_datetime: "{{ booking_date }} {{ start_time }}:00"
@@ -196,7 +193,7 @@ script:
             i {{ duration }} minutter
           notification_id: mielelogic_booking_success
 
-  # Cancel vaskehus booking (NEW v1.4.6)
+  # Cancel vaskehus booking
   mielelogic_cancel_vaskehus:
     alias: "Annuller Vaskehus Booking"
     icon: mdi:cancel
@@ -246,7 +243,7 @@ script:
             {{ as_timestamp(reservation.Start) | timestamp_custom('%d/%m/%Y kl. %H:%M') }}
           notification_id: mielelogic_cancel_success
 
-  # Cancel by index with vaskehus display (NEW v1.4.6)
+  # Cancel by index with vaskehus display
   mielelogic_cancel_vaskehus_by_index:
     alias: "Annuller Specifik Vaskehus Booking"
     icon: mdi:cancel
@@ -305,7 +302,7 @@ script:
 # ===== AUTOMATIONS =====
 
 automation:
-  # Populate slots when vaskehus changes (NEW v1.4.6)
+  # Populate slots when vaskehus changes
   - id: mielelogic_populate_slots
     alias: "MieleLogic - Opdater Tidsblokke"
     mode: restart
@@ -330,22 +327,32 @@ automation:
             {% for slot in slots %}
               {% set start = slot.start %}
               {% set end = slot.end %}
-              {% set start_dt = strptime(start, '%H:%M') %}
-              {% set end_dt = strptime(end, '%H:%M') %}
-              {% set duration_min = ((end_dt - start_dt).total_seconds() / 60) | int %}
+              
+              {# Simple string parsing - no datetime functions needed! #}
+              {% set start_h = start.split(':')[0] | int %}
+              {% set start_m = start.split(':')[1] | int %}
+              {% set end_h = end.split(':')[0] | int %}
+              {% set end_m = end.split(':')[1] | int %}
+              
+              {# Calculate duration in minutes #}
+              {% set duration_min = (end_h * 60 + end_m) - (start_h * 60 + start_m) %}
               {% set hours = (duration_min / 60) | int %}
               {% set minutes = duration_min % 60 %}
+              
+              {# Format duration string #}
               {% if minutes == 0 %}
                 {% set duration_str = hours ~ 't' %}
               {% else %}
                 {% set duration_str = hours ~ 't ' ~ minutes ~ 'min' %}
               {% endif %}
+              
+              {# Build slot display text #}
               {% set slot_text = start ~ '-' ~ end ~ ' (' ~ duration_str ~ ')' %}
               {% set slot_list = slot_list + [slot_text] %}
             {% endfor %}
             {{ slot_list }}
   
-  # Set default booking date to today (NEW v1.4.6)
+  # Set default booking date to today
   - id: mielelogic_set_default_date
     alias: "MieleLogic - Sæt Standard Dato"
     mode: single

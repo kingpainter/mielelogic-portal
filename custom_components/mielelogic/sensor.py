@@ -1,9 +1,9 @@
-# VERSION = "1.3.2.1"
+# VERSION = "1.4.6"
 """
 MieleLogic sensor platform.
 
 This module creates sensors for:
-1. Global sensors (reservations, account balance)
+1. Global sensors (reservations, account balance, vaskehus config)
 2. Machine-type sensors (washer status, dryer status)
 3. Per-machine sensors (dynamically created for each machine)
 
@@ -12,6 +12,10 @@ v1.3.2.1 Update:
   - Fixed machine type detection (use UnitName instead of MachineType)
   - Added time remaining parsing with persistence across HA restarts
   - Calculated remaining time attribute updates every coordinator refresh
+v1.4.6 Update:
+  - Added MieleLogicConfigSensor to expose vaskehus configuration
+  - Exposes klatvask_machine, storvask_machine, klatvask_slots, storvask_slots
+  - Used by mielelogic_booking.yaml for slot population automation
 """
 import logging
 import re
@@ -44,6 +48,7 @@ async def async_setup_entry(
     sensors = [
         MieleLogicReservationsSensor(coordinator, config_entry),
         MieleLogicAccountBalanceSensor(coordinator, config_entry),
+        MieleLogicConfigSensor(coordinator, config_entry),  # NEW v1.4.6 - Expose config
     ]
 
     # Machine-type sensors (Washer/Dryer overview)
@@ -173,6 +178,68 @@ class MieleLogicAccountBalanceSensor(SensorEntity):
         return {
             "account_number": account.get("AccountNumber"),
             "customer_number": account.get("CustomerNumber"),
+        }
+
+
+class MieleLogicConfigSensor(SensorEntity):
+    """Sensor exposing vaskehus configuration.
+    
+    NEW v1.4.6: Exposes machine mapping and time slots from config_entry.data
+    so they can be used in templates and automations.
+    
+    FIXED: Now reads from coordinator.config_entry to ensure persistence after restart!
+    """
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:cog"
+
+    def __init__(self, coordinator, config_entry):
+        """Initialize the sensor."""
+        self.coordinator = coordinator
+        # NOTE: Don't store config_entry - read from coordinator instead!
+        self._attr_unique_id = f"{config_entry.entry_id}_vaskehus_config"
+        self._attr_name = "Vaskehus Config"
+        self._attr_device_info = coordinator.device_info
+
+    @property
+    def native_value(self):
+        """Return OK if config is valid."""
+        return "OK"
+
+    @property
+    def extra_state_attributes(self):
+        """Return vaskehus configuration from config_entry.data.
+        
+        IMPORTANT: Reads from coordinator.config_entry (not self.config_entry)
+        to ensure we always get the latest config after Options Flow updates.
+        
+        FALLBACK: If config is missing or corrupt, return hardcoded defaults.
+        This ensures automation always has valid data to work with.
+        """
+        # Get config with extra safety - use 'or' to ensure never None
+        klatvask_machine = self.coordinator.config_entry.data.get("klatvask_primary_machine") or 1
+        storvask_machine = self.coordinator.config_entry.data.get("storvask_primary_machine") or 4
+        
+        return {
+            "klatvask_machine": klatvask_machine,
+            "storvask_machine": storvask_machine,
+            "klatvask_slots": self.coordinator.config_entry.data.get("klatvask_slots") or [
+                {"start": "07:00", "end": "09:00"},
+                {"start": "09:00", "end": "11:00"},
+                {"start": "11:00", "end": "13:00"},
+                {"start": "13:00", "end": "15:00"},
+                {"start": "15:00", "end": "17:00"},
+                {"start": "17:00", "end": "19:00"},
+                {"start": "19:00", "end": "21:00"},
+            ],
+            "storvask_slots": self.coordinator.config_entry.data.get("storvask_slots", [
+                {"start": "07:00", "end": "09:00"},
+                {"start": "09:00", "end": "12:00"},
+                {"start": "12:00", "end": "14:00"},
+                {"start": "14:00", "end": "17:00"},
+                {"start": "17:00", "end": "19:00"},
+                {"start": "19:00", "end": "21:00"},
+            ]),
         }
 
 
@@ -320,7 +387,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         self._countdown_duration = None
 
         # Clean name for entity_id (remove spaces, special chars)
-        clean_name = machine_name.lower().replace(" ", "_").replace("æ", "ae").replace("ø", "oe").replace("å", "aa")
+        clean_name = machine_name.lower().replace(" ", "_").replace("Ã¦", "ae").replace("Ã¸", "oe").replace("Ã¥", "aa")
 
         self._attr_unique_id = f"{config_entry.entry_id}_{clean_name}_{machine_number}_status"
         self._attr_name = f"{machine_name} {machine_number} Status"
@@ -331,7 +398,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         machine_name_lower = machine_name.lower()
         if "klatvask" in machine_name_lower or "storvask" in machine_name_lower or "vask" in machine_name_lower:
             self._attr_icon = "mdi:washing-machine"
-        elif "tørre" in machine_name_lower or "dryer" in machine_name_lower:
+        elif "tÃ¸rre" in machine_name_lower or "dryer" in machine_name_lower:
             self._attr_icon = "mdi:tumble-dryer"
         elif machine_type in ["51", "85"]:
             # Fallback to MachineType if name doesn't match
@@ -383,7 +450,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         if reservation_info and reservation_info.strip():
             return f"{status} {reservation_info}"
         
-        # Priority 2: If "Lukket indtil" → add opening time from config
+        # Priority 2: If "Lukket indtil" â†’ add opening time from config
         elif "lukket indtil" in status.lower():
             opening_time = self.coordinator.config_entry.data.get("opening_time", "07:00")
             return f"{status} kl. {opening_time}"
@@ -406,7 +473,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
             machine_type_name = "Washer"
             # Override incorrect API MachineType
             corrected_machine_type = "51"  # Washer code
-        elif "tørre" in machine_name_lower or "dryer" in machine_name_lower:
+        elif "tÃ¸rre" in machine_name_lower or "dryer" in machine_name_lower:
             machine_type_name = "Dryer"
             corrected_machine_type = "58"  # Dryer code
         elif self._machine_type in ["51", "85"]:
@@ -495,9 +562,9 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         """Parse time remaining from status text.
         
         Examples:
-        - "Resttid: 55 min" → 55
-        - "Resttid: 1 time 30 min" → 90
-        - "Remaining: 45 min" → 45
+        - "Resttid: 55 min" â†’ 55
+        - "Resttid: 1 time 30 min" â†’ 90
+        - "Remaining: 45 min" â†’ 45
         
         Returns:
             Minutes remaining as integer, or None if not found
