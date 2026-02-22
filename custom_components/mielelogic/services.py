@@ -39,8 +39,11 @@ CANCEL_RESERVATION_SCHEMA = vol.Schema(
 async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
     """Set up services for MieleLogic integration."""
     
-    async def handle_make_reservation(call: ServiceCall) -> None:
-        """Handle make_reservation service call."""
+    async def handle_make_reservation(call: ServiceCall) -> dict:
+        """Handle make_reservation service call.
+        
+        Returns dict with booking details for use in scripts/automations.
+        """
         machine_number = call.data.get("machine_number")
         start_time = call.data.get("start_time")
         duration = call.data.get("duration", 120)
@@ -149,6 +152,17 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             # Force refresh coordinator to update sensors
             await coordinator.async_request_refresh()
             
+            # Return useful data for scripts/automations
+            return {
+                "success": True,
+                "machine_number": machine_number,
+                "start_time": start_str,
+                "end_time": end_str,
+                "duration_minutes": duration,
+                "reservation_id": result.get("ReservationId"),
+                "message": f"Machine {machine_number} booked from {start_str} to {end_str}",
+            }
+            
         except aiohttp.ClientError as err:
             _LOGGER.error("Network error during reservation: %s", err)
             raise HomeAssistantError(f"Network error: {err}") from err
@@ -156,8 +170,11 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             _LOGGER.error("Unexpected error during reservation: %s", err)
             raise HomeAssistantError(f"Unexpected error: {err}") from err
     
-    async def handle_cancel_reservation(call: ServiceCall) -> None:
-        """Handle cancel_reservation service call."""
+    async def handle_cancel_reservation(call: ServiceCall) -> dict:
+        """Handle cancel_reservation service call.
+        
+        Returns dict with cancellation details for use in scripts/automations.
+        """
         machine_number = call.data.get("machine_number")
         start_time = call.data.get("start_time")
         end_time = call.data.get("end_time")
@@ -254,6 +271,16 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             # Force refresh coordinator to update sensors
             await coordinator.async_request_refresh()
             
+            # Return useful data for scripts/automations
+            return {
+                "success": True,
+                "machine_number": machine_number,
+                "start_time": start_str,
+                "end_time": end_str,
+                "canceled": True,
+                "message": f"Machine {machine_number} reservation canceled",
+            }
+            
         except aiohttp.ClientError as err:
             _LOGGER.error("Network error during cancellation: %s", err)
             raise HomeAssistantError(f"Network error: {err}") from err
@@ -300,8 +327,17 @@ def _validate_start_time(start_time: datetime, coordinator) -> None:
     
     # Must be in future
     if start_time <= now:
+        # Calculate suggestion for tomorrow same time
+        tomorrow_same_time = (now + timedelta(days=1)).replace(
+            hour=start_time.hour,
+            minute=start_time.minute,
+            second=0,
+            microsecond=0
+        )
+        
         raise ServiceValidationError(
-            "Start time must be in the future"
+            f"Booking failed: Start time ({start_time.strftime('%H:%M')}) is in the past. "
+            f"Try booking for tomorrow at {tomorrow_same_time.strftime('%H:%M')} instead."
         )
     
     # Check laundry hours
@@ -312,14 +348,36 @@ def _validate_start_time(start_time: datetime, coordinator) -> None:
     closing_hour = int(closing_time.split(":")[0])
     
     if start_time.hour < opening_hour:
+        # Suggest next valid time (opening time today or tomorrow)
+        next_valid = start_time.replace(
+            hour=opening_hour,
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+        if next_valid <= now:
+            # Opening time today already passed, suggest tomorrow
+            next_valid = next_valid + timedelta(days=1)
+        
         raise ServiceValidationError(
-            f"Start time is before laundry opens ({opening_time})"
+            f"Laundry opens at {opening_time}. "
+            f"Try booking from {next_valid.strftime('%d/%m/%Y %H:%M')} instead."
         )
     
     if start_time.hour >= closing_hour:
-        raise ServiceValidationError(
-            f"Start time is after laundry closes ({closing_time})"
+        # Suggest opening time next day
+        next_valid = (start_time + timedelta(days=1)).replace(
+            hour=opening_hour,
+            minute=0,
+            second=0,
+            microsecond=0
         )
+        
+        raise ServiceValidationError(
+            f"Laundry closes at {closing_time}. "
+            f"Try booking from {next_valid.strftime('%d/%m/%Y %H:%M')} instead."
+        )
+
 
 
 def _validate_end_time(end_time: datetime, start_time: datetime, coordinator) -> None:
@@ -372,9 +430,19 @@ async def _check_max_reservations(coordinator) -> None:
     max_reservations = coordinator.data.get("reservations", {}).get("MaxUserReservations", 2)
     
     if len(reservations) >= max_reservations:
+        # Build list of existing reservations for user to see
+        existing = []
+        for r in reservations[:3]:  # Show first 3
+            machine = r.get("MachineNumber", "?")
+            start = r.get("Start", "")[:16]  # Just date and time (2026-01-30T19:00)
+            existing.append(f"  • Machine {machine} at {start}")
+        
+        existing_list = "\n".join(existing)
+        
         raise ServiceValidationError(
-            f"Maximum number of reservations reached ({max_reservations}). "
-            "Cancel an existing reservation before making a new one."
+            f"Maximum reservations reached ({len(reservations)}/{max_reservations}). "
+            f"Cancel one of these first:\n{existing_list}\n\n"
+            f"Use service: mielelogic.cancel_reservation"
         )
 
 

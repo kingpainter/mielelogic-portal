@@ -131,6 +131,7 @@
       "calendar_not_found": "Valgte kalender findes ikke - tjek at den stadig er konfigureret",
       "invalid_time_format": "Ugyldigt tidsformat - brug HH:MM (f.eks. 07:00)",
       "end_before_start": "Sluttidspunkt skal være efter starttidspunkt",
+      "slot_overlap": "Tidsblokke må ikke overlappe med eksisterende blokke",
       "unknown": "Ukendt fejl opstod"
     }
   },

@@ -530,20 +530,27 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
                 if start >= end:
                     errors["end_time"] = "end_before_start"
                 else:
-                    # Add slot
+                    # Get existing slots
                     slots = list(self.config_entry.data.get("storvask_slots", []))
-                    slots.append({"start": start, "end": end})
+                    new_slot = {"start": start, "end": end}
                     
-                    # Sort by start time
-                    slots.sort(key=lambda s: s["start"])
-                    
-                    new_data = dict(self.config_entry.data)
-                    new_data["storvask_slots"] = slots
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry, data=new_data
-                    )
-                    
-                    return await self.async_step_edit_storvask_slots()
+                    # Check for overlap
+                    if self._check_slot_overlap(new_slot, slots):
+                        errors["base"] = "slot_overlap"
+                    else:
+                        # Add slot
+                        slots.append(new_slot)
+                        
+                        # Sort by start time
+                        slots.sort(key=lambda s: s["start"])
+                        
+                        new_data = dict(self.config_entry.data)
+                        new_data["storvask_slots"] = slots
+                        self.hass.config_entries.async_update_entry(
+                            self.config_entry, data=new_data
+                        )
+                        
+                        return await self.async_step_edit_storvask_slots()
                     
             except ValueError:
                 errors["base"] = "invalid_time_format"
@@ -576,20 +583,27 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
                 if start >= end:
                     errors["end_time"] = "end_before_start"
                 else:
-                    # Add slot
+                    # Get existing slots
                     slots = list(self.config_entry.data.get("klatvask_slots", []))
-                    slots.append({"start": start, "end": end})
+                    new_slot = {"start": start, "end": end}
                     
-                    # Sort by start time
-                    slots.sort(key=lambda s: s["start"])
-                    
-                    new_data = dict(self.config_entry.data)
-                    new_data["klatvask_slots"] = slots
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry, data=new_data
-                    )
-                    
-                    return await self.async_step_edit_klatvask_slots()
+                    # Check for overlap
+                    if self._check_slot_overlap(new_slot, slots):
+                        errors["base"] = "slot_overlap"
+                    else:
+                        # Add slot
+                        slots.append(new_slot)
+                        
+                        # Sort by start time
+                        slots.sort(key=lambda s: s["start"])
+                        
+                        new_data = dict(self.config_entry.data)
+                        new_data["klatvask_slots"] = slots
+                        self.hass.config_entries.async_update_entry(
+                            self.config_entry, data=new_data
+                        )
+                        
+                        return await self.async_step_edit_klatvask_slots()
                     
             except ValueError:
                 errors["base"] = "invalid_time_format"
@@ -629,6 +643,49 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             datetime.strptime(time_str, "%H:%M")
         except ValueError:
             raise ValueError(f"Invalid time format: {time_str}")
+
+    def _check_slot_overlap(self, new_slot: dict, existing_slots: list) -> bool:
+        """Check if new slot overlaps with any existing slot.
+        
+        Returns True if overlap detected, False otherwise.
+        
+        Overlap occurs when:
+        - new_start < existing_end AND new_end > existing_start
+        
+        Example overlaps:
+        - New: 08:00-10:00, Existing: 07:00-09:00 → Overlap (08:00 < 09:00 and 10:00 > 07:00)
+        - New: 09:00-11:00, Existing: 09:00-11:00 → Overlap (exact match)
+        
+        Example non-overlaps:
+        - New: 09:00-11:00, Existing: 07:00-09:00 → OK (adjacent, 09:00 == 09:00 is boundary)
+        """
+        try:
+            new_start = datetime.strptime(new_slot["start"], "%H:%M")
+            new_end = datetime.strptime(new_slot["end"], "%H:%M")
+            
+            for slot in existing_slots:
+                slot_start = datetime.strptime(slot["start"], "%H:%M")
+                slot_end = datetime.strptime(slot["end"], "%H:%M")
+                
+                # Check for overlap: new slot starts before existing ends
+                # AND new slot ends after existing starts
+                # Note: We allow adjacent slots (end == start is OK)
+                if new_start < slot_end and new_end > slot_start:
+                    _LOGGER.warning(
+                        "⚠️ Overlap detected: %s-%s overlaps with %s-%s",
+                        new_slot["start"],
+                        new_slot["end"],
+                        slot["start"],
+                        slot["end"],
+                    )
+                    return True  # Overlap detected
+            
+            return False  # No overlap
+        
+        except Exception as err:
+            _LOGGER.error("Error checking slot overlap: %s", err)
+            return False  # Don't block on error
+
 
     async def _test_credentials(
         self, username: str, password: str, client_id: str, client_secret: str = None

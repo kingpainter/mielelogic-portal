@@ -1,5 +1,6 @@
 # VERSION = "1.4.7"
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import aiohttp
@@ -20,6 +21,10 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Retry configuration for API calls
+MAX_RETRIES = 3
+RETRY_DELAYS = [1, 2, 4]  # Exponential backoff in seconds
 
 
 class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
@@ -61,13 +66,69 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=300),  # 5 minutes
         )
 
+    async def _fetch_with_retry(self, fetch_func, description: str):
+        """Fetch data with retry logic and exponential backoff.
+        
+        Args:
+            fetch_func: Async function to call (must be a callable that returns data)
+            description: Human-readable description for logging
+        
+        Returns:
+            Result from fetch_func, or raises exception after all retries exhausted
+        """
+        last_error = None
+        
+        for attempt in range(MAX_RETRIES):
+            try:
+                result = await fetch_func()
+                
+                # Log successful retry (only if not first attempt)
+                if attempt > 0:
+                    _LOGGER.info(
+                        "✅ %s succeeded on attempt %d/%d",
+                        description,
+                        attempt + 1,
+                        MAX_RETRIES,
+                    )
+                
+                return result
+            
+            except aiohttp.ClientError as err:
+                last_error = err
+                
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_DELAYS[attempt]
+                    _LOGGER.warning(
+                        "⚠️ %s failed (attempt %d/%d): %s. Retrying in %ds...",
+                        description,
+                        attempt + 1,
+                        MAX_RETRIES,
+                        err,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    _LOGGER.error(
+                        "❌ %s failed after %d attempts: %s",
+                        description,
+                        MAX_RETRIES,
+                        err,
+                    )
+            
+            except Exception as err:
+                _LOGGER.error("❌ %s unexpected error: %s", description, err, exc_info=True)
+                raise
+        
+        # If we get here, all retries failed
+        raise last_error
+
     async def _async_update_data(self):
-        """Fetch data from MieleLogic API and optionally sync to calendar."""
+        """Fetch data from MieleLogic API with retry logic and graceful degradation."""
         try:
             # 1. Ensure we have a valid token (ALWAYS required)
             await self._ensure_token()
 
-            # 2. Fetch data from MieleLogic API (ALWAYS required)
+            # 2. Prepare headers for API calls
             headers = {
                 "Authorization": f"Bearer {self.access_token}",
                 "Origin": "https://mielelogic.com",
@@ -75,36 +136,77 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             }
 
-            async with aiohttp.ClientSession() as session:
-                # Fetch all endpoints with caching
-                reservations = await self._fetch_with_cache(
-                    session,
-                    f"{API_BASE_URL}/reservations?laundry={self.laundry_id}",
-                    f"reservations_{self.laundry_id}",
-                    headers,
+            # 3. Fetch data with retry logic and graceful degradation
+            data = {}
+            
+            # Fetch reservations (critical - but continue if fails)
+            try:
+                async def fetch_reservations():
+                    async with aiohttp.ClientSession() as session:
+                        return await self._fetch_with_cache(
+                            session,
+                            f"{API_BASE_URL}/reservations?laundry={self.laundry_id}",
+                            f"reservations_{self.laundry_id}",
+                            headers,
+                        )
+                
+                data["reservations"] = await self._fetch_with_retry(
+                    fetch_reservations,
+                    "Fetch reservations"
                 )
-
-                machine_states = await self._fetch_with_cache(
-                    session,
-                    f"{API_BASE_URL}/Country/DA/Laundry/{self.laundry_id}/laundrystates?language=da",
-                    f"machine_states_{self.laundry_id}",
-                    headers,
+            except Exception as err:
+                _LOGGER.error("❌ Reservations unavailable: %s", err)
+                data["reservations"] = {
+                    "Reservations": [],
+                    "MaxUserReservations": 2,
+                    "error": str(err)
+                }
+            
+            # Fetch machine states (critical - but continue if fails)
+            try:
+                async def fetch_machine_states():
+                    async with aiohttp.ClientSession() as session:
+                        return await self._fetch_with_cache(
+                            session,
+                            f"{API_BASE_URL}/Country/DA/Laundry/{self.laundry_id}/laundrystates?language=da",
+                            f"machine_states_{self.laundry_id}",
+                            headers,
+                        )
+                
+                data["machine_states"] = await self._fetch_with_retry(
+                    fetch_machine_states,
+                    "Fetch machine states"
                 )
-
-                account_details = await self._fetch_with_cache(
-                    session,
-                    f"{API_BASE_URL}/accounts/Details",
-                    "account_details",
-                    headers,
+            except Exception as err:
+                _LOGGER.error("❌ Machine states unavailable: %s", err)
+                data["machine_states"] = {
+                    "MachineStates": [],
+                    "error": str(err)
+                }
+            
+            # Fetch account details (non-critical - continue if fails)
+            try:
+                async def fetch_account_details():
+                    async with aiohttp.ClientSession() as session:
+                        return await self._fetch_with_cache(
+                            session,
+                            f"{API_BASE_URL}/accounts/Details",
+                            "account_details",
+                            headers,
+                        )
+                
+                data["account_details"] = await self._fetch_with_retry(
+                    fetch_account_details,
+                    "Fetch account details"
                 )
+            except Exception as err:
+                _LOGGER.error("❌ Account details unavailable: %s", err)
+                data["account_details"] = {
+                    "Balance": 0.0,
+                    "error": str(err)
+                }
 
-            data = {
-                "reservations": reservations,
-                "machine_states": machine_states,
-                "account_details": account_details,
-            }
-
-            # 3. Optionally sync to external calendar (OPTIONAL, can fail gracefully)
+            # 4. Optionally sync to external calendar (OPTIONAL, can fail gracefully)
             if self.sync_to_calendar:
                 try:
                     await self._sync_to_external_calendar(data)
@@ -121,12 +223,9 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
 
             return data
 
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Network error fetching data: %s", err)
-            raise UpdateFailed(f"Network error: {err}") from err
         except Exception as err:
-            _LOGGER.error("Unexpected error fetching data: %s", err)
-            raise UpdateFailed(f"Unexpected error: {err}") from err
+            _LOGGER.error("❌ Critical error in coordinator update: %s", err, exc_info=True)
+            raise UpdateFailed(f"Critical error: {err}") from err
 
     async def _sync_to_external_calendar(self, data):
         """Sync MieleLogic reservations to external calendar."""

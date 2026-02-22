@@ -131,6 +131,7 @@
       "calendar_not_found": "Selected calendar not found - check that it is still configured",
       "invalid_time_format": "Invalid time format - use HH:MM (e.g. 07:00)",
       "end_before_start": "End time must be after start time",
+      "slot_overlap": "Time slots must not overlap with existing slots",
       "unknown": "Unknown error occurred"
     }
   },
