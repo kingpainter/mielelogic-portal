@@ -1,4 +1,4 @@
-# VERSION = "1.4.6"
+# VERSION = "1.4.7"
 """
 MieleLogic sensor platform.
 
@@ -387,7 +387,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         self._countdown_duration = None
 
         # Clean name for entity_id (remove spaces, special chars)
-        clean_name = machine_name.lower().replace(" ", "_").replace("Ã¦", "ae").replace("Ã¸", "oe").replace("Ã¥", "aa")
+        clean_name = machine_name.lower().replace(" ", "_").replace("æ", "ae").replace("ø", "oe").replace("å", "aa")
 
         self._attr_unique_id = f"{config_entry.entry_id}_{clean_name}_{machine_number}_status"
         self._attr_name = f"{machine_name} {machine_number} Status"
@@ -398,7 +398,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         machine_name_lower = machine_name.lower()
         if "klatvask" in machine_name_lower or "storvask" in machine_name_lower or "vask" in machine_name_lower:
             self._attr_icon = "mdi:washing-machine"
-        elif "tÃ¸rre" in machine_name_lower or "dryer" in machine_name_lower:
+        elif "tørre" in machine_name_lower or "dryer" in machine_name_lower:
             self._attr_icon = "mdi:tumble-dryer"
         elif machine_type in ["51", "85"]:
             # Fallback to MachineType if name doesn't match
@@ -450,7 +450,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         if reservation_info and reservation_info.strip():
             return f"{status} {reservation_info}"
         
-        # Priority 2: If "Lukket indtil" â†’ add opening time from config
+        # Priority 2: If "Lukket indtil" → add opening time from config
         elif "lukket indtil" in status.lower():
             opening_time = self.coordinator.config_entry.data.get("opening_time", "07:00")
             return f"{status} kl. {opening_time}"
@@ -473,7 +473,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
             machine_type_name = "Washer"
             # Override incorrect API MachineType
             corrected_machine_type = "51"  # Washer code
-        elif "tÃ¸rre" in machine_name_lower or "dryer" in machine_name_lower:
+        elif "tørre" in machine_name_lower or "dryer" in machine_name_lower:
             machine_type_name = "Dryer"
             corrected_machine_type = "58"  # Dryer code
         elif self._machine_type in ["51", "85"]:
@@ -562,9 +562,9 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         """Parse time remaining from status text.
         
         Examples:
-        - "Resttid: 55 min" â†’ 55
-        - "Resttid: 1 time 30 min" â†’ 90
-        - "Remaining: 45 min" â†’ 45
+        - "Resttid: 55 min" → 55
+        - "Resttid: 1 time 30 min" → 90
+        - "Remaining: 45 min" → 45
         
         Returns:
             Minutes remaining as integer, or None if not found

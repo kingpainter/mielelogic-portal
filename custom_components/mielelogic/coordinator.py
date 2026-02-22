@@ -1,4 +1,4 @@
-# VERSION = "1.4.6"
+# VERSION = "1.4.7"
 import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -108,13 +108,16 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             if self.sync_to_calendar:
                 try:
                     await self._sync_to_external_calendar(data)
+                    _LOGGER.debug("✅ Calendar sync completed successfully")
                 except Exception as err:
-                    _LOGGER.warning(
-                        "Calendar sync to %s failed: %s (continuing anyway)",
+                    _LOGGER.error(
+                        "❌ Calendar sync to %s failed, continuing anyway: %s",
                         self.sync_to_calendar,
                         err,
+                        exc_info=True,  # Include full traceback for debugging
                     )
                     # DON'T fail entire update if calendar sync fails!
+                    # This ensures sensors still update even if external calendar is unavailable
 
             return data
 
@@ -225,7 +228,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                     blocking=False,
                 )
 
-                _LOGGER.info("ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Created calendar event: %s", summary)
+                _LOGGER.info("✅ Created calendar event: %s", summary)
 
             except Exception as err:
                 _LOGGER.warning(
@@ -288,10 +291,10 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         if self._is_cache_valid(cache_key):
             cached = self._cache[cache_key]
             age = (datetime.now(ZoneInfo("UTC")) - cached["timestamp"]).total_seconds()
-            _LOGGER.info("ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Cache HIT for %s (age: %.1fs)", cache_key, age)
+            _LOGGER.info("✅ Cache HIT for %s (age: %.1fs)", cache_key, age)
             return cached["data"]
 
-        _LOGGER.debug("ÃƒÂ¢Ã‚ÂÃ…â€™ Cache MISS for %s", cache_key)
+        _LOGGER.debug("❌ Cache MISS for %s", cache_key)
         return None
 
     def _save_to_cache(self, cache_key: str, data: dict):
@@ -300,7 +303,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             "data": data,
             "timestamp": datetime.now(ZoneInfo("UTC")),
         }
-        _LOGGER.debug("ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¾ Cached data for %s", cache_key)
+        _LOGGER.debug("💾 Cached data for %s", cache_key)
 
     async def _fetch_with_cache(
         self, session: aiohttp.ClientSession, url: str, cache_key: str, headers: dict

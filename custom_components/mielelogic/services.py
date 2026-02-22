@@ -1,4 +1,4 @@
-# VERSION = "1.4.5"
+# VERSION = "1.4.7"
 """
 MieleLogic Services
 
@@ -101,7 +101,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
         }
         
         _LOGGER.info(
-            "ðŸ”µ Making reservation: Machine %s from %s to %s (%s min)",
+            "🔵 Making reservation: Machine %s from %s to %s (%s min)",
             machine_number,
             start_str,
             end_str,
@@ -140,11 +140,11 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             _LOGGER.debug("API Result: %s", result)
             if not result.get("ResultOK"):
                 error_msg = result.get("ResultText", "Unknown error")
-                _LOGGER.error("âŒ Reservation failed: %s", error_msg)
+                _LOGGER.error("❌ Reservation failed: %s", error_msg)
                 _LOGGER.error("Full API response: %s", result)
                 raise HomeAssistantError(f"Reservation failed: {error_msg}")
             
-            _LOGGER.info("âœ… Reservation successful!")
+            _LOGGER.info("✅ Reservation successful!")
             
             # Force refresh coordinator to update sensors
             await coordinator.async_request_refresh()
@@ -205,7 +205,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
         }
         
         _LOGGER.info(
-            "ðŸ”´ Canceling reservation: Machine %s from %s to %s",
+            "🔴 Canceling reservation: Machine %s from %s to %s",
             machine_number,
             start_str,
             end_str,
@@ -245,11 +245,11 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             _LOGGER.debug("Cancel API Result: %s", result)
             if not result.get("ResultOK"):
                 error_msg = result.get("ResultText", "Unknown error")
-                _LOGGER.error("âŒ Cancellation failed: %s", error_msg)
+                _LOGGER.error("❌ Cancellation failed: %s", error_msg)
                 _LOGGER.error("Full cancel API response: %s", result)
                 raise HomeAssistantError(f"Cancellation failed: {error_msg}")
             
-            _LOGGER.info("âœ… Cancellation successful!")
+            _LOGGER.info("✅ Cancellation successful!")
             
             # Force refresh coordinator to update sensors
             await coordinator.async_request_refresh()
@@ -276,7 +276,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
         schema=CANCEL_RESERVATION_SCHEMA,
     )
     
-    _LOGGER.info("âœ… MieleLogic services registered: make_reservation, cancel_reservation")
+    _LOGGER.info("✅ MieleLogic services registered: make_reservation, cancel_reservation")
 
 
 # ===== VALIDATION HELPERS =====

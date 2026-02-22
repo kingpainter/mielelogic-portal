@@ -1,4 +1,4 @@
-# VERSION = "1.4.6"
+# VERSION = "1.4.7"
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
