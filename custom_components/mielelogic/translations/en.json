@@ -84,6 +84,10 @@
         "data": {
           "klatvask_machine": "Klatvask primary machine",
           "storvask_machine": "Storvask primary machine"
+        },
+        "data_description": {
+          "klatvask_machine": "Typically machine 1 or 2 (small laundry house)",
+          "storvask_machine": "Typically machine 3, 4, or 5 (large laundry house)"
         }
       },
       "time_slots": {
