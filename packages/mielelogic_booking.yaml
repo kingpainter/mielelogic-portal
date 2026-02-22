@@ -1,5 +1,5 @@
 # MieleLogic Booking Package
-# Version: 1.4.6 - Vaskehus Abstraction
+# Version: 1.4.7 - Enhanced Error Handling
 # 
 # ENGLISH version with proper UTF-8 encoding
 # Danish characters handled correctly
@@ -41,7 +41,21 @@ template:
       # Expose config slots for templates
       - name: "MieleLogic Vaskehus Config"
         unique_id: mielelogic_vaskehus_config
-        state: "OK"
+        state: >
+          {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
+          {% if entities | length > 0 %}
+            {% set main_sensor = entities[0] %}
+            {% if states(main_sensor) not in ['unavailable', 'unknown'] %}
+              OK
+            {% else %}
+              unavailable
+            {% endif %}
+          {% else %}
+            not_configured
+          {% endif %}
+        availability: >
+          {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
+          {{ entities | length > 0 and states(entities[0]) not in ['unavailable', 'unknown'] }}
         attributes:
           klatvask_machine: >
             {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
