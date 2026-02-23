@@ -1,16 +1,21 @@
-# VERSION = "1.4.7"
+# VERSION = "1.5.1"
+"""The MieleLogic integration - Integrated Panel Edition."""
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .coordinator import MieleLogicDataUpdateCoordinator
 from .services import async_setup_services, async_unload_services
+from .panel import async_register_panel
+from .websocket import async_register_websocket_commands
+from .time_manager import TimeSlotManager
+from .booking_manager import BookingManager
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "binary_sensor", "calendar"]
 
-# Default configuration values (v1.4.6)
+# Default configuration values (v1.4.6+)
 DEFAULT_CONFIG = {
     "klatvask_primary_machine": 1,
     "storvask_primary_machine": 4,
@@ -40,32 +45,58 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up MieleLogic from a config entry."""
     _LOGGER.debug("Setting up MieleLogic integration for entry: %s", entry.entry_id)
     
-    # NEW v1.4.6: Migrate/ensure config has all required keys
+    # Ensure config has all required keys
     await _ensure_config_complete(hass, entry)
     
+    # ✨ NEW v1.5.0: Initialize store (global, shared)
+    from .storage import MieleLogicStore
+    if "store" not in hass.data.get(DOMAIN, {}):
+        store = MieleLogicStore(hass)
+        await store.async_load()
+        hass.data.setdefault(DOMAIN, {})
+        hass.data[DOMAIN]["store"] = store
+    else:
+        store = hass.data[DOMAIN]["store"]
+    
+    # Setup coordinator
     coordinator = MieleLogicDataUpdateCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
+    
+    # ✨ NEW v1.5.0: Setup managers
+    time_manager = TimeSlotManager(entry)
+    booking_manager = BookingManager(coordinator)
+    
+    from .notification_manager import NotificationManager
+    notification_manager = NotificationManager(hass, store)
+    
+    # Store coordinator (like Secure Me does - platforms need coordinator object)
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    hass.data[DOMAIN][entry.entry_id] = {
+        "coordinator": coordinator,
+        "time_manager": time_manager,
+        "booking_manager": booking_manager,
+        "notification_manager": notification_manager,
+    }
     
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     # Set up services (only once, not per config entry)
-    if len(hass.data[DOMAIN]) == 1:
+    if len([k for k in hass.data[DOMAIN].keys() if k != "store"]) == 1:
         await async_setup_services(hass, coordinator)
+        
+        # ✨ NEW v1.5.0: Register panel (only once)
+        await async_register_panel(hass)
+        
+        # ✨ NEW v1.5.0: Register WebSocket commands (only once)
+        async_register_websocket_commands(hass)
     
-    _LOGGER.info("MieleLogic integration setup complete with platforms: %s", PLATFORMS)
+    _LOGGER.info("✅ MieleLogic v1.5.0 setup complete with integrated panel")
     return True
 
 
 async def _ensure_config_complete(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Ensure config entry has all required keys with defaults.
-    
-    NEW v1.4.6: This migration ensures that machine numbers and slots
-    are always present in config_entry.data, even after upgrades or
-    if Options Flow failed to save them properly.
-    """
+    """Ensure config entry has all required keys with defaults."""
     needs_update = False
     new_data = dict(entry.data)
     

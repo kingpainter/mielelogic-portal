@@ -1,4 +1,4 @@
-# VERSION = "1.3.0"
+# VERSION = "1.5.1"
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorDeviceClass,
@@ -39,7 +39,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up MieleLogic binary sensor platform."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     
     sensors = [
         MieleLogicHasReservationBinarySensor(coordinator, config_entry),

@@ -1,4 +1,4 @@
-# VERSION = "1.4.7"
+# VERSION = "1.5.1"
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -63,7 +63,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=300),  # 5 minutes
+            update_interval=timedelta(seconds=60),  # 1 minute (was 5 minutes)
         )
 
     async def _fetch_with_retry(self, fetch_func, description: str):
@@ -231,15 +231,21 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         """Sync MieleLogic reservations to external calendar."""
         target_calendar = self.sync_to_calendar
 
-        # 1. Check if target calendar exists
-        calendar_state = self.hass.states.get(target_calendar)
-        if not calendar_state:
-            _LOGGER.warning(
-                "Target calendar %s not found - sync disabled. "
-                "Update calendar settings in Options Flow.",
-                target_calendar,
-            )
-            return
+        # 1. Check if target calendar exists (entity registry check is more reliable)
+        from homeassistant.helpers import entity_registry as er
+        entity_reg = er.async_get(self.hass)
+        calendar_entity = entity_reg.async_get(target_calendar)
+        
+        if not calendar_entity:
+            # Fallback to state check
+            calendar_state = self.hass.states.get(target_calendar)
+            if not calendar_state:
+                _LOGGER.warning(
+                    "Target calendar %s not found - sync disabled. "
+                    "Update calendar settings in Options Flow.",
+                    target_calendar,
+                )
+                return
 
         _LOGGER.debug("Syncing reservations to %s", target_calendar)
 
@@ -253,25 +259,32 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         now = datetime.now(ZoneInfo("UTC"))
         end_date = now + timedelta(days=30)  # Look 30 days ahead
 
+        existing_events = []
         try:
-            # Call calendar.get_events service to get existing events
-            response = await self.hass.services.async_call(
-                "calendar",
-                "get_events",
-                {
-                    "entity_id": target_calendar,
-                    "start_date_time": now.isoformat(),
-                    "end_date_time": end_date.isoformat(),
-                },
-                blocking=True,
-                return_response=True,
-            )
+            # Check if calendar.get_events service exists (HA 2024.11+)
+            if not self.hass.services.has_service("calendar", "get_events"):
+                _LOGGER.debug(
+                    "Calendar service 'get_events' not available - skipping duplicate check"
+                )
+            else:
+                # Call calendar.get_events service to get existing events
+                response = await self.hass.services.async_call(
+                    "calendar",
+                    "get_events",
+                    {
+                        "entity_id": target_calendar,
+                        "start_date_time": now.isoformat(),
+                        "end_date_time": end_date.isoformat(),
+                    },
+                    blocking=True,
+                    return_response=True,
+                )
 
-            existing_events = response.get(target_calendar, {}).get("events", [])
-            _LOGGER.debug("Found %d existing events in target calendar", len(existing_events))
+                existing_events = response.get(target_calendar, {}).get("events", [])
+                _LOGGER.debug("Found %d existing events in target calendar", len(existing_events))
 
         except Exception as err:
-            _LOGGER.warning("Failed to get existing events from %s: %s", target_calendar, err)
+            _LOGGER.debug("Could not get existing events from %s: %s", target_calendar, err)
             existing_events = []
 
         # 4. Sync logic: Create missing events
@@ -314,6 +327,14 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 description += f"Maskine: {machine_name} #{machine_number}\n"
                 description += f"Varighed: {duration} minutter"
 
+                # Check if calendar.create_event service exists
+                if not self.hass.services.has_service("calendar", "create_event"):
+                    _LOGGER.warning(
+                        "Calendar service 'create_event' not available - "
+                        "calendar sync disabled. Update Home Assistant to 2024.11+"
+                    )
+                    continue
+                
                 await self.hass.services.async_call(
                     "calendar",
                     "create_event",
@@ -330,8 +351,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.info("✅ Created calendar event: %s", summary)
 
             except Exception as err:
-                _LOGGER.warning(
-                    "Failed to sync reservation %s: %s",
+                _LOGGER.debug(
+                    "Could not sync reservation %s: %s",
                     reservation.get("ReservationId"),
                     err,
                 )
@@ -403,6 +424,14 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             "timestamp": datetime.now(ZoneInfo("UTC")),
         }
         _LOGGER.debug("💾 Cached data for %s", cache_key)
+
+    def clear_cache(self):
+        """Clear all cached data to force fresh fetch.
+        
+        Used after booking/cancel to ensure latest data is retrieved.
+        """
+        self._cache = {}
+        _LOGGER.debug("🗑️ Cache cleared - next update will fetch fresh data")
 
     async def _fetch_with_cache(
         self, session: aiohttp.ClientSession, url: str, cache_key: str, headers: dict

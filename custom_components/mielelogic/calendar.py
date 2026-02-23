@@ -1,4 +1,4 @@
-# VERSION = "1.4.7"
+# VERSION = "1.5.1"
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
@@ -18,7 +18,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up MieleLogic calendar platform."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     
     calendar = MieleLogicReservationCalendar(coordinator, config_entry)
     async_add_entities([calendar])

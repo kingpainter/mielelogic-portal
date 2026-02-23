@@ -1,6 +1,6 @@
-# VERSION = "1.4.7"
+# VERSION = "1.5.1"
 DOMAIN = "mielelogic"
-VERSION = "1.4.7"
+VERSION = "1.5.1"
 
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"

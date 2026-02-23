@@ -1,4 +1,4 @@
-# VERSION = "1.4.7"
+# VERSION = "1.5.1"
 """
 MieleLogic Services
 
@@ -150,6 +150,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             _LOGGER.info("✅ Reservation successful!")
             
             # Force refresh coordinator to update sensors
+            coordinator.clear_cache()  # Clear cache first!
             await coordinator.async_request_refresh()
             
             # Return useful data for scripts/automations
@@ -269,6 +270,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             _LOGGER.info("✅ Cancellation successful!")
             
             # Force refresh coordinator to update sensors
+            coordinator.clear_cache()  # Clear cache first!
             await coordinator.async_request_refresh()
             
             # Return useful data for scripts/automations
@@ -288,12 +290,13 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
             _LOGGER.error("Unexpected error during cancellation: %s", err)
             raise HomeAssistantError(f"Unexpected error: {err}") from err
     
-    # Register services
+    # Register services with response support
     hass.services.async_register(
         DOMAIN,
         "make_reservation",
         handle_make_reservation,
         schema=MAKE_RESERVATION_SCHEMA,
+        supports_response="optional",  # NEW: Support return values
     )
     
     hass.services.async_register(
@@ -301,6 +304,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
         "cancel_reservation",
         handle_cancel_reservation,
         schema=CANCEL_RESERVATION_SCHEMA,
+        supports_response="optional",  # NEW: Support return values
     )
     
     _LOGGER.info("✅ MieleLogic services registered: make_reservation, cancel_reservation")
