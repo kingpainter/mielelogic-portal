@@ -1,4 +1,4 @@
-# VERSION = "1.5.1"
+# VERSION = "1.7.0"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 from homeassistant.config_entries import ConfigEntry
@@ -64,10 +64,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # ✨ NEW v1.5.0: Setup managers
     time_manager = TimeSlotManager(entry)
-    booking_manager = BookingManager(coordinator)
     
     from .notification_manager import NotificationManager
     notification_manager = NotificationManager(hass, store)
+    
+    # v1.5.2: Pass both store and notification_manager to booking_manager
+    booking_manager = BookingManager(coordinator, store, notification_manager)
     
     # Store coordinator (like Secure Me does - platforms need coordinator object)
     hass.data.setdefault(DOMAIN, {})

@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-02-27
+
+### Changed - Code Quality 🧹
+- **Cleaned Debug Logging** - Removed verbose 🔍 DEBUG logs from v1.6.0 debugging session
+- **Better Production Logs** - Essential info at INFO level, details at DEBUG level
+- **Reduced Log Spam** - Cleaner log files for production use
+
+### Technical
+- Simplified logging in booking_manager.py, websocket.py, storage.py
+- Maintained essential error and warning messages
+- Debug logs still available when log level set to debug
+
+## [1.6.0] - 2026-02-27
+
+### Fixed - User Tracking Display 🎯
+- **Key Format Mismatch** - Fixed datetime key normalization
+  - Save used: "2026-05-23 17:00:00" (space)
+  - Get used: "2026-05-23T17:00:00" (T separator)
+  - Solution: Normalize both formats to consistent keys
+- **User Tracking Now Works** - Displays "📱 Via Panel" under all bookings
+- **Metadata Retrieval** - Reliable lookup across different datetime formats
+
+### Added - Debug Logging (Temporary)
+- Comprehensive logging for troubleshooting (removed in v1.7.0)
+- Full trace through save/retrieve workflow
+- Helpful for future debugging sessions
+
+## [1.5.2] - 2026-02-23
+
+### Added - User Tracking 👤
+- **Booking Metadata** - Track which Home Assistant user created each booking
+- **Display in Panel** - Shows "👤 Username" under each booking
+- **Automatic Cleanup** - Old booking metadata cleaned up after 7 days
+- **Privacy Friendly** - Only stores username, not sensitive data
+
+### Added - Automatic Notifications 📨
+- **Booking Created** - Automatically sends notification when booking is made
+- **Booking Canceled** - Automatically sends notification when booking is deleted
+- Works with notification settings from panel (must be enabled + devices selected)
+
+### Changed - Calendar Improvements 📅
+- **Conditional Calendar Registration** - Only one calendar active at a time
+  - If external sync disabled → MieleLogic calendar visible
+  - If external sync enabled → MieleLogic calendar hidden, only external calendar shows
+  - Prevents duplicate calendar confusion
+- **Improved Logging** - Clear messages about which calendar mode is active
+
+### Fixed
+- Calendar duplication when external sync enabled
+- User confusion with two identical calendars showing same events
+- Booking/cancellation notifications not being sent automatically
+
+### Technical
+- `storage.py` - Added booking metadata storage system
+- `booking_manager.py` - Captures user context, sends notifications on booking/cancel
+- `websocket.py` - Includes user metadata in booking responses  
+- `panel.js` - Displays created_by username in booking cards
+- `calendar.py` - Conditional entity registration based on `coordinator.sync_to_calendar`
+- `__init__.py` - Pass notification_manager to booking_manager
+- Version bumped to 1.5.2
+
+---
+
 ## [1.5.1] - 2026-02-22
 
 ### Added - Notification UI ✨

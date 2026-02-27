@@ -1,4 +1,4 @@
-# VERSION = "1.5.1"
+# VERSION = "1.7.0"
 """WebSocket API for MieleLogic panel."""
 import logging
 import voluptuous as vol
@@ -46,6 +46,11 @@ def _get_booking_manager(hass: HomeAssistant):
         if isinstance(value, dict) and "booking_manager" in value:
             return value["booking_manager"]
     return None
+
+
+def _get_store(hass: HomeAssistant):
+    """Get the store instance."""
+    return hass.data.get(DOMAIN, {}).get("store")
 
 
 def _get_store(hass: HomeAssistant):
@@ -134,6 +139,7 @@ async def ws_make_booking(hass: HomeAssistant, connection, msg):
             machine,
             start_datetime,
             slot["duration"],
+            connection.context,  # ✨ v1.5.2: Pass context for user tracking
         )
         
         # ✨ NEW: Force coordinator refresh to get latest data
@@ -199,6 +205,7 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
     """Get current bookings for display in panel."""
     time_manager = _get_time_manager(hass)
     booking_manager = _get_booking_manager(hass)
+    store = _get_store(hass)  # ✨ v1.5.2: Get store for user metadata
     
     if not time_manager or not booking_manager:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -207,13 +214,24 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
     try:
         bookings = booking_manager.get_current_bookings()
         
-        # Add vaskehus names to bookings
+        # Add vaskehus names and user metadata to bookings
         enhanced_bookings = []
         for booking in bookings:
             enhanced = dict(booking)
             enhanced["vaskehus"] = time_manager.get_vaskehus_for_machine(
                 booking.get("MachineNumber", 0)
             )
+            
+            # ✨ v1.6.0: Add user metadata if available
+            if store:
+                metadata = store.get_booking_metadata(
+                    machine=booking.get("MachineNumber", 0),
+                    start_time=booking.get("Start", ""),
+                )
+                if metadata:
+                    enhanced["created_by"] = metadata.get("created_by")
+                    enhanced["created_at"] = metadata.get("created_at")
+            
             enhanced_bookings.append(enhanced)
         
         _LOGGER.debug("📋 WebSocket: Returning %d bookings", len(enhanced_bookings))

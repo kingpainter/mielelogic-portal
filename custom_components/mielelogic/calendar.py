@@ -1,4 +1,4 @@
-# VERSION = "1.5.1"
+# VERSION = "1.7.0"
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
@@ -20,9 +20,19 @@ async def async_setup_entry(
     """Set up MieleLogic calendar platform."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     
+    # Only register MieleLogic calendar if external sync is disabled
+    if coordinator.sync_to_calendar:
+        _LOGGER.info(
+            "External calendar sync enabled - MieleLogic calendar disabled. "
+            "Events will only appear in external calendar: %s",
+            coordinator.sync_to_calendar
+        )
+        return
+    
+    # External sync disabled - register MieleLogic calendar
     calendar = MieleLogicReservationCalendar(coordinator, config_entry)
     async_add_entities([calendar])
-    _LOGGER.debug("Added MieleLogic reservation calendar")
+    _LOGGER.info("MieleLogic calendar registered (external sync disabled)")
 
 
 class MieleLogicReservationCalendar(CalendarEntity):

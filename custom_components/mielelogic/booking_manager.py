@@ -1,4 +1,4 @@
-# VERSION = "1.5.1"
+# VERSION = "1.7.0"
 """Manage booking and cancellation operations."""
 import logging
 from typing import Dict, List
@@ -12,16 +12,34 @@ _LOGGER = logging.getLogger(__name__)
 class BookingManager:
     """Handle booking and cancellation logic."""
     
-    def __init__(self, coordinator):
-        """Initialize booking manager."""
+    def __init__(self, coordinator, store=None, notification_manager=None):
+        """Initialize booking manager.
+        
+        Args:
+            coordinator: MieleLogic coordinator
+            store: MieleLogicStore for metadata tracking (optional for v1.5.2+)
+            notification_manager: NotificationManager for sending notifications (optional v1.5.2+)
+        """
         self.coordinator = coordinator
         self.hass = coordinator.hass
+        self.store = store  # ✨ NEW v1.5.2: Store for user tracking
+        self.notification_manager = notification_manager  # ✨ v1.5.2: Notification support
+    
+    def _get_time_manager(self):
+        """Get time_manager instance from hass.data (helper for notifications)."""
+        from .const import DOMAIN
+        domain_data = self.hass.data.get(DOMAIN, {})
+        for key, value in domain_data.items():
+            if isinstance(value, dict) and "time_manager" in value:
+                return value["time_manager"]
+        return None
     
     async def make_booking(
         self,
         machine_number: int,
         start_datetime: str,
         duration: int,
+        context = None,  # ✨ v1.5.2: User context for tracking
     ) -> Dict:
         """Make a booking via service call.
         
@@ -29,6 +47,7 @@ class BookingManager:
             machine_number: Machine to book (1-5)
             start_datetime: Start time as "YYYY-MM-DD HH:MM:SS"
             duration: Duration in minutes
+            context: HomeAssistant context (for user tracking)
         
         Returns:
             Dict with:
@@ -58,6 +77,48 @@ class BookingManager:
             )
             
             _LOGGER.info("✅ Booking successful!")
+            
+            # ✨ v1.6.0: Save booking metadata
+            if self.store:
+                try:
+                    await self.store.async_save_booking_metadata(
+                        machine=machine_number,
+                        start_time=start_datetime,
+                        user_name="Via Panel",
+                        duration=duration,
+                    )
+                    _LOGGER.debug("Saved booking metadata for machine %s", machine_number)
+                    
+                except Exception as err:
+                    _LOGGER.warning("Could not save booking metadata: %s", err)
+            
+            # ✨ v1.5.2: Send booking created notification
+            if self.notification_manager:
+                try:
+                    # Get vaskehus name for notification
+                    from .time_manager import TimeSlotManager
+                    time_manager = self._get_time_manager()
+                    vaskehus = "Vaskehus"
+                    if time_manager:
+                        vaskehus = time_manager.get_vaskehus_for_machine(machine_number) or "Vaskehus"
+                    
+                    # Parse datetime for notification
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(start_datetime.replace(" ", "T"))
+                    
+                    await self.notification_manager.send_notification(
+                        "booking_created",
+                        {
+                            "vaskehus": vaskehus,
+                            "date": dt.strftime("%d-%m-%Y"),
+                            "time": dt.strftime("%H:%M"),
+                            "duration": duration,
+                        }
+                    )
+                    _LOGGER.info("📨 Sent booking created notification")
+                except Exception as err:
+                    _LOGGER.warning("Could not send booking notification: %s", err)
+                    # Don't fail the booking if notification fails
             
             return {
                 "success": True,
@@ -116,6 +177,33 @@ class BookingManager:
             )
             
             _LOGGER.info("✅ Cancellation successful!")
+            
+            # ✨ NEW v1.5.2: Delete booking metadata
+            if self.store:
+                try:
+                    await self.store.async_delete_booking_metadata(
+                        machine=machine_number,
+                        start_time=start_time,
+                    )
+                    _LOGGER.debug("Deleted booking metadata")
+                except Exception as err:
+                    _LOGGER.warning("Could not delete booking metadata: %s", err)
+            
+            # ✨ v1.5.2: Send booking canceled notification
+            if self.notification_manager:
+                try:
+                    time_manager = self._get_time_manager()
+                    vaskehus = "Vaskehus"
+                    if time_manager:
+                        vaskehus = time_manager.get_vaskehus_for_machine(machine_number) or "Vaskehus"
+                    
+                    await self.notification_manager.send_notification(
+                        "booking_canceled",
+                        {"vaskehus": vaskehus}
+                    )
+                    _LOGGER.info("📨 Sent booking canceled notification")
+                except Exception as err:
+                    _LOGGER.warning("Could not send cancellation notification: %s", err)
             
             return {
                 "success": True,

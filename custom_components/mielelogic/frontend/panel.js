@@ -1,5 +1,5 @@
 // MieleLogic Panel - Main UI Component
-// VERSION = "1.5.1"
+// VERSION = "1.7.0"
 
 import {
   LitElement,
@@ -520,6 +520,9 @@ class MieleLogicPanel extends LitElement {
             <div class="booking-vaskehus">${booking.vaskehus}</div>
             <div class="booking-time">${this.formatDate(booking.Start)}</div>
             <div class="booking-duration">${booking.Duration} minutter</div>
+            ${booking.created_by ? html`
+              <div class="booking-user">👤 ${booking.created_by}</div>
+            ` : ''}
           </div>
         </div>
         <button
@@ -620,7 +623,7 @@ class MieleLogicPanel extends LitElement {
         display: block;
         width: 100%;
         padding: 16px;
-        max-width: 800px; /* Default for portrait/desktop */
+        max-width: 1200px; /* Increased from 800px for better grid layout */
         margin: 0 auto;
         box-sizing: border-box;
         overflow-y: auto;
@@ -883,6 +886,13 @@ class MieleLogicPanel extends LitElement {
         color: var(--disabled-text-color, #9e9e9e);
       }
 
+      .booking-user {
+        font-size: 11px;
+        color: var(--secondary-text-color, #757575);
+        margin-top: 4px;
+        font-style: italic;
+      }
+
       /* Delete Button */
       .delete-button {
         background: #f44336;
@@ -978,53 +988,70 @@ class MieleLogicPanel extends LitElement {
         margin: 0 0 16px 0;
       }
 
-      /* Device List */
+      /* Device List - Responsive Grid */
       .device-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 8px;
         margin-bottom: 16px;
+        justify-content: center;
+        max-width: 800px; /* Limit width for better centering */
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .device-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px;
+        gap: 6px;
+        padding: 8px 10px;
         background: var(--card-background-color, #fff);
         border-radius: 6px;
         cursor: pointer;
-        transition: background 0.2s;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+        min-width: 0; /* Allow flex items to shrink */
       }
 
       .device-item:hover {
-        background: var(--primary-background-color, #fafafa);
+        background: var(--primary-background-color, #f5f5f5);
+        border-color: #03a9f4;
       }
 
       .device-item input[type="checkbox"] {
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
         cursor: pointer;
+        flex-shrink: 0;
       }
 
       .device-name {
-        font-size: 15px;
+        font-size: 13px;
         color: var(--primary-text-color, #212121);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
       }
 
-      /* Notification List */
+      /* Notification List - 2 Column Grid Centered */
       .notification-list {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 12px;
+        max-width: 900px; /* Limit to ~2 columns width */
+        margin-left: auto;
+        margin-right: auto;
+        justify-content: center;
       }
 
       .notification-item {
         background: var(--card-background-color, #fff);
-        padding: 16px;
+        padding: 14px;
         border-radius: 8px;
         border: 2px solid transparent;
         transition: border-color 0.2s;
+        min-width: 0; /* Allow flex items to shrink */
       }
 
       .notification-item:hover {
@@ -1035,43 +1062,52 @@ class MieleLogicPanel extends LitElement {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
       }
 
       .notification-toggle {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
         cursor: pointer;
+        flex: 1;
+        min-width: 0;
       }
 
       .notification-toggle input[type="checkbox"] {
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
         cursor: pointer;
+        flex-shrink: 0;
       }
 
       .notification-title {
         font-weight: 600;
-        font-size: 16px;
+        font-size: 15px;
         color: var(--primary-text-color, #212121);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .notification-message {
-        font-size: 14px;
+        font-size: 13px;
         color: var(--secondary-text-color, #757575);
-        margin-left: 32px;
+        margin-left: 28px;
+        line-height: 1.3;
       }
 
       .test-btn {
         background: #4caf50;
         color: white;
         border: none;
-        padding: 8px 16px;
+        padding: 6px 14px;
         border-radius: 6px;
-        font-size: 14px;
+        font-size: 13px;
         cursor: pointer;
         transition: background 0.2s;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
 
       .test-btn:hover:not(:disabled) {
@@ -1137,6 +1173,16 @@ class MieleLogicPanel extends LitElement {
           gap: 12px;
         }
 
+        /* Device grid: 1 column on small mobile */
+        .device-list {
+          grid-template-columns: 1fr;
+        }
+
+        /* Notification list: 1 column on mobile */
+        .notification-list {
+          grid-template-columns: 1fr;
+        }
+
         .booking-card {
           flex-direction: column;
           align-items: flex-start;
@@ -1184,6 +1230,11 @@ class MieleLogicPanel extends LitElement {
           flex-direction: row;
         }
 
+        /* Device grid: Same compact sizing */
+        .device-list {
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        }
+
         .form-group {
           margin-bottom: 16px;
         }
@@ -1216,7 +1267,7 @@ class MieleLogicPanel extends LitElement {
       /* Desktop / Large Tablet (> 1200px) */
       @media (min-width: 1200px) {
         :host {
-          max-width: 1000px; /* Wider on desktop */
+          max-width: 1400px; /* Even wider on desktop for better grid layout */
         }
 
         .panel {
@@ -1234,9 +1285,9 @@ class MieleLogicPanel extends LitElement {
       }
 
       /* Landscape Orientation Specific - Full Width! */
-      @media (orientation: landscape) {
+      @media (orientation: landscape) and (max-width: 1199px) {
         :host {
-          max-width: 98%; /* Almost edge to edge */
+          max-width: 98%; /* Almost edge to edge (but not on desktop) */
           padding: 8px;
         }
 

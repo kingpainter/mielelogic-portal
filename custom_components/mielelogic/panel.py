@@ -1,4 +1,4 @@
-# VERSION = "1.5.1"
+# VERSION = "1.7.0"
 """Panel registration for MieleLogic."""
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 # Panel configuration
-VERSION = "1.5.0"
+VERSION = "1.7.0"
 PANEL_URL = f"/api/{DOMAIN}-panel"
 PANEL_ICON = "mdi:washing-machine"
 PANEL_NAME = "mielelogic-panel"

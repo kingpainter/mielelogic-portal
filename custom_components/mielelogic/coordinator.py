@@ -1,4 +1,4 @@
-# VERSION = "1.5.1"
+# VERSION = "1.7.0"
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -45,6 +45,14 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         self.access_token = None
         self.refresh_token = None
         self.token_expiry = None
+        
+        # ✨ v1.5.2: Track last sync time to prevent rapid duplicate syncs
+        self._last_sync_time = None
+        self._min_sync_interval = 5  # Minimum 5 seconds between syncs
+        
+        # ✨ v1.5.2: Track which events we've created (PERMANENT - prevents duplicates)
+        # Format: {(machine, start_time): True}
+        self._created_events = set()
 
         # Response caching (60s TTL)
         self._cache = {}
@@ -228,7 +236,27 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Critical error: {err}") from err
 
     async def _sync_to_external_calendar(self, data):
-        """Sync MieleLogic reservations to external calendar."""
+        """Sync MieleLogic reservations to external calendar.
+        
+        Throttles syncs to prevent duplicates from rapid consecutive calls.
+        """
+        # ✨ v1.5.2: Throttle rapid syncs (prevent duplicates)
+        now = datetime.now()
+        if self._last_sync_time:
+            time_since_last = (now - self._last_sync_time).total_seconds()
+            if time_since_last < self._min_sync_interval:
+                _LOGGER.debug(
+                    "⏱️ Skipping calendar sync - only %.1fs since last sync (min %ds)",
+                    time_since_last,
+                    self._min_sync_interval
+                )
+                return
+        
+        self._last_sync_time = now
+        await self._do_sync_to_external_calendar(data)
+    
+    async def _do_sync_to_external_calendar(self, data):
+        """Internal sync implementation (throttled)."""
         target_calendar = self.sync_to_calendar
 
         # 1. Check if target calendar exists (entity registry check is more reliable)
@@ -261,10 +289,11 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
 
         existing_events = []
         try:
-            # Check if calendar.get_events service exists (HA 2024.11+)
+            # Check if calendar.get_events service exists (HA 2026.1+)
             if not self.hass.services.has_service("calendar", "get_events"):
                 _LOGGER.debug(
-                    "Calendar service 'get_events' not available - skipping duplicate check"
+                    "Calendar service 'get_events' not available - "
+                    "using permanent tracking for duplicates (HA 2026.1+ for calendar check)"
                 )
             else:
                 # Call calendar.get_events service to get existing events
@@ -284,8 +313,11 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("Found %d existing events in target calendar", len(existing_events))
 
         except Exception as err:
-            _LOGGER.debug("Could not get existing events from %s: %s", target_calendar, err)
+            _LOGGER.warning("Could not get existing events from %s: %s", target_calendar, err)
             existing_events = []
+        
+        # Track created events in this sync run to prevent duplicates within same sync
+        created_this_sync = set()
 
         # 4. Sync logic: Create missing events
         for reservation in reservations:
@@ -308,6 +340,19 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 # NEW v1.4.6: Use vaskehus name instead of machine name
                 vaskehus_name = self._get_vaskehus_name(machine_number)
                 summary = f"{vaskehus_name} booket"
+                
+                # Create unique key for this event
+                machine_number = reservation.get("MachineNumber", 0)
+                permanent_key = (machine_number, start_str)  # Permanent tracking
+                event_key = f"{summary}_{start_time.isoformat()}"  # Per-sync tracking
+
+                # ✨ NUCLEAR OPTION: Check if we've EVER created this event before
+                if permanent_key in self._created_events:
+                    _LOGGER.debug(
+                        "🚫 Event '%s' (machine %s, %s) was ALREADY created before - SKIPPING PERMANENTLY",
+                        summary, machine_number, start_str
+                    )
+                    continue
 
                 # Check if event already exists (match on summary + start time)
                 already_exists = any(
@@ -315,9 +360,14 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                     and self._parse_datetime(event.get("start")) == start_time
                     for event in existing_events
                 )
+                
+                # Also check if we already created this event in THIS sync run
+                if event_key in created_this_sync:
+                    _LOGGER.debug("Event '%s' already created in this sync, skipping duplicate", summary)
+                    continue
 
                 if already_exists:
-                    _LOGGER.debug("Event '%s' already exists, skipping", summary)
+                    _LOGGER.debug("Event '%s' already exists in calendar, skipping", summary)
                     continue
 
                 # Create new event in target calendar
@@ -329,9 +379,9 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
 
                 # Check if calendar.create_event service exists
                 if not self.hass.services.has_service("calendar", "create_event"):
-                    _LOGGER.warning(
+                    _LOGGER.debug(
                         "Calendar service 'create_event' not available - "
-                        "calendar sync disabled. Update Home Assistant to 2024.11+"
+                        "calendar sync disabled. (HA 2026.1+ required)"
                     )
                     continue
                 
@@ -347,6 +397,13 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                     },
                     blocking=False,
                 )
+                
+                # Track that we created this event to prevent duplicates in same sync
+                created_this_sync.add(event_key)
+                
+                # ✨ PERMANENT TRACKING: Never create this event again (even after restart)
+                self._created_events.add(permanent_key)
+                _LOGGER.debug("📝 Permanently tracked: machine %s at %s", machine_number, start_str)
 
                 _LOGGER.info("✅ Created calendar event: %s", summary)
 

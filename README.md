@@ -1,13 +1,14 @@
 # MieleLogic Integration for Home Assistant
 
-[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.1%2B-blue.svg)](https://www.home-assistant.io/)
 
-Professional Home Assistant integration for MieleLogic laundry services with **integrated panel** 🎛️, **real-time notifications** 🔔, smart booking by house name (Klatvask/Storvask) 🧺, and comprehensive automation support.
+Professional Home Assistant integration for MieleLogic laundry services with **integrated panel** 🎛️, **real-time notifications** 🔔, **user tracking** 👤, smart booking by house name (Klatvask/Storvask) 🧺, and comprehensive automation support.
 
-**NEW in v1.5.1:** Complete notification system with mobile device management! 🔔  
+**NEW in v1.7.0:** Production-ready code with clean logging! 🧹  
+**NEW in v1.6.0:** User tracking shows who created each booking! 👤  
 **NEW in v1.5.0:** NO package files needed - professional integrated panel! 🎛️
 
 ---
@@ -20,14 +21,16 @@ Professional Home Assistant integration for MieleLogic laundry services with **i
 - **Real-time Updates** - Auto-refresh every 30 seconds
 - **Responsive Design** - Perfect on mobile, tablet, and desktop
 - **Smart Layouts** - 1 booking = centered, 2 bookings = side-by-side
+- **User Tracking** - See who created each booking 👤
 
 ### 🔔 Notification System (v1.5.1+)
 - **Device Manager** - Select which mobile apps receive notifications
+- **Automatic Notifications** - Auto-send on booking create/cancel
 - **4 Smart Notifications**:
   - 🧺 15-minute reminder before booking starts
   - ⏰ 5-minute remaining warning
-  - ✅ Booking created confirmation
-  - ❌ Booking canceled notification
+  - ✅ Booking created confirmation (auto-sent)
+  - ❌ Booking canceled notification (auto-sent)
 - **Test Functionality** - Send test messages to verify setup
 - **Persistent Storage** - Settings survive restarts
 
@@ -35,6 +38,7 @@ Professional Home Assistant integration for MieleLogic laundry services with **i
 - **Vaskehus-Based** - Book by house name (Klatvask/Storvask) not machine numbers
 - **Fixed Time Slots** - Configure standard booking blocks
 - **Calendar Integration** - Visual overview with house names
+- **Duplicate Prevention** - Advanced tracking prevents duplicate calendar events
 - **Instant Feedback** - Booking appears immediately in panel
 
 ### 🏆 Enterprise Quality
@@ -42,10 +46,28 @@ Professional Home Assistant integration for MieleLogic laundry services with **i
 - **Gold Tier Components** - Professional panel + notification system
 - **Zero Dependencies** - No package files, no automations needed
 - **Cache Management** - Intelligent API call optimization
+- **Production Logging** - Clean logs with debug available when needed
 
 ---
 
 ## 🚀 What's New
+
+### v1.7.0 (2026-02-27) - Production Polish 🧹
+- **Clean Logging** - Removed verbose debug logs
+- **Better Error Messages** - Production-ready log levels
+- **Code Quality** - All files version-bumped consistently
+- **Stability** - Refined and tested for production use
+
+### v1.6.0 (2026-02-27) - User Tracking Fixed 🎯
+- **User Tracking Display** - Shows "📱 Via Panel" under bookings
+- **Key Normalization** - Fixed datetime format mismatch
+- **Reliable Metadata** - Consistent storage/retrieval across formats
+
+### v1.5.2 (2026-02-23) - Calendar & Notifications 🎊
+- **Duplicate Prevention** - Nuclear option tracking (WORKS!)
+- **Automatic Notifications** - Auto-send on booking/cancel
+- **Conditional Calendar** - Only one calendar active at a time
+- **User Tracking Backend** - Metadata storage implemented
 
 ### v1.5.1 (2026-02-22) - Notification UI 🔔
 
