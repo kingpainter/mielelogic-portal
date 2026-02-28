@@ -1,4 +1,4 @@
-# VERSION = "1.7.0"
+# VERSION = "1.9.1"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 from homeassistant.config_entries import ConfigEntry

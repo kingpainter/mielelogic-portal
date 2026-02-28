@@ -1,4 +1,4 @@
-# VERSION = "1.7.0"
+# VERSION = "1.9.1"
 """WebSocket API for MieleLogic panel."""
 import logging
 import voluptuous as vol
@@ -19,15 +19,17 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_cancel_booking)
     websocket_api.async_register_command(hass, ws_get_bookings)
     websocket_api.async_register_command(hass, ws_get_status)
+    websocket_api.async_register_command(hass, ws_get_machines)  # ✨ v1.9.0
     
-    # ✨ NEW: Notification commands
+    # Notification commands
     websocket_api.async_register_command(hass, ws_get_devices)
     websocket_api.async_register_command(hass, ws_save_devices)
     websocket_api.async_register_command(hass, ws_get_notifications)
     websocket_api.async_register_command(hass, ws_save_notification)
     websocket_api.async_register_command(hass, ws_test_notification)
+    websocket_api.async_register_command(hass, ws_reset_notification)
     
-    _LOGGER.info("✅ MieleLogic WebSocket API registered")
+    _LOGGER.info("✅ MieleLogic WebSocket API registered (v1.9.0 - 12 commands)")
 
 
 def _get_time_manager(hass: HomeAssistant):
@@ -48,9 +50,13 @@ def _get_booking_manager(hass: HomeAssistant):
     return None
 
 
-def _get_store(hass: HomeAssistant):
-    """Get the store instance."""
-    return hass.data.get(DOMAIN, {}).get("store")
+def _get_coordinator(hass: HomeAssistant):
+    """Get the coordinator instance."""
+    domain_data = hass.data.get(DOMAIN, {})
+    for key, value in domain_data.items():
+        if isinstance(value, dict) and "coordinator" in value:
+            return value["coordinator"]
+    return None
 
 
 def _get_store(hass: HomeAssistant):
@@ -139,13 +145,13 @@ async def ws_make_booking(hass: HomeAssistant, connection, msg):
             machine,
             start_datetime,
             slot["duration"],
-            connection.context,  # ✨ v1.5.2: Pass context for user tracking
+            connection.context,
         )
         
-        # ✨ NEW: Force coordinator refresh to get latest data
+        # Force coordinator refresh to get latest data
         if result.get("success"):
             coordinator = booking_manager.coordinator
-            coordinator.clear_cache()  # Clear cache first!
+            coordinator.clear_cache()
             await coordinator.async_request_refresh()
             _LOGGER.debug("🔄 Cache cleared + coordinator refreshed after booking")
         
@@ -183,10 +189,10 @@ async def ws_cancel_booking(hass: HomeAssistant, connection, msg):
             msg["end_time"],
         )
         
-        # ✨ NEW: Force coordinator refresh to get latest data
+        # Force coordinator refresh to get latest data
         if result.get("success"):
             coordinator = booking_manager.coordinator
-            coordinator.clear_cache()  # Clear cache first!
+            coordinator.clear_cache()
             await coordinator.async_request_refresh()
             _LOGGER.debug("🔄 Cache cleared + coordinator refreshed after cancellation")
         
@@ -205,7 +211,7 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
     """Get current bookings for display in panel."""
     time_manager = _get_time_manager(hass)
     booking_manager = _get_booking_manager(hass)
-    store = _get_store(hass)  # ✨ v1.5.2: Get store for user metadata
+    store = _get_store(hass)
     
     if not time_manager or not booking_manager:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -222,7 +228,7 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
                 booking.get("MachineNumber", 0)
             )
             
-            # ✨ v1.6.0: Add user metadata if available
+            # Add user metadata if available
             if store:
                 metadata = store.get_booking_metadata(
                     machine=booking.get("MachineNumber", 0),
@@ -273,6 +279,99 @@ def ws_get_status(hass: HomeAssistant, connection, msg):
     
     except Exception as err:
         _LOGGER.exception("Error getting status: %s", err)
+        connection.send_error(msg["id"], "unknown_error", str(err))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/get_machines",
+})
+@callback
+def ws_get_machines(hass: HomeAssistant, connection, msg):
+    """Get all machine states for display in booking card.
+
+    ✨ v1.9.0: New command for machine status overview in the booking card.
+
+    Returns a list of machines with:
+      - number:     MachineNumber (int)
+      - name:       UnitName (str)  e.g. "Klatvask 1", "Storvask 3"
+      - status:     Human-readable status text from Text1 + ReservationInfo
+      - state:      Normalised state string: "available" | "reserved" | "running" | "closed" | "unknown"
+      - machine_type: "washer" | "dryer" | "unknown"
+    """
+    coordinator = _get_coordinator(hass)
+
+    if not coordinator:
+        connection.send_error(msg["id"], "not_ready", "Integration not ready")
+        return
+
+    try:
+        machine_states = (
+            coordinator.data.get("machine_states", {}).get("MachineStates", [])
+            if coordinator.data
+            else []
+        )
+
+        machines = []
+        for m in machine_states:
+            text1 = m.get("Text1", "")
+            reservation_info = m.get("ReservationInfo", "")
+            unit_name = m.get("UnitName", f"Maskine {m.get('MachineNumber', '?')}")
+            machine_type_code = m.get("MachineType", "")
+            text_lower = text1.lower()
+            name_lower = unit_name.lower()
+
+            # ── Determine machine type ──────────────────────────────────────
+            if (
+                "klatvask" in name_lower
+                or "storvask" in name_lower
+                or "vask" in name_lower
+                or machine_type_code in ("51", "85")
+            ):
+                machine_type = "washer"
+            elif (
+                "tørre" in name_lower
+                or "dryer" in name_lower
+                or machine_type_code == "58"
+            ):
+                machine_type = "dryer"
+            else:
+                machine_type = "unknown"
+
+            # ── Determine normalised state ──────────────────────────────────
+            if "ledig" in text_lower or "available" in text_lower:
+                state = "available"
+            elif "resttid" in text_lower or "remaining" in text_lower:
+                state = "running"
+            elif "reserveret" in text_lower or "reserved" in text_lower:
+                state = "reserved"
+            elif "lukket" in text_lower or "closed" in text_lower:
+                state = "closed"
+            else:
+                state = "unknown"
+
+            # ── Build human-readable combined status ───────────────────────
+            if reservation_info and reservation_info.strip():
+                combined_status = f"{text1} {reservation_info}".strip()
+            else:
+                combined_status = text1 or "Ukendt"
+
+            machines.append({
+                "number": m.get("MachineNumber"),
+                "name": unit_name,
+                "status": combined_status,
+                "state": state,
+                "machine_type": machine_type,
+            })
+
+        # Sort by machine number for consistent ordering
+        machines.sort(key=lambda x: x.get("number") or 0)
+
+        _LOGGER.debug("🔧 WebSocket: Returning %d machines", len(machines))
+
+        connection.send_result(msg["id"], {"machines": machines})
+
+    except Exception as err:
+        _LOGGER.exception("Error getting machines: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
 
 
@@ -396,7 +495,6 @@ async def ws_test_notification(hass: HomeAssistant, connection, msg):
         return
     
     try:
-        # Send test with example variables
         from datetime import datetime, timedelta
         test_time = datetime.now() + timedelta(minutes=15)
         
@@ -417,4 +515,43 @@ async def ws_test_notification(hass: HomeAssistant, connection, msg):
     
     except Exception as err:
         _LOGGER.exception("Error sending test notification: %s", err)
+        connection.send_error(msg["id"], "unknown_error", str(err))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/reset_notification",
+    vol.Required("notification_id"): str,
+})
+@websocket_api.async_response
+async def ws_reset_notification(hass: HomeAssistant, connection, msg):
+    """Reset notification to default template.
+    
+    ✨ v1.8.0: Template reset functionality
+    """
+    store = _get_store(hass)
+    
+    if not store:
+        connection.send_error(msg["id"], "not_ready", "Store not ready")
+        return
+    
+    try:
+        default_config = await store.async_reset_notification(msg["notification_id"])
+        
+        if default_config is None:
+            connection.send_error(
+                msg["id"], 
+                "not_found", 
+                f"Notification {msg['notification_id']} not found"
+            )
+            return
+        
+        _LOGGER.info("🔄 Reset notification to default: %s", msg["notification_id"])
+        
+        connection.send_result(msg["id"], {
+            "success": True,
+            "config": default_config,
+        })
+    
+    except Exception as err:
+        _LOGGER.exception("Error resetting notification: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))

@@ -1,11 +1,11 @@
 // MieleLogic Panel - Main UI Component
-// VERSION = "1.7.0"
+// VERSION = "1.9.1"
 
 import {
   LitElement,
   html,
   css,
-} from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+} from "https://unpkg.com/lit@2/index.js?module";
 
 class MieleLogicPanel extends LitElement {
   static get properties() {
@@ -20,6 +20,16 @@ class MieleLogicPanel extends LitElement {
       status: { type: Object },
       loading: { type: Boolean },
       error: { type: String },
+      // Tab system
+      currentTab: { type: String },
+      // Notification state
+      devices: { type: Array },
+      availableDevices: { type: Array },
+      notifications: { type: Object },
+      // Template editing
+      editingNotificationId: { type: String },
+      editTitle: { type: String },
+      editMessage: { type: String },
     };
   }
 
@@ -33,14 +43,13 @@ class MieleLogicPanel extends LitElement {
     this.status = {};
     this.loading = false;
     this.error = null;
-    
-    // ✨ NEW v1.5.1: Tab system
-    this.currentTab = "booking"; // "booking" or "notifications"
-    
-    // ✨ NEW v1.5.1: Notification state
+    this.currentTab = "booking";
     this.devices = [];
     this.availableDevices = [];
     this.notifications = {};
+    this.editingNotificationId = null;
+    this.editTitle = "";
+    this.editMessage = "";
   }
 
   connectedCallback() {
@@ -240,7 +249,6 @@ class MieleLogicPanel extends LitElement {
       });
       
       this.notifications = notifResult.notifications || {};
-      this.requestUpdate();
     } catch (err) {
       console.error("Error loading notification data:", err);
     }
@@ -253,7 +261,6 @@ class MieleLogicPanel extends LitElement {
     } else {
       this.devices = [...this.devices, device];
     }
-    this.requestUpdate();
   }
 
   async saveDevices() {
@@ -306,6 +313,163 @@ class MieleLogicPanel extends LitElement {
       console.error("Error testing notification:", err);
       this.showNotification("❌ Test fejlede", "error");
     }
+  }
+  
+  // ✨ v1.8.0: Template editing methods
+  
+  editNotification(notifId) {
+    const notif = this.notifications[notifId];
+    if (!notif) return;
+    
+    this.editingNotificationId = notifId;
+    this.editTitle = notif.title;
+    this.editMessage = notif.message;
+  }
+  
+  cancelEdit() {
+    this.editingNotificationId = null;
+    this.editTitle = "";
+    this.editMessage = "";
+  }
+  
+  async saveEdit() {
+    if (!this.editingNotificationId) return;
+    
+    try {
+      const notif = this.notifications[this.editingNotificationId];
+      
+      await this.hass.callWS({
+        type: "mielelogic/save_notification",
+        notification_id: this.editingNotificationId,
+        config: {
+          ...notif,
+          title: this.editTitle,
+          message: this.editMessage,
+        },
+      });
+      
+      // Update local state - spread to trigger reactivity
+      this.notifications = {
+        ...this.notifications,
+        [this.editingNotificationId]: {
+          ...notif,
+          title: this.editTitle,
+          message: this.editMessage,
+        },
+      };
+      
+      this.showNotification("✅ Skabelon gemt!", "success");
+      this.cancelEdit();
+    } catch (err) {
+      console.error("Error saving template:", err);
+      this.showNotification("❌ Kunne ikke gemme", "error");
+    }
+  }
+  
+  async resetToDefault() {
+    if (!this.editingNotificationId) return;
+    
+    if (!confirm("Nulstil til standard skabelon?")) {
+      return;
+    }
+    
+    try {
+      const result = await this.hass.callWS({
+        type: "mielelogic/reset_notification",
+        notification_id: this.editingNotificationId,
+      });
+      
+      // Update local state with default - spread to trigger reactivity
+      this.notifications = {
+        ...this.notifications,
+        [this.editingNotificationId]: result.config,
+      };
+      this.editTitle = result.config.title;
+      this.editMessage = result.config.message;
+      
+      this.showNotification("✅ Nulstillet til standard!", "success");
+    } catch (err) {
+      console.error("Error resetting template:", err);
+      this.showNotification("❌ Kunne ikke nulstille", "error");
+    }
+  }
+  
+  getPreviewText(template, type) {
+    // Replace variables with example values
+    const examples = {
+      "{vaskehus}": type.includes("reminder") || type.includes("created") ? "Klatvask" : "Storvask",
+      "{time}": "14:30",
+      "{date}": "28-05-2026",
+      "{duration}": "120 minutter",
+      "{machine}": "Maskine 1",
+    };
+    
+    let result = template;
+    for (const [key, value] of Object.entries(examples)) {
+      result = result.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), value);
+    }
+    return result;
+  }
+  
+  renderEditModal() {
+    const notif = this.notifications[this.editingNotificationId];
+    if (!notif) return '';
+    
+    return html`
+      <div class="modal-overlay" @click=${this.cancelEdit}>
+        <div class="modal-content" @click=${(e) => e.stopPropagation()}>
+          <h2>✏️ Rediger Skabelon</h2>
+          
+          <div class="form-group">
+            <label for="edit-title">Titel:</label>
+            <input
+              id="edit-title"
+              type="text"
+              .value=${this.editTitle}
+              @input=${(e) => { this.editTitle = e.target.value; this.requestUpdate(); }}
+              placeholder="Titel"
+            />
+            <div class="preview">
+              <strong>Eksempel:</strong> ${this.getPreviewText(this.editTitle, this.editingNotificationId)}
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="edit-message">Besked:</label>
+            <textarea
+              id="edit-message"
+              .value=${this.editMessage}
+              @input=${(e) => { this.editMessage = e.target.value; this.requestUpdate(); }}
+              placeholder="Besked"
+              rows="3"
+            ></textarea>
+            <div class="preview">
+              <strong>Eksempel:</strong> ${this.getPreviewText(this.editMessage, this.editingNotificationId)}
+            </div>
+          </div>
+          
+          <div class="variable-help">
+            <strong>Tilgængelige variable:</strong><br>
+            <code>{vaskehus}</code> - Klatvask / Storvask<br>
+            <code>{time}</code> - 14:30<br>
+            <code>{date}</code> - 28-05-2026<br>
+            <code>{duration}</code> - 120 minutter
+          </div>
+          
+          <div class="modal-actions">
+            <button class="btn-secondary" @click=${this.resetToDefault}>
+              🔄 Nulstil
+            </button>
+            <button class="btn-secondary" @click=${this.cancelEdit}>
+              Annuller
+            </button>
+            <button class="btn-primary" @click=${this.saveEdit}>
+              💾 Gem
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   formatDate(dateString) {
@@ -600,19 +764,30 @@ class MieleLogicPanel extends LitElement {
                   />
                   <span class="notification-title">${notif.title}</span>
                 </label>
-                <button 
-                  class="test-btn"
-                  @click=${() => this.testNotification(id)}
-                  ?disabled=${!notif.enabled || this.devices.length === 0}
-                  title="Send test notifikation"
-                >
-                  ✉️ Test
-                </button>
+                <div class="notification-actions">
+                  <button 
+                    class="edit-btn"
+                    @click=${() => this.editNotification(id)}
+                    title="Rediger skabelon"
+                  >
+                    ✏️ Rediger
+                  </button>
+                  <button 
+                    class="test-btn"
+                    @click=${() => this.testNotification(id)}
+                    ?disabled=${!notif.enabled || this.devices.length === 0}
+                    title="Send test notifikation"
+                  >
+                    ✉️ Test
+                  </button>
+                </div>
               </div>
               <div class="notification-message">${notif.message}</div>
             </div>
           `)}
         </div>
+        
+        ${this.editingNotificationId ? this.renderEditModal() : ''}
       </div>
     `;
   }
@@ -1064,6 +1239,12 @@ class MieleLogicPanel extends LitElement {
         align-items: center;
         margin-bottom: 6px;
       }
+      
+      .notification-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
 
       .notification-toggle {
         display: flex;
@@ -1112,6 +1293,156 @@ class MieleLogicPanel extends LitElement {
 
       .test-btn:hover:not(:disabled) {
         background: #45a049;
+      }
+      
+      .test-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      .edit-btn {
+        background: #ff9800;
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.2s;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      
+      .edit-btn:hover {
+        background: #fb8c00;
+      }
+      
+      /* ✨ v1.8.0: Modal styles */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 20px;
+      }
+      
+      .modal-content {
+        background: var(--card-background-color, #fff);
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 600px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      }
+      
+      .modal-content h2 {
+        margin-top: 0;
+        margin-bottom: 20px;
+        color: var(--primary-text-color);
+      }
+      
+      .form-group {
+        margin-bottom: 20px;
+      }
+      
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: var(--primary-text-color);
+      }
+      
+      .form-group input,
+      .form-group textarea {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        font-family: inherit;
+        box-sizing: border-box;
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color);
+      }
+      
+      .form-group textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+      
+      .form-group input:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: #03a9f4;
+      }
+      
+      .preview {
+        margin-top: 8px;
+        padding: 10px;
+        background: #f5f5f5;
+        border-radius: 6px;
+        font-size: 13px;
+        color: #666;
+      }
+      
+      .variable-help {
+        background: #e3f2fd;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      
+      .variable-help code {
+        background: #fff;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+        color: #d32f2f;
+      }
+      
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+      }
+      
+      .btn-primary,
+      .btn-secondary {
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+      }
+      
+      .btn-primary {
+        background: #03a9f4;
+        color: white;
+      }
+      
+      .btn-primary:hover {
+        background: #0288d1;
+      }
+      
+      .btn-secondary {
+        background: #e0e0e0;
+        color: #333;
+      }
+      
+      .btn-secondary:hover {
+        background: #d0d0d0;
       }
 
       .test-btn:disabled {

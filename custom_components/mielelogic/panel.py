@@ -1,4 +1,4 @@
-# VERSION = "1.7.0"
+# VERSION = "1.9.1"
 """Panel registration for MieleLogic."""
 from __future__ import annotations
 

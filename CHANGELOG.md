@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-02-28
+
+### Fixed - Booking Card UI 🎨
+- **Card Border** - Replaced `ha-card` custom element with plain `div.card-root` for reliable, consistent border rendering across all states
+- **Hover Effect** - Booking items now use `inset box-shadow` instead of `border`/`outline` — hover highlight can no longer bleed outside card border
+- **Booking Section Layout** - Booking list wrapped in `bookings-block` container matching `form-block` style for visual consistency
+- **Notification Tab** - Fixed `_get_store()` lookup in `websocket.py` — notification tab was always returning "not ready" due to wrong dict lookup pattern
+
+### Fixed - Panel Reactivity 🔧
+- **Tab Switching** - `currentTab`, `editingNotificationId`, `editTitle`, `editMessage` added to LitElement `static get properties()` — tabs and edit modal now re-render correctly on state change
+- **Lit Import** - Changed from `lit-element@2.4.0` (unpkg) to `lit@2` — eliminates "Multiple versions of Lit" console warning
+- **Notifications Object** - Uses spread operator (`{ ...notifications, [id]: ... }`) to trigger LitElement reactivity on notification updates
+
+### Added - Machine Status Block ✨
+- **Live Machine Overview** - New bubble status block between header and booking form shows all washers/dryers as coloured icons
+- **State Colours** - 🟢 Ledig · 🟠 I gang · 🔵 Reserveret · ⚫ Lukket
+- **Machine Type Icons** - 🫧 for washers, ♨️ for dryers
+- **Tooltip** - Hover shows full machine name and status text from Miele API
+- **Responsive** - Horizontally scrollable on small screens with hidden scrollbar
+
+### Technical
+- `websocket.py` v1.9.1 — `_get_store()` now iterates config entry dict like other manager lookups
+- `panel.js` v1.5.1 — Lit import fixed, 4 missing reactive properties added, notifications use spread for reactivity
+- `mielelogic-booking-card.js` v1.9.1 — `ha-card` → `div.card-root`, inset hover shadow, `bookings-block` wrapper, `_loadMachines()` + `_renderMachines()` added
+
+---
+
 ## [1.7.0] - 2026-02-27
 
 ### Changed - Code Quality 🧹

@@ -1,15 +1,31 @@
 # MieleLogic Integration for Home Assistant
 
-[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
+[![Version](https://img.shields.io/badge/version-1.9.1-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.1%2B-blue.svg)](https://www.home-assistant.io/)
 
 Professional Home Assistant integration for MieleLogic laundry services with **integrated panel** 🎛️, **real-time notifications** 🔔, **user tracking** 👤, smart booking by house name (Klatvask/Storvask) 🧺, and comprehensive automation support.
 
+**NEW in v1.9.1:** Live machine status bubbles + reliable card border! 🫧  
 **NEW in v1.7.0:** Production-ready code with clean logging! 🧹  
-**NEW in v1.6.0:** User tracking shows who created each booking! 👤  
 **NEW in v1.5.0:** NO package files needed - professional integrated panel! 🎛️
+
+---
+
+## 📸 Screenshots
+
+### 🎛️ Panel — Booking (Desktop)
+![Panel Booking](screenshots/booking-panel.png)
+
+### 📱 Lovelace Card — Mobil
+![Booking Card](screenshots/booking-card.png)
+
+### 🫧 Maskinestatus
+![Machine Status](screenshots/machine-status.png)
+
+### 🔔 Notifikationer
+![Notification Tab](screenshots/notification-tab.png)
 
 ---
 
@@ -22,6 +38,7 @@ Professional Home Assistant integration for MieleLogic laundry services with **i
 - **Responsive Design** - Perfect on mobile, tablet, and desktop
 - **Smart Layouts** - 1 booking = centered, 2 bookings = side-by-side
 - **User Tracking** - See who created each booking 👤
+- **Machine Status** - Live bubble overview of all washers/dryers 🫧
 
 ### 🔔 Notification System (v1.5.1+)
 - **Device Manager** - Select which mobile apps receive notifications
@@ -51,6 +68,24 @@ Professional Home Assistant integration for MieleLogic laundry services with **i
 ---
 
 ## 🚀 What's New
+
+### v1.9.1 (2026-02-28) - Machine Status + UI Fixes 🫧
+
+**Live Machine Status:**
+- 🫧 Bubble icons show all washers/dryers at a glance
+- 🟢 Green = Ledig · 🟠 Orange = I gang · 🔵 Blue = Reserveret · ⚫ Grey = Lukket
+- Appears between header and booking form
+- Tooltip with full status on hover
+
+**Card Border Fixed:**
+- Reliable border that stays consistent regardless of content
+- Hover effects no longer bleed outside card boundary
+- Booking section visually consistent with form fields
+
+**Panel Reactivity Fixed:**
+- Tab switching now works correctly (was missing reactive properties)
+- Notification edit modal opens and closes properly
+- "Multiple versions of Lit" console warning eliminated
 
 ### v1.7.0 (2026-02-27) - Production Polish 🧹
 - **Clean Logging** - Removed verbose debug logs
@@ -472,9 +507,10 @@ custom_components/mielelogic/
 ├── storage.py               # Persistent storage (v1.5.0)
 ├── notification_manager.py  # Send notifications (v1.5.0)
 │
-├── frontend/                # Panel UI (v1.5.0)
+├── frontend/                # Panel UI
 │   ├── entrypoint.js        # Entry point
-│   └── panel.js             # Complete panel (v1.5.1)
+│   ├── panel.js             # Panel UI (v1.5.1)
+│   └── mielelogic-booking-card.js  # Lovelace card (v1.9.1)
 │
 └── translations/
     ├── da.json              # Danish
@@ -485,14 +521,11 @@ custom_components/mielelogic/
 
 ## 🗺️ Roadmap
 
-### v1.5.2 (Next) - Calendar Improvements
-- [ ] Only one active calendar (MieleLogic OR external, not both)
-- [ ] Better sync (delete from mielelogic → delete from calendar)
-- [ ] Show which HA user created booking
-- [ ] Default calendar selection
-
-**Priority:** Medium  
-**ETA:** 1-2 weeks
+### ~~v1.5.2~~ ✅ Done
+- [x] Only one active calendar (MieleLogic OR external, not both)
+- [x] Show which HA user created booking
+- [x] Automatic notifications on booking/cancel
+- [x] Live machine status overview (v1.9.1)
 
 ### v1.6.0 - Weekend-Specific Hours
 - [ ] Different opening hours for weekends
@@ -569,8 +602,8 @@ MIT License - see [LICENSE.md](LICENSE.md)
 
 ---
 
-**Current Version:** 1.5.1  
-**Released:** 22. februar 2026  
-**Status:** Production Ready - Panel + Notifications Complete! 🎉
+**Current Version:** 1.9.1  
+**Released:** 28. februar 2026  
+**Status:** Production Ready - Machine Status + Reliable UI! 🎉
 
 Made with ❤️ by KingPainter

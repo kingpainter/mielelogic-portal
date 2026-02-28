@@ -1,4 +1,4 @@
-# VERSION = "1.7.0"
+# VERSION = "1.9.1"
 """Data storage for MieleLogic panel configuration."""
 
 import logging
