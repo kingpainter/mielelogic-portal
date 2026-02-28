@@ -164,14 +164,29 @@
       "reservations": {
         "name": "Reservations"
       },
-      "washer_status": {
-        "name": "Washer Status"
-      },
-      "dryer_status": {
-        "name": "Dryer Status"
-      },
       "account_balance": {
         "name": "Account Balance"
+      },
+      "vaskehus_config": {
+        "name": "Vaskehus Config"
+      },
+      "washer_status": {
+        "name": "Washer Status",
+        "state": {
+          "all_available": "All available",
+          "partially_available": "Partially available",
+          "all_occupied": "All occupied",
+          "no_washers": "No washers"
+        }
+      },
+      "dryer_status": {
+        "name": "Dryer Status",
+        "state": {
+          "all_available": "All available",
+          "partially_available": "Partially available",
+          "all_occupied": "All occupied",
+          "no_dryers": "No dryers"
+        }
       }
     },
     "calendar": {

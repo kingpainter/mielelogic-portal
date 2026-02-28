@@ -1,4 +1,4 @@
-# VERSION = "1.9.1"
+# VERSION = "2.0.0"
 """Manage booking and cancellation operations."""
 import logging
 from typing import Dict, List
@@ -78,17 +78,35 @@ class BookingManager:
             
             _LOGGER.info("✅ Booking successful!")
             
-            # ✨ v1.6.0: Save booking metadata
+            # ✨ v1.6.0: Save booking metadata with real HA username
             if self.store:
                 try:
+                    user_name = "Via Panel"
+                    if context:
+                        try:
+                            # connection.context is a callable in HA — call it to get the Context object
+                            ctx = context() if callable(context) else context
+                            user_id = ctx.user_id if ctx else None
+                            if user_id:
+                                user = await self.hass.auth.async_get_user(user_id)
+                                if user and user.name:
+                                    user_name = user.name
+                                    _LOGGER.info("👤 Booking by: %s", user.name)
+                                else:
+                                    _LOGGER.warning("👤 user_id %s found but no name", user_id)
+                            else:
+                                _LOGGER.warning("👤 Context has no user_id")
+                        except Exception as user_err:
+                            _LOGGER.warning("👤 User lookup failed: %s", user_err)
+
                     await self.store.async_save_booking_metadata(
                         machine=machine_number,
                         start_time=start_datetime,
-                        user_name="Via Panel",
+                        user_name=user_name,
                         duration=duration,
                     )
-                    _LOGGER.debug("Saved booking metadata for machine %s", machine_number)
-                    
+                    _LOGGER.debug("Saved booking metadata for machine %s by %s", machine_number, user_name)
+
                 except Exception as err:
                     _LOGGER.warning("Could not save booking metadata: %s", err)
             

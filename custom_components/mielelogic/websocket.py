@@ -19,6 +19,8 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_cancel_booking)
     websocket_api.async_register_command(hass, ws_get_bookings)
     websocket_api.async_register_command(hass, ws_get_status)
+    websocket_api.async_register_command(hass, ws_get_admin)
+    websocket_api.async_register_command(hass, ws_save_admin)
     websocket_api.async_register_command(hass, ws_get_machines)  # ✨ v1.9.0
     
     # Notification commands
@@ -273,11 +275,42 @@ def ws_get_status(hass: HomeAssistant, connection, msg):
         max_reservations = booking_manager.get_max_reservations()
         current_count = len(booking_manager.get_current_bookings())
         
+        # Get opening/closing hours from config
+        coordinator = _get_coordinator(hass)
+        opening_time = "07:00"
+        closing_time = "21:00"
+        if coordinator and coordinator.config_entry:
+            opening_time = coordinator.config_entry.data.get("opening_time", "07:00")
+            closing_time = coordinator.config_entry.data.get("closing_time", "21:00")
+
+        # Is the laundry currently open?
+        from datetime import datetime
+        now = datetime.now()
+        open_h, open_m = [int(x) for x in opening_time.split(":")]
+        close_h, close_m = [int(x) for x in closing_time.split(":")]
+        open_minutes = open_h * 60 + open_m
+        close_minutes = close_h * 60 + close_m
+        now_minutes = now.hour * 60 + now.minute
+        is_open = open_minutes <= now_minutes < close_minutes
+
+        # Get admin settings
+        store = _get_store(hass)
+        admin = store.get_admin_settings() if store else {}
+        booking_locked = admin.get("booking_locked", False)
+        lock_message = admin.get("lock_message", "")
+        info_message = admin.get("info_message", "")
+
         status = {
             "balance": balance,
             "max_reservations": max_reservations,
             "current_count": current_count,
-            "can_book": current_count < max_reservations,
+            "can_book": current_count < max_reservations and not booking_locked,
+            "opening_time": opening_time,
+            "closing_time": closing_time,
+            "is_open": is_open,
+            "booking_locked": booking_locked,
+            "lock_message": lock_message,
+            "info_message": info_message,
         }
         
         _LOGGER.debug("📊 WebSocket: Status - %s", status)
@@ -379,6 +412,54 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
 
     except Exception as err:
         _LOGGER.exception("Error getting machines: %s", err)
+        connection.send_error(msg["id"], "unknown_error", str(err))
+
+
+#
+# ADMIN MANAGEMENT
+#
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/get_admin",
+})
+@callback
+def ws_get_admin(hass: HomeAssistant, connection, msg):
+    """Get admin settings."""
+    store = _get_store(hass)
+    if not store:
+        connection.send_error(msg["id"], "not_ready", "Integration not ready")
+        return
+    try:
+        settings = store.get_admin_settings()
+        connection.send_result(msg["id"], settings)
+    except Exception as err:
+        _LOGGER.exception("Error getting admin settings: %s", err)
+        connection.send_error(msg["id"], "unknown_error", str(err))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/save_admin",
+    vol.Required("booking_locked"): bool,
+    vol.Optional("lock_message", default="Booking er midlertidigt spærret"): str,
+    vol.Optional("info_message", default=""): str,
+})
+@websocket_api.async_response
+async def ws_save_admin(hass: HomeAssistant, connection, msg):
+    """Save admin settings."""
+    store = _get_store(hass)
+    if not store:
+        connection.send_error(msg["id"], "not_ready", "Integration not ready")
+        return
+    try:
+        await store.async_save_admin_settings({
+            "booking_locked": msg["booking_locked"],
+            "lock_message": msg.get("lock_message", "Booking er midlertidigt spærret"),
+            "info_message": msg.get("info_message", ""),
+        })
+        _LOGGER.info("Admin settings updated: locked=%s", msg["booking_locked"])
+        connection.send_result(msg["id"], {"success": True})
+    except Exception as err:
+        _LOGGER.exception("Error saving admin settings: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
 
 

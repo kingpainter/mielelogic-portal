@@ -1,37 +1,84 @@
-# VERSION = "1.9.1"
+# VERSION = "2.0.0"
+"""
+MieleLogic binary sensor platform.
+
+v2.0.0 Update:
+  - Refactored to use BinarySensorEntityDescription dataclasses (Gold tier)
+  - Entity names now driven by translation keys
+"""
+import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorDeviceClass,
+    BinarySensorEntityDescription,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
-import logging
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
 def _parse_datetime(datetime_str: str) -> datetime:
-    """Parse datetime string - handle both with and without timezone.
-    
-    IMPORTANT: MieleLogic API returns naive datetimes in Europe/Copenhagen local time,
-    NOT in UTC!
-    """
+    """Parse datetime string — handles naive (Copenhagen local) and aware datetimes."""
     if not datetime_str:
         raise ValueError("Empty datetime string")
-    
-    # Check if datetime has timezone info
     if "Z" in datetime_str or "+" in datetime_str or datetime_str.count("-") > 2:
-        # Has timezone info
         return datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
-    else:
-        # No timezone info - API returns Europe/Copenhagen local time
-        return datetime.fromisoformat(datetime_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
+    return datetime.fromisoformat(datetime_str).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
 
+
+# ── Entity Descriptions ────────────────────────────────────────────────────────
+
+@dataclass(frozen=True, kw_only=True)
+class MieleLogicBinarySensorEntityDescription(BinarySensorEntityDescription):
+    """Describe a MieleLogic binary sensor entity."""
+
+
+BINARY_SENSOR_DESCRIPTIONS: tuple[MieleLogicBinarySensorEntityDescription, ...] = (
+    MieleLogicBinarySensorEntityDescription(
+        key="has_reservation",
+        translation_key="has_reservation",
+        icon="mdi:calendar-check",
+    ),
+    MieleLogicBinarySensorEntityDescription(
+        key="has_washer_reservation",
+        translation_key="has_washer_reservation",
+        icon="mdi:washing-machine",
+    ),
+    MieleLogicBinarySensorEntityDescription(
+        key="has_dryer_reservation",
+        translation_key="has_dryer_reservation",
+        icon="mdi:tumble-dryer",
+    ),
+    MieleLogicBinarySensorEntityDescription(
+        key="reservation_starting_soon",
+        translation_key="reservation_starting_soon",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        icon="mdi:clock-alert",
+    ),
+    MieleLogicBinarySensorEntityDescription(
+        key="washer_available",
+        translation_key="washer_available",
+        device_class=BinarySensorDeviceClass.POWER,
+    ),
+    MieleLogicBinarySensorEntityDescription(
+        key="dryer_available",
+        translation_key="dryer_available",
+        device_class=BinarySensorDeviceClass.POWER,
+    ),
+)
+
+
+# ── Setup ──────────────────────────────────────────────────────────────────────
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -40,42 +87,46 @@ async def async_setup_entry(
 ) -> None:
     """Set up MieleLogic binary sensor platform."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    
+    desc_map = {d.key: d for d in BINARY_SENSOR_DESCRIPTIONS}
+
     sensors = [
-        MieleLogicHasReservationBinarySensor(coordinator, config_entry),
-        MieleLogicHasWasherReservationBinarySensor(coordinator, config_entry),
-        MieleLogicHasDryerReservationBinarySensor(coordinator, config_entry),
-        MieleLogicReservationStartingSoonBinarySensor(coordinator, config_entry),
-        MieleLogicWasherAvailableBinarySensor(coordinator, config_entry),
-        MieleLogicDryerAvailableBinarySensor(coordinator, config_entry),
+        MieleLogicHasReservationBinarySensor(coordinator, config_entry, desc_map["has_reservation"]),
+        MieleLogicHasWasherReservationBinarySensor(coordinator, config_entry, desc_map["has_washer_reservation"]),
+        MieleLogicHasDryerReservationBinarySensor(coordinator, config_entry, desc_map["has_dryer_reservation"]),
+        MieleLogicReservationStartingSoonBinarySensor(coordinator, config_entry, desc_map["reservation_starting_soon"]),
+        MieleLogicWasherAvailableBinarySensor(coordinator, config_entry, desc_map["washer_available"]),
+        MieleLogicDryerAvailableBinarySensor(coordinator, config_entry, desc_map["dryer_available"]),
     ]
-    
+
     async_add_entities(sensors)
     _LOGGER.debug("Added %d binary sensors for MieleLogic", len(sensors))
 
 
-class MieleLogicHasReservationBinarySensor(BinarySensorEntity):
-    """Binary sensor showing if user has any reservations."""
-    
+# ── Base class ─────────────────────────────────────────────────────────────────
+
+class MieleLogicBinarySensorBase(BinarySensorEntity):
+    """Base class for MieleLogic binary sensors using EntityDescription."""
+
     _attr_has_entity_name = True
-    
-    def __init__(self, coordinator, config_entry):
-        """Initialize the sensor."""
+
+    def __init__(self, coordinator, config_entry, description: MieleLogicBinarySensorEntityDescription):
         self.coordinator = coordinator
-        self._attr_unique_id = f"{config_entry.entry_id}_has_reservation"
-        self._attr_name = "Has Reservation"
+        self.entity_description = description
+        self._attr_unique_id = f"{config_entry.entry_id}_{description.key}"
         self._attr_device_info = coordinator.device_info
-        self._attr_icon = "mdi:calendar-check"
-    
+
+
+# ── Binary sensor implementations ─────────────────────────────────────────────
+
+class MieleLogicHasReservationBinarySensor(MieleLogicBinarySensorBase):
+    """Binary sensor — True if user has any active reservations."""
+
     @property
     def is_on(self) -> bool:
-        """Return True if user has any reservations."""
-        reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
-        return len(reservations) > 0
-    
+        return len(self.coordinator.data.get("reservations", {}).get("Reservations", [])) > 0
+
     @property
     def extra_state_attributes(self):
-        """Return additional attributes."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         return {
             "count": len(reservations),
@@ -83,136 +134,80 @@ class MieleLogicHasReservationBinarySensor(BinarySensorEntity):
         }
 
 
-class MieleLogicHasWasherReservationBinarySensor(BinarySensorEntity):
-    """Binary sensor showing if user has washer reservation."""
-    
-    _attr_has_entity_name = True
-    
-    def __init__(self, coordinator, config_entry):
-        """Initialize the sensor."""
-        self.coordinator = coordinator
-        self._attr_unique_id = f"{config_entry.entry_id}_has_washer_reservation"
-        self._attr_name = "Has Washer Reservation"
-        self._attr_device_info = coordinator.device_info
-        self._attr_icon = "mdi:washing-machine"
-    
+class MieleLogicHasWasherReservationBinarySensor(MieleLogicBinarySensorBase):
+    """Binary sensor — True if user has a washer reservation."""
+
     @property
     def is_on(self) -> bool:
-        """Return True if user has washer reservation."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
-        washer_reservations = [
-            r for r in reservations 
-            if "Washer" in r.get("MachineName", "") or r.get("MachineType") in ["51", "85"]
-        ]
-        return len(washer_reservations) > 0
-    
+        return any(
+            "Washer" in r.get("MachineName", "") or r.get("MachineType") in ["51", "85"]
+            for r in reservations
+        )
+
     @property
     def extra_state_attributes(self):
-        """Return additional attributes."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
-        washer_reservations = [
-            r for r in reservations 
+        washer_res = [
+            r for r in reservations
             if "Washer" in r.get("MachineName", "") or r.get("MachineType") in ["51", "85"]
         ]
-        return {
-            "count": len(washer_reservations),
-            "machines": [r.get("MachineName") for r in washer_reservations],
-        }
+        return {"count": len(washer_res), "machines": [r.get("MachineName") for r in washer_res]}
 
 
-class MieleLogicHasDryerReservationBinarySensor(BinarySensorEntity):
-    """Binary sensor showing if user has dryer reservation."""
-    
-    _attr_has_entity_name = True
-    
-    def __init__(self, coordinator, config_entry):
-        """Initialize the sensor."""
-        self.coordinator = coordinator
-        self._attr_unique_id = f"{config_entry.entry_id}_has_dryer_reservation"
-        self._attr_name = "Has Dryer Reservation"
-        self._attr_device_info = coordinator.device_info
-        self._attr_icon = "mdi:tumble-dryer"
-    
+class MieleLogicHasDryerReservationBinarySensor(MieleLogicBinarySensorBase):
+    """Binary sensor — True if user has a dryer reservation."""
+
     @property
     def is_on(self) -> bool:
-        """Return True if user has dryer reservation."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
-        dryer_reservations = [
-            r for r in reservations 
-            if "Dryer" in r.get("MachineName", "") or r.get("MachineType") == "58"
-        ]
-        return len(dryer_reservations) > 0
-    
+        return any(
+            "Dryer" in r.get("MachineName", "") or r.get("MachineType") == "58"
+            for r in reservations
+        )
+
     @property
     def extra_state_attributes(self):
-        """Return additional attributes."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
-        dryer_reservations = [
-            r for r in reservations 
+        dryer_res = [
+            r for r in reservations
             if "Dryer" in r.get("MachineName", "") or r.get("MachineType") == "58"
         ]
-        return {
-            "count": len(dryer_reservations),
-            "machines": [r.get("MachineName") for r in dryer_reservations],
-        }
+        return {"count": len(dryer_res), "machines": [r.get("MachineName") for r in dryer_res]}
 
 
-class MieleLogicReservationStartingSoonBinarySensor(BinarySensorEntity):
-    """Binary sensor showing if a reservation is starting within 15 minutes."""
-    
-    _attr_has_entity_name = True
-    _attr_device_class = BinarySensorDeviceClass.RUNNING
-    
-    def __init__(self, coordinator, config_entry):
-        """Initialize the sensor."""
-        self.coordinator = coordinator
-        self._attr_unique_id = f"{config_entry.entry_id}_reservation_starting_soon"
-        self._attr_name = "Reservation Starting Soon"
-        self._attr_device_info = coordinator.device_info
-        self._attr_icon = "mdi:clock-alert"
-    
+class MieleLogicReservationStartingSoonBinarySensor(MieleLogicBinarySensorBase):
+    """Binary sensor — True if a reservation starts within 15 minutes."""
+
     @property
     def is_on(self) -> bool:
-        """Return True if reservation starts within 15 minutes."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         now = datetime.now(ZoneInfo("UTC"))
         threshold = now + timedelta(minutes=15)
-        
         for reservation in reservations:
             try:
                 start_str = reservation.get("Start")
                 if not start_str:
                     continue
-                
-                # Parse datetime with timezone handling
                 start_time = _parse_datetime(start_str)
-                
-                # Check if reservation starts between now and 15 minutes from now
                 if now < start_time <= threshold:
                     return True
             except (ValueError, TypeError) as err:
-                _LOGGER.warning("Failed to parse reservation start time '%s': %s", start_str, err)
-                continue
-        
+                _LOGGER.warning("Failed to parse reservation start time '%s': %s", reservation.get("Start"), err)
         return False
-    
+
     @property
     def extra_state_attributes(self):
-        """Return additional attributes."""
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         now = datetime.now(ZoneInfo("UTC"))
         threshold = now + timedelta(minutes=15)
-        
         upcoming = []
         for reservation in reservations:
             try:
                 start_str = reservation.get("Start")
                 if not start_str:
                     continue
-                
-                # Parse datetime with timezone handling
                 start_time = _parse_datetime(start_str)
-                
                 if now < start_time <= threshold:
                     minutes_until = int((start_time - now).total_seconds() / 60)
                     upcoming.append({
@@ -222,10 +217,7 @@ class MieleLogicReservationStartingSoonBinarySensor(BinarySensorEntity):
                     })
             except (ValueError, TypeError):
                 continue
-        
-        # Sort by time
         upcoming.sort(key=lambda r: r["minutes_until_start"])
-        
         return {
             "count": len(upcoming),
             "upcoming_reservations": upcoming,
@@ -233,119 +225,69 @@ class MieleLogicReservationStartingSoonBinarySensor(BinarySensorEntity):
         }
 
 
-class MieleLogicWasherAvailableBinarySensor(BinarySensorEntity):
-    """Binary sensor showing if at least one washer is available."""
-    
-    _attr_has_entity_name = True
-    _attr_device_class = BinarySensorDeviceClass.POWER
-    
-    def __init__(self, coordinator, config_entry):
-        """Initialize the sensor."""
-        self.coordinator = coordinator
-        self._attr_unique_id = f"{config_entry.entry_id}_washer_available"
-        self._attr_name = "Washer Available"
-        self._attr_device_info = coordinator.device_info
-    
+class MieleLogicWasherAvailableBinarySensor(MieleLogicBinarySensorBase):
+    """Binary sensor — True if at least one washer is available."""
+
     @property
     def is_on(self) -> bool:
-        """Return True if at least one washer is available."""
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
-        
-        for machine in machine_states:
-            machine_type = machine.get("MachineType")
-            status = machine.get("Text1", "").lower()
-            
-            # Check if it's a washer and if it's available
-            if machine_type in ["51", "85"]:
-                if "ledig" in status or "available" in status:
-                    return True
-        
-        return False
-    
+        return any(
+            m.get("MachineType") in ["51", "85"]
+            and ("ledig" in m.get("Text1", "").lower() or "available" in m.get("Text1", "").lower())
+            for m in machine_states
+        )
+
     @property
     def icon(self):
-        """Return dynamic icon based on state."""
         return "mdi:washing-machine" if self.is_on else "mdi:washing-machine-off"
-    
+
     @property
     def extra_state_attributes(self):
-        """Return additional attributes."""
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
-        
         washers = [m for m in machine_states if m.get("MachineType") in ["51", "85"]]
         available = [
-            m for m in washers 
+            m for m in washers
             if "ledig" in m.get("Text1", "").lower() or "available" in m.get("Text1", "").lower()
         ]
-        
         return {
             "total_washers": len(washers),
             "available_count": len(available),
             "available_machines": [
-                {
-                    "number": m.get("MachineNumber"),
-                    "name": m.get("UnitName"),
-                    "status": m.get("Text1"),
-                }
+                {"number": m.get("MachineNumber"), "name": m.get("UnitName"), "status": m.get("Text1")}
                 for m in available
             ],
         }
 
 
-class MieleLogicDryerAvailableBinarySensor(BinarySensorEntity):
-    """Binary sensor showing if at least one dryer is available."""
-    
-    _attr_has_entity_name = True
-    _attr_device_class = BinarySensorDeviceClass.POWER
-    
-    def __init__(self, coordinator, config_entry):
-        """Initialize the sensor."""
-        self.coordinator = coordinator
-        self._attr_unique_id = f"{config_entry.entry_id}_dryer_available"
-        self._attr_name = "Dryer Available"
-        self._attr_device_info = coordinator.device_info
-    
+class MieleLogicDryerAvailableBinarySensor(MieleLogicBinarySensorBase):
+    """Binary sensor — True if at least one dryer is available."""
+
     @property
     def is_on(self) -> bool:
-        """Return True if at least one dryer is available."""
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
-        
-        for machine in machine_states:
-            machine_type = machine.get("MachineType")
-            status = machine.get("Text1", "").lower()
-            
-            # Check if it's a dryer and if it's available
-            if machine_type == "58":
-                if "ledig" in status or "available" in status:
-                    return True
-        
-        return False
-    
+        return any(
+            m.get("MachineType") == "58"
+            and ("ledig" in m.get("Text1", "").lower() or "available" in m.get("Text1", "").lower())
+            for m in machine_states
+        )
+
     @property
     def icon(self):
-        """Return dynamic icon based on state."""
         return "mdi:tumble-dryer" if self.is_on else "mdi:tumble-dryer-off"
-    
+
     @property
     def extra_state_attributes(self):
-        """Return additional attributes."""
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
-        
         dryers = [m for m in machine_states if m.get("MachineType") == "58"]
         available = [
-            m for m in dryers 
+            m for m in dryers
             if "ledig" in m.get("Text1", "").lower() or "available" in m.get("Text1", "").lower()
         ]
-        
         return {
             "total_dryers": len(dryers),
             "available_count": len(available),
             "available_machines": [
-                {
-                    "number": m.get("MachineNumber"),
-                    "name": m.get("UnitName"),
-                    "status": m.get("Text1"),
-                }
+                {"number": m.get("MachineNumber"), "name": m.get("UnitName"), "status": m.get("Text1")}
                 for m in available
             ],
         }

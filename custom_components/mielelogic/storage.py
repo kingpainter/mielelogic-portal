@@ -1,4 +1,4 @@
-# VERSION = "1.9.1"
+# VERSION = "2.0.0"
 """Data storage for MieleLogic panel configuration."""
 
 import logging
@@ -49,6 +49,11 @@ class MieleLogicStore:
         return {
             "devices": [],  # Mobile app devices for notifications
             "bookings": {},  # Booking metadata {booking_key: metadata}
+            "admin": {  # Admin settings
+                "booking_locked": False,
+                "lock_message": "Booking er midlertidigt spærret",
+                "info_message": "",
+            },
             "notifications": {
                 "reminder_15min": {
                     "enabled": True,
@@ -198,6 +203,24 @@ class MieleLogicStore:
             del self._data["bookings"][key]
             await self.async_save()
             _LOGGER.debug("Deleted booking metadata for %s", key)
+
+    def get_admin_settings(self) -> dict:
+        """Get admin settings."""
+        return self._data.get("admin", {
+            "booking_locked": False,
+            "lock_message": "Booking er midlertidigt spærret",
+            "info_message": "",
+        })
+
+    async def async_save_admin_settings(self, settings: dict) -> None:
+        """Save admin settings."""
+        self._data["admin"] = {
+            "booking_locked": bool(settings.get("booking_locked", False)),
+            "lock_message": str(settings.get("lock_message", "Booking er midlertidigt spærret")),
+            "info_message": str(settings.get("info_message", "")),
+        }
+        await self.async_save()
+        _LOGGER.debug("Admin settings saved: %s", self._data["admin"])
 
     async def async_cleanup_old_bookings(self, days: int = 7) -> int:
         """Clean up booking metadata older than X days.

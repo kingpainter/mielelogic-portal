@@ -263,10 +263,16 @@ class MieleLogicBookingCard extends HTMLElement {
     if (!root) return;
 
     const s = this._status;
-    const canBook = s.can_book !== false;
+    const isOpen = s.is_open !== false;  // default true if unknown
+    const bookingLocked = s.booking_locked === true;
+    const lockMessage = s.lock_message || "Booking er midlertidigt spærret";
+    const canBook = s.can_book !== false && !bookingLocked;
     const bookingCount = this._bookings.length;
     const maxRes = s.max_reservations ?? "–";
     const balance = s.balance != null ? this._formatCurrency(s.balance) : null;
+    const openingTime = s.opening_time ?? "07:00";
+    const closingTime = s.closing_time ?? "21:00";
+    const infoMessage = s.info_message || "";
 
     root.innerHTML = `
       <div class="card-root">
@@ -292,6 +298,7 @@ class MieleLogicBookingCard extends HTMLElement {
           ` : ""}
 
           <!-- Maskine status -->
+          ${infoMessage ? `<div class="info-banner">📢 ${infoMessage}</div>` : ""}
           ${this._renderMachines()}
 
           <!-- Booking formular -->
@@ -335,11 +342,13 @@ class MieleLogicBookingCard extends HTMLElement {
 
             <button
               id="book-btn"
-              class="book-button ${this._loading ? "is-loading" : bookingCount === 0 ? "is-empty" : !canBook ? "is-full" : "is-partial"}"
+              class="book-button ${this._loading ? "is-loading" : !isOpen ? "is-closed-btn" : bookingCount === 0 ? "is-empty" : !canBook ? "is-full" : "is-partial"}"
               ${!canBook || this._loading ? "disabled" : ""}
             >
               ${this._loading
                 ? `<span class="spinner"></span> Booker…`
+                : bookingLocked
+                ? `🔒 ${lockMessage}`
                 : bookingCount === 0
                 ? "✅ Ingen bookinger – book nu"
                 : canBook
@@ -404,13 +413,21 @@ class MieleLogicBookingCard extends HTMLElement {
     };
     const icons = { washer: "🫧", dryer: "♨️" };
 
+    const isOpen = this._status?.is_open !== false;
+
     const items = this._machines.map(m => {
       const icon  = icons[m.machine_type] || "🔧";
-      const color = stateColors[m.state] || "#9e9e9e";
-      const label = stateLabels[m.state] || m.state;
+      // When laundry is closed, show all machines as closed visually
+      // but preserve real API state in tooltip
+      const displayState = (!isOpen && m.state === "available") ? "closed" : m.state;
+      const color = stateColors[displayState] || "#9e9e9e";
+      const label = stateLabels[displayState] || displayState;
+      const tooltip = !isOpen && m.state === "available"
+        ? `${m.name}: Lukket (API: ${m.status})`
+        : `${m.name}: ${m.status}`;
       const shortName = m.name.replace(/klatvask|storvask/gi, "").trim() || m.name;
       return [
-        `<div class="machine-item" title="${m.name}: ${m.status}">`,
+        `<div class="machine-item" title="${tooltip}">`,
         `  <div class="machine-icon-wrap" style="background:${color}22;border:2px solid ${color}">`,
         `    <span class="machine-icon">${icon}</span>`,
         `  </div>`,
@@ -540,6 +557,27 @@ class MieleLogicBookingCard extends HTMLElement {
         color: var(--secondary-text-color, #757575);
         margin-top: 2px;
       }
+      .hours-chip {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 20px;
+        letter-spacing: 0.3px;
+      }
+      .hours-chip.is-open {
+        background: rgba(67,160,71,0.15);
+        color: #81c784;
+      }
+      .hours-chip.is-closed {
+        background: rgba(229,57,53,0.15);
+        color: #ef9a9a;
+      }
+      .book-button.is-closed-btn {
+        background: linear-gradient(135deg, #616161, #424242);
+        box-shadow: none;
+        cursor: not-allowed;
+        color: #bdbdbd;
+      }
       .balance-chip {
         background: linear-gradient(135deg, #03a9f4, #0288d1);
         color: #fff;
@@ -659,6 +697,21 @@ class MieleLogicBookingCard extends HTMLElement {
         color: #1a1a1a;
       }
       /* Loading */
+      .info-banner {
+        background: rgba(255, 160, 0, 0.12);
+        border: 1px solid rgba(255, 160, 0, 0.3);
+        color: #ffa000;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      .book-button.is-locked {
+        background: linear-gradient(135deg, #616161, #424242);
+        box-shadow: none;
+        cursor: not-allowed;
+        color: #bdbdbd;
+      }
       .book-button.is-loading {
         background: linear-gradient(135deg, #03a9f4, #0288d1);
         opacity: 0.7;

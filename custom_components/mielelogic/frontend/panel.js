@@ -22,6 +22,8 @@ class MieleLogicPanel extends LitElement {
       error: { type: String },
       // Tab system
       currentTab: { type: String },
+      adminSettings: { type: Object },
+      adminSaving: { type: Boolean },
       // Notification state
       devices: { type: Array },
       availableDevices: { type: Array },
@@ -44,6 +46,8 @@ class MieleLogicPanel extends LitElement {
     this.loading = false;
     this.error = null;
     this.currentTab = "booking";
+    this.adminSettings = { booking_locked: false, lock_message: "Booking er midlertidigt spærret", info_message: "" };
+    this.adminSaving = false;
     this.devices = [];
     this.availableDevices = [];
     this.notifications = {};
@@ -55,6 +59,7 @@ class MieleLogicPanel extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.loadData();
+    this.loadAdminSettings();
     this._errorCount = 0;
     
     // ✨ Auto-refresh every 30 seconds (not 10 - too aggressive)
@@ -85,6 +90,31 @@ class MieleLogicPanel extends LitElement {
       clearInterval(this._refreshInterval);
       this._refreshInterval = null;
     }
+  }
+
+  async loadAdminSettings() {
+    try {
+      const result = await this.hass.callWS({ type: "mielelogic/get_admin" });
+      this.adminSettings = result || this.adminSettings;
+    } catch (e) {
+      console.warn("MieleLogic: Could not load admin settings", e);
+    }
+  }
+
+  async saveAdminSettings() {
+    this.adminSaving = true;
+    try {
+      await this.hass.callWS({
+        type: "mielelogic/save_admin",
+        booking_locked: this.adminSettings.booking_locked,
+        lock_message: this.adminSettings.lock_message || "Booking er midlertidigt spærret",
+        info_message: this.adminSettings.info_message || "",
+      });
+      this.showNotification("✅ Admin indstillinger gemt", "success");
+    } catch (e) {
+      this.showNotification("❌ Kunne ikke gemme", "error");
+    }
+    this.adminSaving = false;
   }
 
   async loadData() {
@@ -496,7 +526,7 @@ class MieleLogicPanel extends LitElement {
         ${this.renderHeader()}
         ${this.renderTabs()}
         ${this.error ? this.renderError() : ""}
-        ${this.currentTab === "booking" ? this.renderBookingTab() : this.renderNotificationTab()}
+        ${this.currentTab === "booking" ? this.renderBookingTab() : this.currentTab === "notifications" ? this.renderNotificationTab() : this.renderAdminTab()}
       </div>
     `;
   }
@@ -516,6 +546,12 @@ class MieleLogicPanel extends LitElement {
         >
           🔔 Notifikationer
         </button>
+        <button 
+          class="tab ${this.currentTab === 'admin' ? 'active' : ''}"
+          @click=${() => { this.currentTab = 'admin'; this.requestUpdate(); }}
+        >
+          ⚙️ Admin
+        </button>
       </div>
     `;
   }
@@ -525,6 +561,59 @@ class MieleLogicPanel extends LitElement {
       ${this.renderBookingForm()}
       ${this.renderStatus()}
       ${this.renderBookings()}
+    `;
+  }
+
+  renderAdminTab() {
+    const a = this.adminSettings;
+    return html`
+      <div class="admin-tab">
+        <h2>⚙️ Admin</h2>
+
+        <section class="admin-section">
+          <h3>📢 Driftsbesked</h3>
+          <p class="admin-desc">Vises øverst i booking kortet til alle brugere. Efterlad tom for ingen besked.</p>
+          <textarea
+            class="admin-textarea"
+            placeholder="f.eks. Vaskehuset rengøres fredag d. 3/3 kl. 10-12"
+            .value=${a.info_message || ""}
+            @input=${(e) => { this.adminSettings = { ...this.adminSettings, info_message: e.target.value }; }}
+          ></textarea>
+        </section>
+
+        <section class="admin-section">
+          <h3>🔒 Booking spærring</h3>
+          <p class="admin-desc">Spærrer for nye bookinger i booking kortet. Eksisterende bookinger påvirkes ikke.</p>
+          
+          <label class="admin-toggle">
+            <input
+              type="checkbox"
+              .checked=${a.booking_locked}
+              @change=${(e) => { this.adminSettings = { ...this.adminSettings, booking_locked: e.target.checked }; }}
+            />
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">${a.booking_locked ? "🔒 Booking spærret" : "🔓 Booking åben"}</span>
+          </label>
+
+          ${a.booking_locked ? html`
+            <input
+              type="text"
+              class="admin-input"
+              placeholder="Besked til brugerne..."
+              .value=${a.lock_message || ""}
+              @input=${(e) => { this.adminSettings = { ...this.adminSettings, lock_message: e.target.value }; }}
+            />
+          ` : ""}
+        </section>
+
+        <button
+          class="admin-save-btn ${this.adminSaving ? "saving" : ""}"
+          @click=${() => this.saveAdminSettings()}
+          ?disabled=${this.adminSaving}
+        >
+          ${this.adminSaving ? "💾 Gemmer…" : "💾 Gem indstillinger"}
+        </button>
+      </div>
     `;
   }
 
@@ -1108,6 +1197,45 @@ class MieleLogicPanel extends LitElement {
       }
 
       /* ✨ NEW v1.5.1: Tabs */
+      /* Admin tab */
+      .admin-tab { padding: 16px; max-width: 600px; }
+      .admin-tab h2 { margin: 0 0 20px; font-size: 18px; }
+      .admin-section { margin-bottom: 24px; background: var(--card-background-color, #1e1e1e); border-radius: 10px; padding: 16px; }
+      .admin-section h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+      .admin-desc { font-size: 12px; color: var(--secondary-text-color); margin: 0 0 12px; }
+      .admin-textarea {
+        width: 100%; min-height: 70px; padding: 10px; box-sizing: border-box;
+        background: var(--input-fill-color, rgba(255,255,255,0.05));
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+        border-radius: 8px; color: var(--primary-text-color); font-family: inherit;
+        font-size: 13px; resize: vertical;
+      }
+      .admin-input {
+        width: 100%; padding: 10px; margin-top: 10px; box-sizing: border-box;
+        background: var(--input-fill-color, rgba(255,255,255,0.05));
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+        border-radius: 8px; color: var(--primary-text-color); font-family: inherit; font-size: 13px;
+      }
+      .admin-toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+      .admin-toggle input { display: none; }
+      .toggle-slider {
+        width: 44px; height: 24px; background: var(--divider-color, #555);
+        border-radius: 12px; position: relative; transition: background 0.2s; flex-shrink: 0;
+      }
+      .toggle-slider::after {
+        content: ""; position: absolute; top: 2px; left: 2px;
+        width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: left 0.2s;
+      }
+      .admin-toggle input:checked ~ .toggle-slider { background: #e53935; }
+      .admin-toggle input:checked ~ .toggle-slider::after { left: 22px; }
+      .toggle-label { font-size: 14px; font-weight: 500; }
+      .admin-save-btn {
+        width: 100%; padding: 13px; background: linear-gradient(135deg, #03a9f4, #0288d1);
+        color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
+        cursor: pointer; font-family: inherit;
+      }
+      .admin-save-btn.saving { opacity: 0.6; cursor: not-allowed; }
+
       .tabs {
         display: flex;
         gap: 8px;
