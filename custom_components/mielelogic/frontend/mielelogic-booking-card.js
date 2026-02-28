@@ -1,6 +1,6 @@
 /**
  * MieleLogic Booking Card
- * VERSION = "1.9.1"
+ * VERSION = "2.0.0"
  *
  * Custom Lovelace card der fungerer som et "remote" til MieleLogic panelet.
  * Registreres automatisk af integrationen - ingen manuel installation nødvendig.
@@ -279,13 +279,9 @@ class MieleLogicBookingCard extends HTMLElement {
           <!-- Header -->
           <div class="card-header">
             <div class="header-left">
-              <span class="header-icon">🧺</span>
               <div>
-                <div class="header-title">Vaskehus Booking</div>
-                <div class="header-sub">
-                  ${bookingCount} booking${bookingCount !== 1 ? "er" : ""}
-                  ${maxRes !== "–" ? ` af ${maxRes}` : ""}
-                </div>
+                <div class="header-title">Vaskehus</div>
+                <div class="header-title">Booking</div>
               </div>
             </div>
             ${balance ? `<div class="balance-chip">${balance}</div>` : ""}
@@ -305,8 +301,8 @@ class MieleLogicBookingCard extends HTMLElement {
               <span class="field-label">Vaskehus</span>
               <div class="select-wrapper">
                 <select id="vaskehus-select" class="field-select" ${this._loading ? "disabled" : ""}>
-                  <option value="Klatvask" ${this._vaskehus === "Klatvask" ? "selected" : ""}>🧺 Klatvask</option>
-                  <option value="Storvask" ${this._vaskehus === "Storvask" ? "selected" : ""}>🧺 Storvask</option>
+                  <option value="Klatvask" ${this._vaskehus === "Klatvask" ? "selected" : ""}>Klatvask</option>
+                  <option value="Storvask" ${this._vaskehus === "Storvask" ? "selected" : ""}>Storvask</option>
                 </select>
                 <span class="select-arrow">▾</span>
               </div>
@@ -339,21 +335,17 @@ class MieleLogicBookingCard extends HTMLElement {
 
             <button
               id="book-btn"
-              class="book-button${!canBook || this._loading ? " is-disabled" : ""}"
+              class="book-button ${this._loading ? "is-loading" : bookingCount === 0 ? "is-empty" : !canBook ? "is-full" : "is-partial"}"
               ${!canBook || this._loading ? "disabled" : ""}
             >
               ${this._loading
                 ? `<span class="spinner"></span> Booker…`
+                : bookingCount === 0
+                ? "✅ Ingen bookinger – book nu"
                 : canBook
-                ? "📅 BOOK NU"
-                : "🚫 Max bookinger nået"}
+                ? `📅 ${bookingCount} booking${bookingCount !== 1 ? "er" : ""} – book endnu en`
+                : `🚫 Max bookinger nået (${bookingCount}/${maxRes})`}
             </button>
-
-            ${!canBook && s.current_count >= s.max_reservations ? `
-              <p class="warning-text">
-                Du har ${s.current_count} bookinger – slet én for at booke igen.
-              </p>
-            ` : ""}
 
           </div>
 
@@ -369,12 +361,10 @@ class MieleLogicBookingCard extends HTMLElement {
             : `<div class="bookings-list${bookingCount === 1 ? " is-single" : ""}">
                 ${this._bookings.map((b) => `
                   <div class="booking-card">
-                    <div class="booking-icon">🧺</div>
+                    
                     <div class="booking-info">
                       <div class="booking-name">${b.vaskehus || "Vaskehus"}</div>
-                      <div class="booking-time">${this._formatDate(b.Start)}</div>
-                      <div class="booking-dur">${(() => { const d = b.Duration ?? b.duration; if (d != null && !isNaN(+d)) return +d + " min"; try { const m = Math.round((new Date(b.End)-new Date(b.Start))/60000); if (m>0) return m+" min"; } catch(e){} return ""; })()}</div>
-                      ${b.created_by ? `<div class="booking-user">📱 ${b.created_by}</div>` : ""}
+                      <div class="booking-meta">${this._formatDate(b.Start)} · ${(() => { const d = b.Duration ?? b.duration; if (d != null && !isNaN(+d)) return +d + " min"; try { const m = Math.round((new Date(b.End)-new Date(b.Start))/60000); if (m>0) return m+" min"; } catch(e){} return ""; })()}${b.created_by ? ` · 📱 ${b.created_by}` : ""}</div>
                     </div>
                     <button
                       class="delete-btn"
@@ -537,7 +527,8 @@ class MieleLogicBookingCard extends HTMLElement {
         border-bottom: 2px solid var(--divider-color, #e0e0e0);
       }
       .header-left { display: flex; align-items: center; gap: 10px; }
-      .header-icon { font-size: 26px; }
+      .header-icon { font-size: 26px; width: 32px; height: 32px; display: flex; align-items: center; }
+      .header-icon ha-icon { --mdc-icon-size: 30px; }
       .header-title {
         font-size: 16px;
         font-weight: 600;
@@ -626,7 +617,6 @@ class MieleLogicBookingCard extends HTMLElement {
       .book-button {
         width: 100%;
         padding: 13px;
-        background: linear-gradient(135deg, #03a9f4, #0288d1);
         color: #fff;
         border: none;
         border-radius: 8px;
@@ -634,7 +624,6 @@ class MieleLogicBookingCard extends HTMLElement {
         font-weight: 600;
         cursor: pointer;
         transition: all 0.25s;
-        box-shadow: 0 4px 12px rgba(3,169,244,0.3);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -642,18 +631,40 @@ class MieleLogicBookingCard extends HTMLElement {
         margin-top: 4px;
         font-family: inherit;
       }
-      .book-button:hover:not(.is-disabled):not(:disabled) {
+      /* Grøn — ingen bookinger */
+      .book-button.is-empty {
+        background: linear-gradient(135deg, #43a047, #2e7d32);
+        box-shadow: 0 4px 12px rgba(67,160,71,0.3);
+      }
+      .book-button.is-empty:hover {
+        background: linear-gradient(135deg, #388e3c, #1b5e20);
+        box-shadow: 0 6px 16px rgba(67,160,71,0.4);
+        transform: translateY(-1px);
+      }
+      /* Blå — 1+ booking, kan stadig booke */
+      .book-button.is-partial {
+        background: linear-gradient(135deg, #03a9f4, #0288d1);
+        box-shadow: 0 4px 12px rgba(3,169,244,0.3);
+      }
+      .book-button.is-partial:hover {
         background: linear-gradient(135deg, #0288d1, #01579b);
         box-shadow: 0 6px 16px rgba(3,169,244,0.4);
         transform: translateY(-1px);
       }
-      .book-button.is-disabled,
-      .book-button:disabled {
-        opacity: 0.6;
+      /* Gul — max nået */
+      .book-button.is-full {
+        background: linear-gradient(135deg, #f9a825, #f57f17);
+        box-shadow: 0 4px 12px rgba(249,168,37,0.3);
         cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
+        color: #1a1a1a;
       }
+      /* Loading */
+      .book-button.is-loading {
+        background: linear-gradient(135deg, #03a9f4, #0288d1);
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+      .book-button:disabled { transform: none; }
 
       /* Loading spinner */
       .spinner {
@@ -668,21 +679,13 @@ class MieleLogicBookingCard extends HTMLElement {
       }
       @keyframes spin { to { transform: rotate(360deg); } }
 
-      .warning-text {
-        margin: 8px 0 0;
-        padding: 9px 12px;
-        background: #fff3e0;
-        color: #e65100;
-        border-radius: 6px;
-        font-size: 12px;
-        text-align: center;
-      }
+
 
       /* Bookings block - matcher form-block stil */
       .bookings-block {
         background: var(--primary-background-color, #fafafa);
         border-radius: 10px;
-        padding: 14px;
+        padding: 10px 14px;
       }
 
       /* Maskine status */
@@ -786,9 +789,10 @@ class MieleLogicBookingCard extends HTMLElement {
       /* Booking card */
       .booking-card {
         display: flex;
+        flex-direction: row;
         align-items: center;
-        gap: 12px;
-        padding: 10px 0;
+        gap: 10px;
+        padding: 6px 0;
         border-bottom: 1px solid var(--divider-color, rgba(255,255,255,0.08));
         transition: opacity 0.2s;
       }
@@ -799,40 +803,19 @@ class MieleLogicBookingCard extends HTMLElement {
       .booking-card:hover {
         opacity: 0.85;
       }
-      .booking-icon {
-        font-size: 22px;
-        width: 38px;
-        height: 38px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--card-background-color, rgba(255,255,255,0.08));
-        border-radius: 8px;
-        flex-shrink: 0;
-      }
+
       .booking-info { flex: 1; min-width: 0; }
       .booking-name {
         font-weight: 600;
-        font-size: 14px;
+        font-size: 13px;
         color: var(--primary-text-color, #212121);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .booking-time {
-        font-size: 12px;
-        color: var(--secondary-text-color, #757575);
-        margin-top: 2px;
-      }
-      .booking-dur {
+      .booking-meta {
         font-size: 11px;
-        color: var(--disabled-text-color, #9e9e9e);
-        margin-top: 1px;
-      }
-      .booking-user {
-        font-size: 10px;
         color: var(--secondary-text-color, #757575);
-        font-style: italic;
         margin-top: 2px;
       }
 
@@ -860,9 +843,7 @@ class MieleLogicBookingCard extends HTMLElement {
 
       /* Responsive */
       @media (max-width: 400px) {
-        .card-content { padding: 12px; }
-        .booking-card { flex-direction: column; align-items: flex-start; }
-        .delete-btn { align-self: flex-end; }
+        .card-content { padding: 10px; }
       }
     `;
   }

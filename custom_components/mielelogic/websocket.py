@@ -1,4 +1,4 @@
-# VERSION = "1.9.1"
+# VERSION = "2.0.0"
 """WebSocket API for MieleLogic panel."""
 import logging
 import voluptuous as vol
@@ -230,13 +230,20 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
             
             # Add user metadata if available
             if store:
-                metadata = store.get_booking_metadata(
-                    machine=booking.get("MachineNumber", 0),
-                    start_time=booking.get("Start", ""),
-                )
+                api_start = booking.get("Start", "")
+                machine_nr = booking.get("MachineNumber", 0)
+
+                # Try direct lookup first, then normalize T→space and strip timezone
+                metadata = store.get_booking_metadata(machine=machine_nr, start_time=api_start)
+                if not metadata:
+                    normalized = api_start.replace("T", " ").split("+")[0].split("Z")[0].strip()
+                    metadata = store.get_booking_metadata(machine=machine_nr, start_time=normalized)
+
                 if metadata:
                     enhanced["created_by"] = metadata.get("created_by")
                     enhanced["created_at"] = metadata.get("created_at")
+                else:
+                    _LOGGER.debug("No metadata found for machine %s start '%s'", machine_nr, api_start)
             
             enhanced_bookings.append(enhanced)
         

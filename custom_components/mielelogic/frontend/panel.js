@@ -683,7 +683,7 @@ class MieleLogicPanel extends LitElement {
           <div class="booking-details">
             <div class="booking-vaskehus">${booking.vaskehus}</div>
             <div class="booking-time">${this.formatDate(booking.Start)}</div>
-            <div class="booking-duration">${booking.Duration} minutter</div>
+            <div class="booking-duration">${(() => { const d = booking.Duration ?? booking.duration; if (d != null && !isNaN(+d)) return +d + " min"; try { const m = Math.round((new Date(booking.End)-new Date(booking.Start))/60000); if (m>0) return m+" min"; } catch(e){} return ""; })()}</div>
             ${booking.created_by ? html`
               <div class="booking-user">👤 ${booking.created_by}</div>
             ` : ''}
