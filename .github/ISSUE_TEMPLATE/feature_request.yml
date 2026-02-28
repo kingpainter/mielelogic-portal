@@ -1,0 +1,70 @@
+name: 💡 Feature Request
+description: Foreslå en ny feature eller forbedring
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Har du en god idé? Vi vil meget gerne høre den! 🚀
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Tjekliste
+      options:
+        - label: Jeg har tjekket at denne feature ikke allerede er foreslået
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Hvilket problem løser denne feature?
+      description: Beskriv den situation eller det problem du støder på.
+      placeholder: "Det er besværligt når jeg skal..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Foreslået løsning
+      description: Beskriv hvad du gerne vil have at integrationen gør.
+      placeholder: "Det ville være fedt hvis man kunne..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativer du har overvejet
+      description: Er der andre måder at løse problemet på?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Hvilket område handler featuren om?
+      options:
+        - Booking flow
+        - Panel UI
+        - Notifikationer
+        - Maskinestatus
+        - Kalender integration
+        - Multi-vaskehus support
+        - API / backend
+        - Andet
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Hvor vigtig er denne feature for dig?
+      options:
+        - Nice to have
+        - Ville bruge det ofte
+        - Kritisk for mit setup
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Yderligere information
+      description: Screenshots, mockups, links til lignende features i andre projekter?

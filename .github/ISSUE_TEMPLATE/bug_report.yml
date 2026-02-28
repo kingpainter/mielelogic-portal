@@ -1,0 +1,90 @@
+name: 🐛 Bug Report
+description: Rapporter en fejl i MieleLogic
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tak for din bugreport! Udfyld så mange felter som muligt — det hjælper os løse problemet hurtigere.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Tjekliste
+      options:
+        - label: Jeg har tjekket at fejlen ikke allerede er rapporteret
+          required: true
+        - label: Jeg kører Home Assistant 2026.1.0 eller nyere
+          required: true
+        - label: Jeg har genstartet Home Assistant og fejlen gentager sig
+          required: true
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.x.x"
+    validations:
+      required: true
+
+  - type: input
+    id: integration_version
+    attributes:
+      label: MieleLogic version
+      placeholder: "1.9.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Hvilket område er fejlen i?
+      options:
+        - Booking (opret/slet)
+        - Panel (visning/navigation)
+        - Notifikationer
+        - Maskinestatus
+        - Kalender sync
+        - Installation/setup
+        - Andet
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Beskrivelse
+      description: Hvad sker der? Beskriv fejlen så præcist som muligt.
+      placeholder: "Når jeg klikker på 'Book Nu' sker der..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Forventet adfærd
+      placeholder: "Jeg forventede at..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevante log-linjer
+      description: Find logs under Settings → System → Logs → søg efter "mielelogic"
+      render: text
+      placeholder: |
+        [ERROR] (MainThread) [custom_components.mielelogic] ...
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Hvis relevant, indsæt screenshots her.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Yderligere information
+      description: Andet der kan være relevant?
