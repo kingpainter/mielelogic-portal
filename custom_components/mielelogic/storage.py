@@ -188,6 +188,28 @@ class MieleLogicStore:
         await self.async_save()
         _LOGGER.debug("Saved booking metadata for %s (created by %s)", key, user_name)
 
+    def get_booking_history(self, days: int = 30) -> list:
+        """Get completed bookings from the last X days, sorted newest first."""
+        from datetime import timedelta
+        cutoff = datetime.now() - timedelta(days=days)
+        history = []
+        for key, meta in self._data.get("bookings", {}).items():
+            try:
+                created_at = datetime.fromisoformat(meta["created_at"])
+                if created_at >= cutoff:
+                    # Only include bookings whose start_time is in the past
+                    start_str = meta.get("start_time", "")
+                    try:
+                        start_dt = datetime.fromisoformat(start_str.replace(" ", "T").split("+")[0])
+                        if start_dt < datetime.now():
+                            history.append({**meta, "key": key})
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        history.sort(key=lambda x: x.get("start_time", ""), reverse=True)
+        return history
+
     def get_booking_metadata(self, machine: int, start_time: str) -> dict[str, Any] | None:
         """Get booking metadata if exists."""
         key = self._get_booking_key(machine, start_time)

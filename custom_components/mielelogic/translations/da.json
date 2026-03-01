@@ -11,8 +11,19 @@
           "laundry_id": "Vaskeri ID",
           "client_secret": "Klient Hemmelighed (valgfri)",
           "name": "Navn",
-          "opening_time": "Åbningstid (f.eks. 07:00)",
+          "opening_time": "Ã…bningstid (f.eks. 07:00)",
           "closing_time": "Lukketid (f.eks. 21:00)"
+        }
+      },
+      "reconfigure": {
+        "title": "Genkonfigurer MieleLogic",
+        "description": "Opdater dine legitimationsoplysninger eller vaskeri-ID. Andre indstillinger bevares.",
+        "data": {
+          "username": "Brugernavn (e-mail)",
+          "password": "Adgangskode",
+          "client_id": "Klient-ID",
+          "laundry_id": "Vaskeri-ID",
+          "client_secret": "Klient-hemmelighed (valgfri)"
         }
       }
     },
@@ -20,11 +31,12 @@
       "cannot_connect": "Kunne ikke oprette forbindelse til MieleLogic API",
       "invalid_auth": "Ugyldige legitimationsoplysninger",
       "bad_request": "Ugyldig anmodning, tjek indtastede oplysninger",
-      "server_error": "Serverfejl, prøv igen senere",
+      "server_error": "Serverfejl, prÃ¸v igen senere",
       "unknown": "Ukendt fejl opstod"
     },
     "abort": {
-      "already_configured": "MieleLogic er allerede konfigureret"
+      "already_configured": "MieleLogic er allerede konfigureret",
+      "reconfigure_successful": "Genkonfiguration lykkedes"
     }
   },
   "options": {
@@ -33,7 +45,7 @@
         "menu_options": {
           "credentials": "Opdater Login Oplysninger",
           "calendar": "Konfigurer Kalender Synkronisering",
-          "laundry_hours": "Konfigurer Åbningstider",
+          "laundry_hours": "Konfigurer Ã…bningstider",
           "machine_config": "Konfigurer Maskiner",
           "time_slots": "Konfigurer Tidsblokke"
         }
@@ -49,33 +61,33 @@
         },
         "data_description": {
           "username": "Dit MieleLogic brugernavn",
-          "password": "Dit MieleLogic password (kræves for at verificere ændringer)",
+          "password": "Dit MieleLogic password (krÃ¦ves for at verificere Ã¦ndringer)",
           "client_id": "OAuth2 client ID",
           "client_secret": "OAuth2 client secret (valgfri)"
         }
       },
       "calendar": {
         "title": "Konfigurer Kalender Synkronisering",
-        "description": "Synkroniser MieleLogic reservationer til en ekstern kalender. Dette er valgfrit - hvis ikke aktiveret bruges kun MieleLogic's indbyggede kalender.\n\nAktuelt: {current_calendar}\nTilgængelige kalendere: {num_calendars}",
+        "description": "Synkroniser MieleLogic reservationer til en ekstern kalender. Dette er valgfrit - hvis ikke aktiveret bruges kun MieleLogic's indbyggede kalender.\n\nAktuelt: {current_calendar}\nTilgÃ¦ngelige kalendere: {num_calendars}",
         "data": {
           "enable_sync": "Aktiver kalender synkronisering",
-          "calendar_entity": "Mål kalender"
+          "calendar_entity": "MÃ¥l kalender"
         },
         "data_description": {
           "enable_sync": "Synkroniser reservationer til en ekstern kalender (f.eks. CalDAV)",
-          "calendar_entity": "Vælg hvilken kalender der skal synkroniseres til"
+          "calendar_entity": "VÃ¦lg hvilken kalender der skal synkroniseres til"
         }
       },
       "laundry_hours": {
-        "title": "Konfigurer Vaskehus Åbningstider",
-        "description": "Indstil hvornår vaskehuset åbner og lukker. Dette bruges til at vise 'Lukket indtil kl. XX:XX' på maskiner.\n\nAktuelt: Åbner {current_opening}, Lukker {current_closing}",
+        "title": "Konfigurer Vaskehus Ã…bningstider",
+        "description": "Indstil hvornÃ¥r vaskehuset Ã¥bner og lukker. Dette bruges til at vise 'Lukket indtil kl. XX:XX' pÃ¥ maskiner.\n\nAktuelt: Ã…bner {current_opening}, Lukker {current_closing}",
         "data": {
-          "opening_time": "Åbningstid (f.eks. 07:00)",
+          "opening_time": "Ã…bningstid (f.eks. 07:00)",
           "closing_time": "Lukketid (f.eks. 21:00)"
         },
         "data_description": {
-          "opening_time": "Hvornår åbner vaskehuset (format: HH:MM)",
-          "closing_time": "Hvornår lukker vaskehuset (format: HH:MM)"
+          "opening_time": "HvornÃ¥r Ã¥bner vaskehuset (format: HH:MM)",
+          "closing_time": "HvornÃ¥r lukker vaskehuset (format: HH:MM)"
         }
       },
       "machine_config": {
@@ -145,48 +157,33 @@
         "name": "Har Reservation"
       },
       "has_washer_reservation": {
-        "name": "Har Vaskemaskine Reservation"
+        "name": "Har Vasker Reservation"
       },
       "has_dryer_reservation": {
-        "name": "Har Tørretumbler Reservation"
+        "name": "Har TÃ¸rretumbler Reservation"
       },
       "reservation_starting_soon": {
         "name": "Reservation Starter Snart"
       },
       "washer_available": {
-        "name": "Vaskemaskine Tilgængelig"
+        "name": "Vasker TilgÃ¦ngelig"
       },
       "dryer_available": {
-        "name": "Tørretumbler Tilgængelig"
+        "name": "TÃ¸rretumbler TilgÃ¦ngelig"
       }
     },
     "sensor": {
       "reservations": {
         "name": "Reservationer"
       },
-      "account_balance": {
-        "name": "Konto Saldo"
-      },
-      "vaskehus_config": {
-        "name": "Vaskehus Konfiguration"
-      },
       "washer_status": {
-        "name": "Vaskemaskine Status",
-        "state": {
-          "all_available": "Alle ledige",
-          "partially_available": "Delvist ledigt",
-          "all_occupied": "Alle optaget",
-          "no_washers": "Ingen vaskemaskiner"
-        }
+        "name": "Vasker Status"
       },
       "dryer_status": {
-        "name": "Tørretumbler Status",
-        "state": {
-          "all_available": "Alle ledige",
-          "partially_available": "Delvist ledigt",
-          "all_occupied": "Alle optaget",
-          "no_dryers": "Ingen tørretumblere"
-        }
+        "name": "TÃ¸rretumbler Status"
+      },
+      "account_balance": {
+        "name": "Konto Saldo"
       }
     },
     "calendar": {

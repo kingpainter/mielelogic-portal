@@ -1,4 +1,4 @@
-# VERSION = "1.9.1"
+# VERSION = "2.0.0"
 import logging
 import aiohttp
 import voluptuous as vol
@@ -165,6 +165,81 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except Exception as err:
             _LOGGER.error("Unexpected error during authentication: %s", err)
             raise
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Handle reconfiguration - allows changing credentials and laundry ID.
+        
+        This is the Gold tier reconfiguration_flow requirement.
+        Accessible via Settings → Integrations → MieleLogic → Reconfigure.
+        """
+        errors = {}
+
+        if user_input is not None:
+            try:
+                await self._test_credentials(
+                    user_input[CONF_USERNAME],
+                    user_input[CONF_PASSWORD],
+                    user_input[CONF_CLIENT_ID],
+                    user_input.get(CONF_CLIENT_SECRET),
+                )
+
+                # Update unique ID if laundry_id changed
+                new_unique_id = f"{user_input[CONF_USERNAME]}_{user_input[CONF_LAUNDRY_ID]}"
+                await self.async_set_unique_id(new_unique_id)
+                self._abort_if_unique_id_configured(
+                    updates={
+                        CONF_USERNAME: user_input[CONF_USERNAME],
+                        CONF_PASSWORD: user_input[CONF_PASSWORD],
+                        CONF_CLIENT_ID: user_input[CONF_CLIENT_ID],
+                        CONF_LAUNDRY_ID: user_input[CONF_LAUNDRY_ID],
+                    }
+                )
+
+                # Preserve all existing settings, only update credentials + laundry_id
+                new_data = dict(self.config_entry.data)
+                new_data[CONF_USERNAME] = user_input[CONF_USERNAME]
+                new_data[CONF_PASSWORD] = user_input[CONF_PASSWORD]
+                new_data[CONF_CLIENT_ID] = user_input[CONF_CLIENT_ID]
+                new_data[CONF_LAUNDRY_ID] = user_input[CONF_LAUNDRY_ID]
+                if user_input.get(CONF_CLIENT_SECRET):
+                    new_data[CONF_CLIENT_SECRET] = user_input[CONF_CLIENT_SECRET]
+
+                return self.async_update_reload_and_abort(
+                    self.config_entry,
+                    data=new_data,
+                    reason="reconfigure_successful",
+                )
+
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except BadRequest:
+                errors["base"] = "bad_request"
+            except ServerError:
+                errors["base"] = "server_error"
+            except Exception as err:
+                _LOGGER.exception("Unexpected exception during reconfigure: %s", err)
+                errors["base"] = "unknown"
+
+        # Pre-fill with current values
+        current = self.config_entry.data
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_USERNAME, default=current.get(CONF_USERNAME, "")): str,
+                    vol.Required(CONF_PASSWORD): str,
+                    vol.Required(CONF_CLIENT_ID, default=current.get(CONF_CLIENT_ID, "YV1ZAQ7BTE9IT2ZBZXLJ")): str,
+                    vol.Required(CONF_LAUNDRY_ID, default=current.get(CONF_LAUNDRY_ID, "")): str,
+                    vol.Optional(CONF_CLIENT_SECRET, default=current.get(CONF_CLIENT_SECRET, "")): str,
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "username": current.get(CONF_USERNAME, "unknown"),
+            },
+        )
 
     @staticmethod
     @callback

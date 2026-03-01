@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-02-28
+
+### Added - Admin Tab ⚙️
+- **Admin Tab** — New fourth tab in panel for admin-only controls
+- **Driftsbesked** — Text field for operator messages shown as info-banner in booking card (amber/orange styling)
+- **Booking Spærring** — Toggle to lock all new bookings with a custom message to users
+- **Persistent Admin Storage** — Admin settings survive HA restarts via `storage.py`
+
+### Added - Statistics Tab 📊
+- **Statistik Tab** — New fifth tab showing booking history
+- **30-Day History** — Lists all completed bookings (start_time in past, created within 30 days)
+- **Per-Booking Detail** — Vaskehus, date, time, duration, and 👤 username per entry
+- **Newest First** — Sorted by start_time descending
+- **Cleanup Button** — 🧹 Remove metadata older than 30 days with confirmation result
+
+### Fixed - User Tracking 👤
+- **Real HA Username** — Now correctly shows actual Home Assistant username (e.g. "Flemming") instead of always "Via Panel"
+- **Root Cause** — `connection.context` in HA WebSocket is a callable, not an object. Fixed with `ctx = context() if callable(context) else context`
+- **Fallback** — Gracefully falls back to "Via Panel" if user lookup fails
+
+### Fixed - Booking Card 🎨
+- **Variable Order** — `bookingLocked` declared before `canBook` which depends on it (was causing ReferenceError)
+- **Info Banner** — Admin driftsbesked shown in amber info-banner above machine status
+- **Locked State** — Grey "is-locked" button class when admin has locked bookings
+- **Machine State** — All machines shown as "Lukket" when laundry is outside opening hours (visual only, API data preserved in tooltip)
+- **Duration** — Fixed "minutter" showing without number in panel.js (was `booking.Duration` uppercase, API returns lowercase)
+
+### Added - Gold Tier Compliance 🏆
+- **`entity_translations`** — Full state translations for `washer_status` and `dryer_status` sensors in da.json + en.json
+- **`has_entity_description`** — Refactored `sensor.py` and `binary_sensor.py` to use `SensorEntityDescription` / `BinarySensorEntityDescription` dataclasses
+- **`translations`** — Complete translation coverage including entity states, reconfigure step, and abort reasons
+- **`reconfiguration_flow`** — `async_step_reconfigure` added to `MieleLogicConfigFlow` — accessible via Settings → Integrations → MieleLogic → ⋮ → Reconfigure
+
+### Added - WebSocket Commands (17 total)
+- `mielelogic/get_admin` — Fetch admin settings
+- `mielelogic/save_admin` — Save admin settings (booking_locked, lock_message, info_message)
+- `mielelogic/get_history` — Fetch completed bookings last 30 days
+- `mielelogic/cleanup_history` — Delete metadata older than 30 days
+
+### Technical
+- `storage.py` v2.0.0 — Added `admin` key to default data, `get_admin_settings()`, `async_save_admin_settings()`, `get_booking_history(days=30)`
+- `websocket.py` v2.0.0 — 4 new commands, admin data included in `get_status` response, key normalization for booking metadata lookup
+- `panel.js` v2.0.0 — Admin + Statistik tabs, `loadAdminSettings()`, `saveAdminSettings()`, `loadHistory()`, `cleanupHistory()`, CSS for both tabs
+- `mielelogic-booking-card.js` v2.0.0 — Info banner, locked state, variable order fix, machine closed state override
+- `config_flow.py` v2.0.0 — `async_step_reconfigure` with credential validation + `async_update_reload_and_abort`
+- `sensor.py` v2.0.0 — `MieleLogicSensorEntityDescription` dataclass, `SENSOR_DESCRIPTIONS` tuple
+- `binary_sensor.py` v2.0.0 — `MieleLogicBinarySensorEntityDescription` dataclass, `BINARY_SENSOR_DESCRIPTIONS` tuple
+- `da.json` / `en.json` v2.0.0 — State translations, reconfigure step, encoding fixes
+
+---
+
+
 ## [1.9.1] - 2026-02-28
 
 ### Fixed - Booking Card UI 🎨

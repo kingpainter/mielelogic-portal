@@ -1,6 +1,6 @@
 # MieleLogic Integration Quality Scale
-# Version: 1.7.0
-# Target Tier: Silver
+# Version: 2.0.0
+# Target Tier: Gold
 # Status: In Progress
 
 rules:
@@ -127,20 +127,20 @@ rules:
     comment: Cloud service requires credentials - no automatic discovery possible
   
   entity_translations:
-    status: todo
-    comment: Partial translations (UI only) - full entity state translation planned for Gold
+    status: done
+    comment: Full entity translations with state translations for washer/dryer status sensors (v2.0.0)
   
   has_entity_description:
-    status: todo
-    comment: Not yet using EntityDescription dataclasses - planned for Gold
+    status: done
+    comment: Refactored sensor.py and binary_sensor.py to use EntityDescription dataclasses (v2.0.0)
   
   integration_test_coverage:
     status: todo
     comment: Comprehensive tests not yet implemented - planned for Gold tier
   
   reconfiguration_flow:
-    status: partial
-    comment: Options flow allows changing credentials, calendar, and hours. Laundry ID change planned.
+    status: done
+    comment: async_step_reconfigure implemented in ConfigFlow - allows changing credentials and laundry ID with reload (v2.0.0)
   
   setup_entry_retry:
     status: done
@@ -151,8 +151,8 @@ rules:
     comment: Cloud service - no SSDP discovery possible
   
   translations:
-    status: partial
-    comment: Config/options flow translated (da + en). Entity states not yet translated.
+    status: done
+    comment: Full translations in da.json and en.json including entity states, config/options/reconfigure flows (v2.0.0)
   
   usb:
     status: exempt
@@ -167,5 +167,6 @@ rules:
 # Silver tier: ✅ DONE (all required rules met or exempted)
 # Gold tier: 🟡 IN PROGRESS (partial implementation)
 #
-# Current status: SILVER TIER READY ✅
-# Next target: Gold tier (requires full tests + translations)
+# Current status: GOLD TIER IN PROGRESS 🟡
+# Completed: entity_translations, has_entity_description, translations, reconfiguration_flow
+# Remaining: brands (PR to HA brands repo), config_flow_test, integration_test_coverage

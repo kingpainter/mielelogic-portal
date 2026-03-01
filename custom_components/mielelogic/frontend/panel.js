@@ -24,6 +24,9 @@ class MieleLogicPanel extends LitElement {
       currentTab: { type: String },
       adminSettings: { type: Object },
       adminSaving: { type: Boolean },
+      history: { type: Array },
+      historyLoading: { type: Boolean },
+      cleanupResult: { type: String },
       // Notification state
       devices: { type: Array },
       availableDevices: { type: Array },
@@ -48,6 +51,9 @@ class MieleLogicPanel extends LitElement {
     this.currentTab = "booking";
     this.adminSettings = { booking_locked: false, lock_message: "Booking er midlertidigt spærret", info_message: "" };
     this.adminSaving = false;
+    this.history = [];
+    this.historyLoading = false;
+    this.cleanupResult = "";
     this.devices = [];
     this.availableDevices = [];
     this.notifications = {};
@@ -92,6 +98,31 @@ class MieleLogicPanel extends LitElement {
     }
   }
 
+  async loadHistory() {
+    this.historyLoading = true;
+    this.cleanupResult = "";
+    try {
+      const result = await this.hass.callWS({ type: "mielelogic/get_history" });
+      this.history = result.history || [];
+    } catch (e) {
+      console.warn("MieleLogic: Could not load history", e);
+      this.history = [];
+    }
+    this.historyLoading = false;
+  }
+
+  async cleanupHistory() {
+    try {
+      const result = await this.hass.callWS({ type: "mielelogic/cleanup_history" });
+      this.cleanupResult = result.cleaned > 0
+        ? `✅ ${result.cleaned} poster ryddet`
+        : "✅ Ingen gamle poster at rydde";
+      await this.loadHistory();
+    } catch (e) {
+      this.cleanupResult = "❌ Fejl ved oprydning";
+    }
+  }
+
   async loadAdminSettings() {
     try {
       const result = await this.hass.callWS({ type: "mielelogic/get_admin" });
@@ -115,6 +146,9 @@ class MieleLogicPanel extends LitElement {
       this.showNotification("❌ Kunne ikke gemme", "error");
     }
     this.adminSaving = false;
+    this.history = [];
+    this.historyLoading = false;
+    this.cleanupResult = "";
   }
 
   async loadData() {
@@ -526,7 +560,7 @@ class MieleLogicPanel extends LitElement {
         ${this.renderHeader()}
         ${this.renderTabs()}
         ${this.error ? this.renderError() : ""}
-        ${this.currentTab === "booking" ? this.renderBookingTab() : this.currentTab === "notifications" ? this.renderNotificationTab() : this.renderAdminTab()}
+        ${this.currentTab === "booking" ? this.renderBookingTab() : this.currentTab === "notifications" ? this.renderNotificationTab() : this.currentTab === "admin" ? this.renderAdminTab() : this.renderStatsTab()}
       </div>
     `;
   }
@@ -552,6 +586,12 @@ class MieleLogicPanel extends LitElement {
         >
           ⚙️ Admin
         </button>
+        <button 
+          class="tab ${this.currentTab === 'stats' ? 'active' : ''}"
+          @click=${() => { this.currentTab = 'stats'; this.loadHistory(); this.requestUpdate(); }}
+        >
+          📊 Statistik
+        </button>
       </div>
     `;
   }
@@ -561,6 +601,57 @@ class MieleLogicPanel extends LitElement {
       ${this.renderBookingForm()}
       ${this.renderStatus()}
       ${this.renderBookings()}
+    `;
+  }
+
+  renderStatsTab() {
+    const fmt = (entry) => {
+      const start = entry.start_time || "";
+      const date = start.split(" ")[0] || start.split("T")[0] || "–";
+      const time = (start.split(" ")[1] || start.split("T")[1] || "").slice(0,5) || "–";
+      const dur = entry.duration ? entry.duration + " min" : "–";
+      const user = entry.created_by || "–";
+      const vaskehus = entry.vaskehus || `Maskine ${entry.machine}`;
+      // Format date as dd.mm
+      const parts = date.split("-");
+      const dateStr = parts.length === 3 ? `${parts[2]}.${parts[1]}` : date;
+      return { dateStr, time, dur, user, vaskehus };
+    };
+
+    return html`
+      <div class="stats-tab">
+        <h2>📊 Statistik</h2>
+        <p class="stats-desc">Afsluttede bookinger de seneste 30 dage</p>
+
+        ${this.historyLoading ? html`
+          <div class="stats-loading">⏳ Henter historik…</div>
+        ` : this.history.length === 0 ? html`
+          <div class="stats-empty">📭 Ingen afsluttede bookinger de seneste 30 dage</div>
+        ` : html`
+          <div class="stats-count">${this.history.length} booking${this.history.length !== 1 ? "er" : ""} fundet</div>
+          <div class="history-list">
+            ${this.history.map(entry => {
+              const f = fmt(entry);
+              return html`
+                <div class="history-item">
+                  <div class="history-left">
+                    <span class="history-vaskehus">${f.vaskehus}</span>
+                    <span class="history-meta">${f.dateStr} · ${f.time} · ${f.dur}</span>
+                  </div>
+                  <div class="history-user">👤 ${f.user}</div>
+                </div>
+              `;
+            })}
+          </div>
+        `}
+
+        <div class="cleanup-section">
+          <button class="cleanup-btn" @click=${() => this.cleanupHistory()}>
+            🧹 Ryd metadata ældre end 30 dage
+          </button>
+          ${this.cleanupResult ? html`<p class="cleanup-result">${this.cleanupResult}</p>` : ""}
+        </div>
+      </div>
     `;
   }
 
@@ -1197,6 +1288,39 @@ class MieleLogicPanel extends LitElement {
       }
 
       /* ✨ NEW v1.5.1: Tabs */
+      /* Stats tab */
+      .stats-tab { padding: 16px; max-width: 600px; }
+      .stats-tab h2 { margin: 0 0 4px; font-size: 18px; }
+      .stats-desc { font-size: 12px; color: var(--secondary-text-color); margin: 0 0 16px; }
+      .stats-loading, .stats-empty { 
+        text-align: center; padding: 32px; color: var(--secondary-text-color); font-size: 14px;
+      }
+      .stats-count {
+        font-size: 12px; color: var(--secondary-text-color); margin-bottom: 8px;
+      }
+      .history-list {
+        background: var(--card-background-color, #1e1e1e);
+        border-radius: 10px; overflow: hidden;
+      }
+      .history-item {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; border-bottom: 1px solid var(--divider-color, rgba(255,255,255,0.08));
+      }
+      .history-item:last-child { border-bottom: none; }
+      .history-left { display: flex; flex-direction: column; gap: 2px; }
+      .history-vaskehus { font-size: 14px; font-weight: 600; }
+      .history-meta { font-size: 12px; color: var(--secondary-text-color); }
+      .history-user { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; }
+      .cleanup-section { margin-top: 20px; }
+      .cleanup-btn {
+        width: 100%; padding: 11px; background: var(--card-background-color, #1e1e1e);
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+        color: var(--primary-text-color); border-radius: 8px;
+        font-size: 14px; cursor: pointer; font-family: inherit;
+      }
+      .cleanup-btn:hover { background: rgba(255,255,255,0.05); }
+      .cleanup-result { font-size: 13px; text-align: center; margin: 8px 0 0; }
+
       /* Admin tab */
       .admin-tab { padding: 16px; max-width: 600px; }
       .admin-tab h2 { margin: 0 0 20px; font-size: 18px; }

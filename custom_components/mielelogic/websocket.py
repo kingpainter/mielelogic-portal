@@ -20,6 +20,8 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_bookings)
     websocket_api.async_register_command(hass, ws_get_status)
     websocket_api.async_register_command(hass, ws_get_admin)
+    websocket_api.async_register_command(hass, ws_get_history)
+    websocket_api.async_register_command(hass, ws_cleanup_history)
     websocket_api.async_register_command(hass, ws_save_admin)
     websocket_api.async_register_command(hass, ws_get_machines)  # ✨ v1.9.0
     
@@ -460,6 +462,47 @@ async def ws_save_admin(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"success": True})
     except Exception as err:
         _LOGGER.exception("Error saving admin settings: %s", err)
+        connection.send_error(msg["id"], "unknown_error", str(err))
+
+
+#
+# STATISTICS
+#
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/get_history",
+})
+@callback
+def ws_get_history(hass: HomeAssistant, connection, msg):
+    """Get booking history (last 30 days, completed bookings)."""
+    store = _get_store(hass)
+    if not store:
+        connection.send_error(msg["id"], "not_ready", "Integration not ready")
+        return
+    try:
+        history = store.get_booking_history(days=30)
+        connection.send_result(msg["id"], {"history": history, "count": len(history)})
+    except Exception as err:
+        _LOGGER.exception("Error getting history: %s", err)
+        connection.send_error(msg["id"], "unknown_error", str(err))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/cleanup_history",
+})
+@websocket_api.async_response
+async def ws_cleanup_history(hass: HomeAssistant, connection, msg):
+    """Clean up booking metadata older than 30 days."""
+    store = _get_store(hass)
+    if not store:
+        connection.send_error(msg["id"], "not_ready", "Integration not ready")
+        return
+    try:
+        cleaned = await store.async_cleanup_old_bookings(days=30)
+        _LOGGER.info("Cleaned up %d old booking entries", cleaned)
+        connection.send_result(msg["id"], {"cleaned": cleaned})
+    except Exception as err:
+        _LOGGER.exception("Error cleaning history: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
 
 

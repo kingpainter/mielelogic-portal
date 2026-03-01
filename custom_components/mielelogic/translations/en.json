@@ -14,6 +14,17 @@
           "opening_time": "Opening time (e.g. 07:00)",
           "closing_time": "Closing time (e.g. 21:00)"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure MieleLogic",
+        "description": "Update your credentials or laundry ID. Other settings are preserved.",
+        "data": {
+          "username": "Username (email)",
+          "password": "Password",
+          "client_id": "Client ID",
+          "laundry_id": "Laundry ID",
+          "client_secret": "Client Secret (optional)"
+        }
       }
     },
     "error": {
@@ -24,7 +35,8 @@
       "unknown": "Unknown error occurred"
     },
     "abort": {
-      "already_configured": "MieleLogic is already configured"
+      "already_configured": "MieleLogic is already configured",
+      "reconfigure_successful": "Reconfiguration successful"
     }
   },
   "options": {
@@ -164,29 +176,14 @@
       "reservations": {
         "name": "Reservations"
       },
-      "account_balance": {
-        "name": "Account Balance"
-      },
-      "vaskehus_config": {
-        "name": "Vaskehus Config"
-      },
       "washer_status": {
-        "name": "Washer Status",
-        "state": {
-          "all_available": "All available",
-          "partially_available": "Partially available",
-          "all_occupied": "All occupied",
-          "no_washers": "No washers"
-        }
+        "name": "Washer Status"
       },
       "dryer_status": {
-        "name": "Dryer Status",
-        "state": {
-          "all_available": "All available",
-          "partially_available": "Partially available",
-          "all_occupied": "All occupied",
-          "no_dryers": "No dryers"
-        }
+        "name": "Dryer Status"
+      },
+      "account_balance": {
+        "name": "Account Balance"
       }
     },
     "calendar": {
