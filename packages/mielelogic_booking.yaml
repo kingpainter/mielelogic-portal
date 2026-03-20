@@ -1,0 +1,381 @@
+# MieleLogic Booking Package
+# Version: 1.4.7 - Enhanced Error Handling
+# 
+# ENGLISH version with proper UTF-8 encoding
+# Danish characters handled correctly
+# 
+# Place this file in: /config/packages/mielelogic_booking.yaml
+
+# ===== INPUT HELPERS =====
+
+input_select:
+  # Laundry house selection
+  mielelogic_booking_vaskehus:
+    name: "Vaskehus"
+    icon: mdi:washing-machine
+    options:
+      - "Klatvask"
+      - "Storvask"
+    initial: "Klatvask"
+  
+  # Time slot selection (populated dynamically)
+  mielelogic_booking_slot:
+    name: "Tidsblok"
+    icon: mdi:clock-outline
+    options:
+      - "Vælg først vaskehus..."
+    initial: "Vælg først vaskehus..."
+
+input_datetime:
+  # Booking date
+  mielelogic_booking_date:
+    name: "Dato"
+    icon: mdi:calendar
+    has_date: true
+    has_time: false
+
+# ===== TEMPLATE SENSORS =====
+
+template:
+  - sensor:
+      # Expose config slots for templates
+      - name: "MieleLogic Vaskehus Config"
+        unique_id: mielelogic_vaskehus_config
+        state: >
+          {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
+          {% if entities | length > 0 %}
+            {% set main_sensor = entities[0] %}
+            {% if states(main_sensor) not in ['unavailable', 'unknown'] %}
+              OK
+            {% else %}
+              unavailable
+            {% endif %}
+          {% else %}
+            not_configured
+          {% endif %}
+        availability: >
+          {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
+          {{ entities | length > 0 and states(entities[0]) not in ['unavailable', 'unknown'] }}
+        attributes:
+          klatvask_machine: >
+            {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
+            {% if entities | length > 0 %}
+              {{ state_attr(entities[0], 'klatvask_primary_machine') | default(1) }}
+            {% else %}
+              1
+            {% endif %}
+          storvask_machine: >
+            {% set entities = integration_entities('mielelogic') | select('match', 'sensor.mielelogic_') | list %}
+            {% if entities | length > 0 %}
+              {{ state_attr(entities[0], 'storvask_primary_machine') | default(4) }}
+            {% else %}
+              4
+            {% endif %}
+          klatvask_slots: >
+            {{ [
+              {"start": "07:00", "end": "09:00"},
+              {"start": "09:00", "end": "11:00"},
+              {"start": "11:00", "end": "13:00"},
+              {"start": "13:00", "end": "15:00"},
+              {"start": "15:00", "end": "17:00"},
+              {"start": "17:00", "end": "19:00"},
+              {"start": "19:00", "end": "21:00"}
+            ] }}
+          storvask_slots: >
+            {{ [
+              {"start": "07:00", "end": "09:00"},
+              {"start": "09:00", "end": "12:00"},
+              {"start": "12:00", "end": "14:00"},
+              {"start": "14:00", "end": "17:00"},
+              {"start": "17:00", "end": "19:00"},
+              {"start": "19:00", "end": "21:00"}
+            ] }}
+      
+      # Next booking with vaskehus name
+      - name: "MieleLogic Næste Booking Display"
+        unique_id: mielelogic_next_booking_display
+        icon: mdi:calendar-clock
+        state: >
+          {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+          {% if reservations and reservations | length > 0 %}
+            {% set machine = reservations[0].MachineNumber %}
+            {% set klatvask_machine = state_attr('sensor.mielelogic_vaskehus_config', 'klatvask_machine') | int(1) %}
+            {% set storvask_machine = state_attr('sensor.mielelogic_vaskehus_config', 'storvask_machine') | int(4) %}
+            {% if machine == klatvask_machine %}
+              Klatvask booket
+            {% elif machine == storvask_machine %}
+              Storvask booket
+            {% else %}
+              Maskine {{ machine }} booket
+            {% endif %}
+          {% else %}
+            Ingen booking
+          {% endif %}
+        attributes:
+          vaskehus: >
+            {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+            {% if reservations and reservations | length > 0 %}
+              {% set machine = reservations[0].MachineNumber %}
+              {% set klatvask_machine = state_attr('sensor.mielelogic_vaskehus_config', 'klatvask_machine') | int(1) %}
+              {% set storvask_machine = state_attr('sensor.mielelogic_vaskehus_config', 'storvask_machine') | int(4) %}
+              {% if machine == klatvask_machine %}
+                Klatvask
+              {% elif machine == storvask_machine %}
+                Storvask
+              {% else %}
+                Unknown
+              {% endif %}
+            {% else %}
+              None
+            {% endif %}
+          start_time: >
+            {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+            {% if reservations and reservations | length > 0 %}
+              {{ as_timestamp(reservations[0].Start) | timestamp_custom('%d/%m %H:%M') }}
+            {% else %}
+              -
+            {% endif %}
+          end_time: >
+            {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+            {% if reservations and reservations | length > 0 %}
+              {{ as_timestamp(reservations[0].End) | timestamp_custom('%H:%M') }}
+            {% else %}
+              -
+            {% endif %}
+
+# ===== SCRIPTS =====
+
+script:
+  # Main vaskehus booking script
+  mielelogic_book_vaskehus:
+    alias: "Book Vaskehus"
+    icon: mdi:washing-machine
+    mode: single
+    sequence:
+      # 1. Validate inputs
+      - condition: template
+        value_template: >
+          {{ states('input_select.mielelogic_booking_slot') != 'Vælg først vaskehus...' 
+             and states('input_datetime.mielelogic_booking_date') not in ['unknown', 'unavailable', ''] }}
+      
+      # 2. Parse variables
+      - variables:
+          vaskehus: "{{ states('input_select.mielelogic_booking_vaskehus') }}"
+          slot_text: "{{ states('input_select.mielelogic_booking_slot') }}"
+          booking_date: "{{ states('input_datetime.mielelogic_booking_date') }}"
+          
+          # Parse slot: "07:00-09:00 (2t)" -> start="07:00", end="09:00"
+          start_time: "{{ slot_text.split('-')[0].strip() }}"
+          end_time_raw: "{{ slot_text.split('-')[1].split('(')[0].strip() }}"
+          
+          # Get primary machine for vaskehus
+          klatvask_machine: "{{ state_attr('sensor.mielelogic_vaskehus_config', 'klatvask_machine') | int(1) }}"
+          storvask_machine: "{{ state_attr('sensor.mielelogic_vaskehus_config', 'storvask_machine') | int(4) }}"
+          
+          machine: >
+            {% if vaskehus == 'Klatvask' %}
+              {{ klatvask_machine }}
+            {% else %}
+              {{ storvask_machine }}
+            {% endif %}
+          
+          # Calculate duration in minutes
+          duration: >
+            {% set start_h = start_time.split(':')[0] | int %}
+            {% set start_m = start_time.split(':')[1] | int %}
+            {% set end_h = end_time_raw.split(':')[0] | int %}
+            {% set end_m = end_time_raw.split(':')[1] | int %}
+            {{ (end_h * 60 + end_m) - (start_h * 60 + start_m) }}
+          
+          # Build full datetime
+          start_datetime: "{{ booking_date }} {{ start_time }}:00"
+      
+      # 3. Make reservation
+      - service: mielelogic.make_reservation
+        data:
+          machine_number: "{{ machine }}"
+          start_time: "{{ start_datetime }}"
+          duration: "{{ duration }}"
+      
+      # 4. Success notification
+      - service: persistent_notification.create
+        data:
+          title: "✅ Booking Gennemført"
+          message: >
+            {{ vaskehus }} booket
+            {{ as_timestamp(start_datetime) | timestamp_custom('%d/%m/%Y kl. %H:%M') }}
+            i {{ duration }} minutter
+          notification_id: mielelogic_booking_success
+
+  # Cancel vaskehus booking
+  mielelogic_cancel_vaskehus:
+    alias: "Annuller Vaskehus Booking"
+    icon: mdi:cancel
+    mode: single
+    sequence:
+      # Get first reservation
+      - variables:
+          reservation: >
+            {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+            {% if reservations and reservations | length > 0 %}
+              {{ reservations[0] }}
+            {% else %}
+              None
+            {% endif %}
+      
+      # Check if we have a reservation
+      - condition: template
+        value_template: "{{ reservation != 'None' }}"
+      
+      # Get vaskehus name
+      - variables:
+          machine: "{{ reservation.MachineNumber }}"
+          klatvask_machine: "{{ state_attr('sensor.mielelogic_vaskehus_config', 'klatvask_machine') | int(1) }}"
+          storvask_machine: "{{ state_attr('sensor.mielelogic_vaskehus_config', 'storvask_machine') | int(4) }}"
+          vaskehus_name: >
+            {% if machine == klatvask_machine %}
+              Klatvask
+            {% elif machine == storvask_machine %}
+              Storvask
+            {% else %}
+              Maskine {{ machine }}
+            {% endif %}
+      
+      # Cancel the reservation
+      - service: mielelogic.cancel_reservation
+        data:
+          machine_number: "{{ reservation.MachineNumber }}"
+          start_time: "{{ reservation.Start }}"
+          end_time: "{{ reservation.End }}"
+      
+      # Success notification
+      - service: persistent_notification.create
+        data:
+          title: "✅ Booking Annulleret"
+          message: >
+            Booking i {{ vaskehus_name }} annulleret succesfuldt
+            {{ as_timestamp(reservation.Start) | timestamp_custom('%d/%m/%Y kl. %H:%M') }}
+          notification_id: mielelogic_cancel_success
+
+  # Cancel by index with vaskehus display
+  mielelogic_cancel_vaskehus_by_index:
+    alias: "Annuller Specifik Vaskehus Booking"
+    icon: mdi:cancel
+    mode: single
+    fields:
+      index:
+        name: Reservation Index
+        description: Which reservation to cancel (0 = first, 1 = second)
+        example: 0
+        required: true
+        selector:
+          number:
+            min: 0
+            max: 10
+            mode: box
+    sequence:
+      - variables:
+          reservations: "{{ state_attr('sensor.mielelogic_reservations', 'raw_data') }}"
+          reservation: >
+            {% if reservations and reservations | length > (index | int) %}
+              {{ reservations[index | int] }}
+            {% else %}
+              None
+            {% endif %}
+      
+      - condition: template
+        value_template: "{{ reservation != 'None' }}"
+      
+      - variables:
+          machine: "{{ reservation.MachineNumber }}"
+          klatvask_machine: "{{ state_attr('sensor.mielelogic_vaskehus_config', 'klatvask_machine') | int(1) }}"
+          storvask_machine: "{{ state_attr('sensor.mielelogic_vaskehus_config', 'storvask_machine') | int(4) }}"
+          vaskehus_name: >
+            {% if machine == klatvask_machine %}
+              Klatvask
+            {% elif machine == storvask_machine %}
+              Storvask
+            {% else %}
+              Maskine {{ machine }}
+            {% endif %}
+      
+      - service: mielelogic.cancel_reservation
+        data:
+          machine_number: "{{ reservation.MachineNumber }}"
+          start_time: "{{ reservation.Start }}"
+          end_time: "{{ reservation.End }}"
+      
+      - service: persistent_notification.create
+        data:
+          title: "✅ Booking Annulleret"
+          message: >
+            Booking #{{ index | int + 1 }} i {{ vaskehus_name }} annulleret
+            {{ as_timestamp(reservation.Start) | timestamp_custom('%d/%m/%Y kl. %H:%M') }}
+          notification_id: "mielelogic_cancel_{{ index }}"
+
+# ===== AUTOMATIONS =====
+
+automation:
+  # Populate slots when vaskehus changes
+  - id: mielelogic_populate_slots
+    alias: "MieleLogic - Opdater Tidsblokke"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_select.mielelogic_booking_vaskehus
+      - platform: homeassistant
+        event: start
+    action:
+      - service: input_select.set_options
+        target:
+          entity_id: input_select.mielelogic_booking_slot
+        data:
+          options: >
+            {% set vaskehus = states('input_select.mielelogic_booking_vaskehus') %}
+            {% if vaskehus == 'Klatvask' %}
+              {% set slots = state_attr('sensor.mielelogic_vaskehus_config', 'klatvask_slots') %}
+            {% else %}
+              {% set slots = state_attr('sensor.mielelogic_vaskehus_config', 'storvask_slots') %}
+            {% endif %}
+            {% set slot_list = [] %}
+            {% for slot in slots %}
+              {% set start = slot.start %}
+              {% set end = slot.end %}
+              
+              {# Simple string parsing - no datetime functions needed! #}
+              {% set start_h = start.split(':')[0] | int %}
+              {% set start_m = start.split(':')[1] | int %}
+              {% set end_h = end.split(':')[0] | int %}
+              {% set end_m = end.split(':')[1] | int %}
+              
+              {# Calculate duration in minutes #}
+              {% set duration_min = (end_h * 60 + end_m) - (start_h * 60 + start_m) %}
+              {% set hours = (duration_min / 60) | int %}
+              {% set minutes = duration_min % 60 %}
+              
+              {# Format duration string #}
+              {% if minutes == 0 %}
+                {% set duration_str = hours ~ 't' %}
+              {% else %}
+                {% set duration_str = hours ~ 't ' ~ minutes ~ 'min' %}
+              {% endif %}
+              
+              {# Build slot display text #}
+              {% set slot_text = start ~ '-' ~ end ~ ' (' ~ duration_str ~ ')' %}
+              {% set slot_list = slot_list + [slot_text] %}
+            {% endfor %}
+            {{ slot_list }}
+  
+  # Set default booking date to today
+  - id: mielelogic_set_default_date
+    alias: "MieleLogic - Sæt Standard Dato"
+    mode: single
+    trigger:
+      - platform: homeassistant
+        event: start
+    action:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.mielelogic_booking_date
+        data:
+          date: "{{ now().date() }}"

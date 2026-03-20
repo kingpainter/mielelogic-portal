@@ -1,0 +1,185 @@
+# 🗑️ User-Friendly Booking Management Dashboard
+# Easy deletion med oversigt over ALLE bookinger!
+
+type: vertical-stack
+cards:
+  # ===== TITLE =====
+  - type: custom:mushroom-title-card
+    title: 🧺 Mine Bookinger
+    alignment: center
+  
+  # ===== NÆSTE BOOKING (Quick Cancel) =====
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.mielelogic_has_reservation
+        state: "on"
+    card:
+      type: custom:mushroom-template-card
+      primary: "Næste Booking"
+      secondary: >
+        {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+        {% if reservations and reservations | length > 0 %}
+          {% set res = reservations[0] %}
+          {% set machine = res.MachineNumber %}
+          {% set vaskehus = 'Klatvask' if machine == 1 else 'Storvask' if machine == 4 else 'Maskine ' ~ machine %}
+          {% set start = as_timestamp(res.Start) | timestamp_custom('%d/%m kl. %H:%M') %}
+          {{ vaskehus }} - {{ start }}
+        {% else %}
+          Ingen booking
+        {% endif %}
+      icon: mdi:calendar-clock
+      icon_color: blue
+      badge_icon: mdi:delete
+      badge_color: red
+      tap_action:
+        action: call-service
+        service: script.mielelogic_cancel_vaskehus
+        confirmation:
+          text: >
+            {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+            {% if reservations and reservations | length > 0 %}
+              {% set res = reservations[0] %}
+              {% set machine = res.MachineNumber %}
+              {% set vaskehus = 'Klatvask' if machine == 1 else 'Storvask' if machine == 4 else 'Maskine ' ~ machine %}
+              {% set start = as_timestamp(res.Start) | timestamp_custom('%d/%m kl. %H:%M') %}
+              Annuller {{ vaskehus }} booking {{ start }}?
+            {% else %}
+              Annuller booking?
+            {% endif %}
+  
+  # ===== INGEN BOOKINGER MESSAGE =====
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.mielelogic_has_reservation
+        state: "off"
+    card:
+      type: custom:mushroom-template-card
+      primary: "Ingen Bookinger"
+      secondary: "Du har ingen aktive bookinger"
+      icon: mdi:calendar-blank
+      icon_color: grey
+  
+  # ===== DIVIDER =====
+  - type: custom:mushroom-title-card
+    title: Alle Bookinger
+    alignment: left
+    card_mod:
+      style: |
+        ha-card {
+          font-size: 1.2rem;
+          font-weight: 600;
+          padding: 8px 0;
+        }
+  
+  # ===== BOOKING #1 =====
+  - type: conditional
+    conditions:
+      - entity: sensor.mielelogic_reservations
+        state_not: "0"
+    card:
+      type: custom:mushroom-template-card
+      primary: >
+        {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+        {% if reservations and reservations | length > 0 %}
+          {% set res = reservations[0] %}
+          {% set machine = res.MachineNumber %}
+          {{ 'Klatvask' if machine == 1 else 'Storvask' if machine == 4 else 'Maskine ' ~ machine }}
+        {% else %}
+          -
+        {% endif %}
+      secondary: >
+        {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+        {% if reservations and reservations | length > 0 %}
+          {% set res = reservations[0] %}
+          {% set start = as_timestamp(res.Start) | timestamp_custom('%A %d. %B kl. %H:%M', true) %}
+          {% set duration = res.Duration %}
+          {{ start }} ({{ duration }} min)
+        {% else %}
+          -
+        {% endif %}
+      icon: mdi:washing-machine
+      icon_color: green
+      badge_icon: mdi:delete-circle
+      badge_color: red
+      tap_action:
+        action: call-service
+        service: script.mielelogic_cancel_booking_by_index
+        data:
+          index: 0
+        confirmation:
+          text: >
+            {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+            {% if reservations and reservations | length > 0 %}
+              {% set res = reservations[0] %}
+              {% set machine = res.MachineNumber %}
+              {% set vaskehus = 'Klatvask' if machine == 1 else 'Storvask' if machine == 4 else 'Maskine ' ~ machine %}
+              {% set start = as_timestamp(res.Start) | timestamp_custom('%d/%m kl. %H:%M') %}
+              Slet {{ vaskehus }} booking {{ start }}?
+            {% else %}
+              Slet booking?
+            {% endif %}
+  
+  # ===== BOOKING #2 =====
+  - type: conditional
+    conditions:
+      - entity: sensor.mielelogic_reservations
+        state_not: "0"
+      - entity: sensor.mielelogic_reservations
+        state_not: "1"
+    card:
+      type: custom:mushroom-template-card
+      primary: >
+        {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+        {% if reservations and reservations | length > 1 %}
+          {% set res = reservations[1] %}
+          {% set machine = res.MachineNumber %}
+          {{ 'Klatvask' if machine == 1 else 'Storvask' if machine == 4 else 'Maskine ' ~ machine }}
+        {% else %}
+          -
+        {% endif %}
+      secondary: >
+        {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+        {% if reservations and reservations | length > 1 %}
+          {% set res = reservations[1] %}
+          {% set start = as_timestamp(res.Start) | timestamp_custom('%A %d. %B kl. %H:%M', true) %}
+          {% set duration = res.Duration %}
+          {{ start }} ({{ duration }} min)
+        {% else %}
+          -
+        {% endif %}
+      icon: mdi:washing-machine
+      icon_color: orange
+      badge_icon: mdi:delete-circle
+      badge_color: red
+      tap_action:
+        action: call-service
+        service: script.mielelogic_cancel_booking_by_index
+        data:
+          index: 1
+        confirmation:
+          text: >
+            {% set reservations = state_attr('sensor.mielelogic_reservations', 'raw_data') %}
+            {% if reservations and reservations | length > 1 %}
+              {% set res = reservations[1] %}
+              {% set machine = res.MachineNumber %}
+              {% set vaskehus = 'Klatvask' if machine == 1 else 'Storvask' if machine == 4 else 'Maskine ' ~ machine %}
+              {% set start = as_timestamp(res.Start) | timestamp_custom('%d/%m kl. %H:%M') %}
+              Slet {{ vaskehus }} booking {{ start }}?
+            {% else %}
+              Slet booking?
+            {% endif %}
+  
+  # ===== INFO TEXT =====
+  - type: markdown
+    content: >
+      **💡 Tip:** Klik på en booking for at slette den.
+      
+      
+      Du kan have max 2 bookinger ad gangen.
+    card_mod:
+      style: |
+        ha-card {
+          background: rgba(100, 100, 100, 0.1);
+          font-size: 0.9rem;
+          padding: 8px;
+        }
