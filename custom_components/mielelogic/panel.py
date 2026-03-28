@@ -77,6 +77,16 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         config={},
     )
 
+    # Register booking card as a Lovelace module resource
+    # This makes the card discoverable in the "Add card" picker
+    try:
+        from homeassistant.components.frontend import add_extra_js_url
+        card_resource_url = f"{CARD_URL}?v={VERSION}&m={card_cache_bust}"
+        add_extra_js_url(hass, card_resource_url)
+        _LOGGER.info("Booking card registered as Lovelace resource: %s", card_resource_url)
+    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.warning("Could not register booking card as Lovelace resource: %s", err)
+
     # Mark as registered
     hass.data[DOMAIN]["_panel_registered"] = True
     _LOGGER.info("Panel '%s' registered in sidebar at /%s", PANEL_TITLE, DOMAIN)
