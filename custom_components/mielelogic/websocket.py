@@ -80,27 +80,58 @@ def _get_notification_manager(hass: HomeAssistant):
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_slots",
     vol.Required("vaskehus"): str,
+    vol.Optional("date"): str,  # "YYYY-MM-DD" — if provided, marks booked slots
 })
 @callback
 def ws_get_slots(hass: HomeAssistant, connection, msg):
-    """Get time slots for vaskehus."""
+    """Get time slots for vaskehus, optionally annotated with availability for a date."""
     time_manager = _get_time_manager(hass)
-    
+
     if not time_manager:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
         return
-    
+
     try:
         slots = time_manager.get_slots(msg["vaskehus"])
-        
+
+        # Annotate slots with availability if a date is provided
+        date_str = msg.get("date")
+        if date_str:
+            coordinator = _get_coordinator(hass)
+            booked_starts = set()
+
+            if coordinator and coordinator.data:
+                reservations = coordinator.data.get("reservations", {}).get("Reservations", [])
+                machine = time_manager.get_machine_for_vaskehus(msg["vaskehus"])
+
+                for res in reservations:
+                    # Match machine and date
+                    res_machine = res.get("MachineNumber")
+                    start_raw = res.get("Start", "")
+                    if res_machine != machine:
+                        continue
+                    # start_raw is e.g. "2026-03-28 19:00:00" or "2026-03-28T19:00:00"
+                    res_date = start_raw[:10]
+                    if res_date != date_str:
+                        continue
+                    # Extract HH:MM from start
+                    time_part = start_raw[11:16] if " " in start_raw else start_raw[11:16]
+                    booked_starts.add(time_part)
+
+            for slot in slots:
+                slot["booked"] = slot["start"] in booked_starts
+        else:
+            for slot in slots:
+                slot["booked"] = False
+
         _LOGGER.debug(
-            "🔍 WebSocket: Returning %d slots for %s",
-            len(slots),
-            msg["vaskehus"],
+            "Returning %d slots for %s on %s (%d booked)",
+            len(slots), msg["vaskehus"], date_str or "no date",
+            sum(1 for s in slots if s.get("booked")),
         )
-        
+
         connection.send_result(msg["id"], {"slots": slots})
-    
+
     except Exception as err:
         _LOGGER.exception("Error getting slots: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))

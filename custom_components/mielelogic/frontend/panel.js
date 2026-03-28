@@ -93,9 +93,15 @@ class MieleLogicPanel extends HTMLElement {
 
   async _loadSlots() {
     try {
-      const r = await this._hass.callWS({ type: "mielelogic/get_slots", vaskehus: this._vaskehus });
+      const r = await this._hass.callWS({ type: "mielelogic/get_slots", vaskehus: this._vaskehus, date: this._selectedDate });
       this._slots = r.slots || [];
-      if (this._slots.length > 0 && !this._selectedSlot) this._selectedSlot = this._slots[0].start;
+      if (this._slots.length > 0) {
+        const firstFree = this._slots.find(s => !s.booked);
+        const preferred = firstFree || this._slots[0];
+        if (!this._selectedSlot || this._slots.every(s => s.booked)) {
+          this._selectedSlot = preferred.start;
+        }
+      }
     } catch (e) { this._error = "Kunne ikke hente tidslots"; }
   }
 
@@ -363,7 +369,13 @@ class MieleLogicPanel extends HTMLElement {
 
     const slotsOpts = this._slots.length === 0
       ? `<option>Henter tidslots…</option>`
-      : this._slots.map(sl => `<option value="${sl.start}" ${this._selectedSlot === sl.start ? "selected" : ""}>${sl.label}</option>`).join("");
+      : this._slots.map(sl => {
+          const booked = sl.booked;
+          const sel    = this._selectedSlot === sl.start ? "selected" : "";
+          const dis    = booked ? "disabled" : "";
+          const label  = booked ? `${sl.label} — Optaget` : sl.label;
+          return `<option value="${sl.start}" ${sel} ${dis} data-booked="${booked}">${label}</option>`;
+        }).join("");
 
     const bookBtn = this._loading
       ? `<button class="book-btn btn-locked" disabled><span class="spin">↻</span> Booker…</button>`
@@ -395,6 +407,9 @@ class MieleLogicPanel extends HTMLElement {
             <select class="field-select" data-field="slot" ${this._loading || this._slots.length === 0 ? "disabled" : ""}>${slotsOpts}</select>
             <span class="sel-arr">▾</span>
           </div>
+        </div>
+        <div class="slot-hint">
+          ${this._slots.map(sl => `<span class="slot-chip ${sl.booked ? 'booked' : 'free'}">${sl.start} ${sl.booked ? '✕' : '✓'}</span>`).join('')}
         </div>
         <div class="field-blk">
           <span class="field-label">DATO</span>
@@ -612,6 +627,9 @@ class MieleLogicPanel extends HTMLElement {
         this._vaskehus = btn.dataset.vhus;
         this._selectedSlot = "";
         await this._loadSlots();
+        // Auto-select first available (not booked) slot
+        const firstFree = this._slots.find(s => !s.booked);
+        if (firstFree) this._selectedSlot = firstFree.start;
         this._render();
       });
     });
@@ -620,7 +638,12 @@ class MieleLogicPanel extends HTMLElement {
     if (slotSel) slotSel.addEventListener("change", e => { this._selectedSlot = e.target.value; });
 
     const dateIn = root.querySelector("[data-field='date']");
-    if (dateIn) dateIn.addEventListener("change", e => { this._selectedDate = e.target.value; });
+    if (dateIn) dateIn.addEventListener("change", async e => {
+      this._selectedDate = e.target.value;
+      this._selectedSlot = "";
+      await this._loadSlots();
+      this._render();
+    });
 
     const bookBtn = root.querySelector("[data-action='book']");
     if (bookBtn) bookBtn.addEventListener("click", () => this._doBook());
@@ -803,6 +826,15 @@ class MieleLogicPanel extends HTMLElement {
       .field-textarea { resize: vertical; }
       .sel-wrap { position: relative; }
       .sel-arr { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #555; pointer-events: none; }
+      /* Booked slot hint strip below select */
+      .slot-hint { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .slot-chip {
+        font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+        padding: 3px 9px; border-radius: 20px; border: 1px solid;
+        white-space: nowrap;
+      }
+      .slot-chip.free   { background: rgba(74,222,128,0.08); border-color: rgba(74,222,128,0.3); color: #4ade80; }
+      .slot-chip.booked { background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.25); color: #f87171; }
 
       .book-btn {
         width: 100%; padding: 13px; border: none; border-radius: 8px;
