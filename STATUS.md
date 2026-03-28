@@ -84,7 +84,7 @@ For at opfylde HA Gold Tier kravene fuldt ud mangler:
 
 ### Planlagte funktioner
 
-**Multi-vaskehus support**
+**Multi-vaskehus support** dette skal ikke være en mulighed !
 Den nuværende arkitektur understøtter kun én MieleLogic-konto/installation. Mange ejendomme kan have flere separate vaskehuse med egne maskiner og tidslots.
 - Refaktorer `config_flow.py` til at understøtte flere instanser
 - Tilpas WebSocket-kommandoer til at have en `entry_id`-parameter
