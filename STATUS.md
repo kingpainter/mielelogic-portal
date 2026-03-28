@@ -31,23 +31,26 @@ MieleLogic er en fuldt funktionel Home Assistant-integration til MieleLogic vask
 | Genkonfigurationsflow | ✅ Stabil | v2.0.0 |
 | Mørkt UI-design (Heat Manager-stil) | ✅ Stabil | v1.9.1 |
 | Vanilla JS panel (ingen LitElement/CDN) | ✅ Stabil | v1.9.1 |
+| **Slots tilgængelighed (ledig/optaget)** | ✅ Stabil | **v1.9.1** |
+| **Kalender UTC-fix (korrekte tider)** | ✅ Stabil | **v1.9.1** |
+| **Persistent kalender-duplikat-tracking** | ✅ Stabil | **v1.9.1** |
+| **Kalender-sletning ved aflysning** | ⏳ Afventer upload af storage.py + booking_manager.py | **v1.9.1** |
 
 ### Kendte begrænsninger
 
 | Begrænsning | Planlagt fix |
 |---|---|
 | Kun én vaskehus-installation | v3.0.0 |
-| Kalenderbegivenheder slettes ikke ved aflysning | v2.1.0 |
 
 ---
 
 ## Næste skridt — v2.1.0
 
-**Tema:** Gold Tier komplettering og kalender-cleanup
+**Tema:** Gold Tier komplettering og brands-indsendelse
 
-- **Kalender-cleanup** — `calendar.delete_event` ved booking-aflysning i `booking_manager.py`
 - **Gold Tier tests** — `config_flow_test` og integration test coverage
-- **Brands-indsendelse** — ikon-design og PR til `home-assistant/brands`udsat til jeg ændre mening
+- **Brands-indsendelse** — ikon-design og PR til `home-assistant/brands`
+- **Lovelace card** — slots tilgængelighed i booking-kortet (ligesom panel)
 
 ---
 
@@ -83,6 +86,50 @@ class MieleLogicPanel extends HTMLElement {
 
 ---
 
+## Slots Tilgængelighed (v1.9.1+)
+
+`get_slots` WebSocket-kommandoen returnerer nu `booked: bool` per slot:
+
+```python
+# Backend (websocket.py):
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/get_slots",
+    vol.Required("vaskehus"): str,
+    vol.Optional("date"): str,  # "YYYY-MM-DD"
+})
+```
+
+```javascript
+// Frontend (panel.js):
+// Chips under dropdown:
+// 🟢 07:00 ✓   🟢 09:00 ✓   🔴 19:00 ✕
+```
+
+---
+
+## Kalender-fixes (v1.9.1+)
+
+Tre problemer løst:
+
+| Problem | Fix |
+|---|---|
+| Forkerte tider (+1/+2t) | Konverter til UTC før `calendar.create_event` |
+| Duplikater ved genstart | `calendar_synced` i `storage.py` — persistent tracking |
+| Sletter ikke ved aflysning | `_delete_calendar_event()` i `booking_manager.py` |
+
+---
+
+## Udviklingsregler
+
+- **Ingen breaking changes i minor versions**
+- **Vaskehus-abstraktionen er kernen** — brugerne tænker i "Klatvask"/"Storvask"
+- **Vanilla JS til frontend** — ingen CDN-dependencies
+- **Filer >15KB = download** — aldrig forsøg direkte write til server via tools
+- **Produktionskode fra dag ét** — INFO for vigtige hændelser, DEBUG for detaljer
+- **HA-standarder følges** — EntityDescription, has_entity_name, async-patterns
+
+---
+
 ## Versionsoversigt
 
 ```
@@ -95,34 +142,12 @@ v1.5.2  Feb 2026  Brugertracking, automatiske notifikationer
 v1.6.0  Feb 2026  Brugertracking-fix
 v1.7.0  Feb 2026  Produktionslog-rensning
 v2.0.0  Feb 2026  Rige notifikationer, admin-tab, statistik, Gold Tier
-v1.9.1  Mar 2026  Vanilla JS panel, redesign, rigtigt app-ikon  ◀ NU
-─────────────────────────────────────────────────────────────
-v2.1.0  Kommende  Kalender-cleanup, Gold Tier tests, brands
+v1.9.1  Mar 2026  Vanilla JS, redesign, ikon, slots tilgængelighed,  ◀ NU
+                  kalender-fixes (UTC, duplikater, sletning)
+─────────────────────────────────────────────────────────────────────
+v2.1.0  Kommende  Gold Tier tests, brands-indsendelse
 v3.0.0  Fremtid   Multi-vaskehus, avancerede funktioner
 ```
-
----
-
-## Filer der opdateres ved næste release
-
-| Fil | Hvad |
-|---|---|
-| `const.py` | `VERSION = "x.x.x"` |
-| `manifest.json` | `"version": "x.x.x"` |
-| `__init__.py` | Kommentar øverst |
-| `CHANGELOG.md` | Ny sektion |
-| `README.md` | Badge + seneste version |
-| `STATUS.md` | Denne fil |
-
----
-
-## Udviklingsregler
-
-- **Ingen breaking changes i minor versions**
-- **Vaskehus-abstraktionen er kernen** — brugerne tænker i "Klatvask"/"Storvask", ikke maskinnumre
-- **Vanilla JS til frontend** — ingen CDN-dependencies, samme mønster som Heat Manager/Indeklima
-- **Produktionskode fra dag ét** — INFO for vigtige hændelser, DEBUG for detaljer
-- **HA-standarder følges** — EntityDescription, has_entity_name, async-patterns, koordinator
 
 ---
 

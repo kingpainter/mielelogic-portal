@@ -8,32 +8,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [1.9.1] - 2026-03-28
 
-### Ændret — Panel omskrevet til vanilla JS 🔧
-- **Ingen LitElement** — Panelet er nu skrevet i vanilla `HTMLElement` med shadow DOM
-- **Ingen CDN-afhængighed** — Ingen import fra `unpkg.com` — panelet loader øjeblikkeligt
-- **Samme arkitektur som Heat Manager og Indeklima** — konsistent kodebase på tværs af projekter
-- **Rigtigt app-ikon** — Det originale guldflotte vaskemaskine-ikon er embedded direkte i panelet
+### Tilføjet — Slots tilgængelighed 🟢🔴
+- **Live tilgængelighed** — Tidsblok-dropdown viser hvilke tider der er optaget/ledige for den valgte dato
+- **Farvedede chips** — Under dropdown: grønne `✓` for ledige tider, røde `✕` for optagne
+- **Disabled slots** — Optagne tider markeres som `"07:00-09:00 (2t) — Optaget"` og kan ikke vælges
+- **Auto-opdatering** — Slots genindlæses automatisk når dato eller vaskehus skiftes
+- **Auto-valg** — Første ledige slot vælges automatisk ved indlæsning
+- **Backend** — `get_slots` WebSocket-kommando accepterer nu valgfrit `date` parameter og returnerer `booked: bool` per slot
 
-### Ændret — UI Redesign 🎨
-- **Nyt visuelt design** — Mørkt tema (`#0d0d0d`), thin borders, uppercase section labels
-- **Horisontale tabs** — Oversigt / Notifikationer / Historik / Konfiguration
-- **Ikon-header** — App-ikon øverst til venstre, "Opdater"-knap til højre
-- **Vaskehus-toggle** — To knapper med SVG-ikoner fremfor dropdown
-- **Booking-rækker** — Kompakte rækker med farvet venstre accent-streg
+### Tilføjet — Kalender-fixes 📅
+- **Forkerte tider rettet** — Kalenderbegivenheder sendes nu som UTC til `calendar.create_event` — HA konverterer selv til lokal tid
+- **Persistent duplikat-tracking** — `_created_events` gemmes nu i `storage.py` og overlever HA-genstart (ingen duplikater efter restart)
+- **Sletning ved aflysning** — `cancel_booking()` kalder nu `calendar.delete_event` via ±1 time søgevindue
+- **`_times_match()` helper** — UTC-baseret datetime-sammenligning for korrekt event-matching
+- **`_get_store()` helper** — Tilføjet i coordinator til at hente store fra hass.data
 
-### Rettet — Booking Card
-- Erstattet `ha-card` med `div.card-root` for konsistent border-rendering
-- Hover-effekt bruger `inset box-shadow` — bløder ikke ud over kortets kant
+### Tilføjet — Panel omskrevet til vanilla JS 🔧
+- **Ingen LitElement** — Pure `HTMLElement` med shadow DOM — ingen CDN-afhængighed
+- **Samme arkitektur som Heat Manager og Indeklima**
+- **Rigtigt app-ikon** — Originalt guldfarvet vaskemaskine-ikon embedded som base64 PNG
 
-### Rettet — Panel Reaktivitet (tidligere LitElement-version)
-- Tab-skift, notifikationsmodal og admin-toggle virkede ikke pålideligt
-- Løst ved at skifte til vanilla JS med eksplicit DOM-opdatering
+### Tilføjet — UI Redesign 🎨
+- **Nyt mørkt design** — `#0d0d0d` baggrund, thin borders, UPPERCASE section labels
+- **Horizontal tab-navigation** — Oversigt / Notifikationer / Historik / Konfiguration
+- **Vaskehus-toggle** — To knapper med SVG-ikoner
+- **Kompakte booking-rækker** — Med farvet venstre accent-streg
 
-### Rettet — Notifikationsfane
-- `_get_store()` i `websocket.py` itererer nu korrekt over config-entry dict
-
-### Tilføjet — Maskinestatus
-- Live maskinstatusblok i booking-kortet: grøn=Ledig, orange=I gang, blå=Reserveret
+### Rettet
+- Booking card border konsistens (div.card-root i stedet for ha-card)
+- Notifikationsfane viste altid "not ready" — `_get_store()` i websocket.py rettet
+- `_get_store()` i websocket.py brugte forkert `.get("store")` — rettet til at iterere korrekt
+- Panel tab-skift virkede ikke pålideligt (LitElement-problem — løst ved vanilla JS)
 
 ---
 
