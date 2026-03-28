@@ -50,9 +50,9 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         self._last_sync_time = None
         self._min_sync_interval = 5  # Minimum 5 seconds between syncs
         
-        # ✨ v1.5.2: Track which events we've created (PERMANENT - prevents duplicates)
-        # Format: {(machine, start_time): True}
-        self._created_events = set()
+        # In-memory duplicate guard (populated from persistent store on first sync)
+        self._created_events: set = set()
+        self._created_events_loaded = False
 
         # Response caching (60s TTL)
         self._cache = {}
@@ -255,6 +255,15 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         self._last_sync_time = now
         await self._do_sync_to_external_calendar(data)
     
+    def _get_store(self):
+        """Get the MieleLogicStore from hass.data."""
+        from .const import DOMAIN
+        domain_data = self.hass.data.get(DOMAIN, {})
+        for key, value in domain_data.items():
+            if isinstance(value, dict) and "store" in value:
+                return value["store"]
+        return None
+
     async def _do_sync_to_external_calendar(self, data):
         """Internal sync implementation (throttled)."""
         target_calendar = self.sync_to_calendar
@@ -316,8 +325,12 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Could not get existing events from %s: %s", target_calendar, err)
             existing_events = []
         
-        # Track created events in this sync run to prevent duplicates within same sync
-        created_this_sync = set()
+        # ✔ Load persistent sync tracking from store (once per coordinator lifetime)
+        store = self._get_store()
+        if not self._created_events_loaded and store:
+            self._created_events = store.get_calendar_synced_events()
+            self._created_events_loaded = True
+            _LOGGER.debug("📅 Loaded %d persistent calendar sync records", len(self._created_events))
 
         # 4. Sync logic: Create missing events
         for reservation in reservations:
@@ -325,95 +338,103 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 start_str = reservation.get("Start")
                 end_str = reservation.get("End")
                 machine_name = reservation.get("MachineName", "Unknown")
-                machine_number = reservation.get("MachineNumber", "")
+                machine_number = reservation.get("MachineNumber", 0)
 
                 if not start_str or not end_str:
                     continue
 
-                # Parse datetime with timezone handling
-                start_time = self._parse_datetime(start_str)
-                end_time = self._parse_datetime(end_str)
-                
-                # Datetime is already in Denmark timezone from _parse_datetime
-                # No conversion needed!
+                # Parse datetime (returns timezone-aware CPH time)
+                start_cph = self._parse_datetime(start_str)
+                end_cph   = self._parse_datetime(end_str)
 
-                # NEW v1.4.6: Use vaskehus name instead of machine name
+                # ✅ FIX: Always convert to UTC before passing to calendar.create_event
+                # HA stores calendar events in UTC internally and converts to local for display.
+                # Passing CPH time with +01:00/+02:00 offset works correctly,
+                # but converting to UTC is safest and most explicit.
+                start_utc = start_cph.astimezone(ZoneInfo("UTC"))
+                end_utc   = end_cph.astimezone(ZoneInfo("UTC"))
+
                 vaskehus_name = self._get_vaskehus_name(machine_number)
                 summary = f"{vaskehus_name} booket"
-                
-                # Create unique key for this event
-                machine_number = reservation.get("MachineNumber", 0)
-                permanent_key = (machine_number, start_str)  # Permanent tracking
-                event_key = f"{summary}_{start_time.isoformat()}"  # Per-sync tracking
 
-                # ✨ NUCLEAR OPTION: Check if we've EVER created this event before
+                # Persistent duplicate guard — survives HA restarts
+                permanent_key = (machine_number, start_str)
                 if permanent_key in self._created_events:
-                    _LOGGER.debug(
-                        "🚫 Event '%s' (machine %s, %s) was ALREADY created before - SKIPPING PERMANENTLY",
-                        summary, machine_number, start_str
-                    )
+                    _LOGGER.debug("Skipping already-synced event: %s at %s", summary, start_str)
                     continue
 
-                # Check if event already exists (match on summary + start time)
+                # Secondary check: does the event already exist in the calendar?
                 already_exists = any(
                     event.get("summary") == summary
-                    and self._parse_datetime(event.get("start")) == start_time
+                    and self._times_match(event.get("start"), start_cph)
                     for event in existing_events
                 )
-                
-                # Also check if we already created this event in THIS sync run
-                if event_key in created_this_sync:
-                    _LOGGER.debug("Event '%s' already created in this sync, skipping duplicate", summary)
-                    continue
-
                 if already_exists:
-                    _LOGGER.debug("Event '%s' already exists in calendar, skipping", summary)
+                    # Event exists but wasn't tracked — add to tracking so we don't re-check
+                    self._created_events.add(permanent_key)
+                    if store:
+                        await store.async_add_calendar_synced_event(machine_number, start_str)
+                    _LOGGER.debug("Event already in calendar (now tracked): %s", summary)
                     continue
 
-                # Create new event in target calendar
-                duration = reservation.get("Duration", 0)
-                description = f"MieleLogic Reservation\n"
-                description += f"Vaskehus: {vaskehus_name}\n"
-                description += f"Maskine: {machine_name} #{machine_number}\n"
-                description += f"Varighed: {duration} minutter"
-
-                # Check if calendar.create_event service exists
+                # Check service availability
                 if not self.hass.services.has_service("calendar", "create_event"):
-                    _LOGGER.debug(
-                        "Calendar service 'create_event' not available - "
-                        "calendar sync disabled. (HA 2026.1+ required)"
-                    )
+                    _LOGGER.debug("calendar.create_event not available (HA 2026.1+ required)")
                     continue
-                
+
+                # Build description
+                duration = reservation.get("Duration", 0)
+                description = (
+                    f"MieleLogic Reservation\n"
+                    f"Vaskehus: {vaskehus_name}\n"
+                    f"Maskine: {machine_name} #{machine_number}\n"
+                    f"Varighed: {duration} minutter"
+                )
+
+                # Create event using UTC times
                 await self.hass.services.async_call(
                     "calendar",
                     "create_event",
                     {
                         "entity_id": target_calendar,
                         "summary": summary,
-                        "start_date_time": start_time.isoformat(),
-                        "end_date_time": end_time.isoformat(),
+                        "start_date_time": start_utc.isoformat(),
+                        "end_date_time": end_utc.isoformat(),
                         "description": description,
                     },
-                    blocking=False,
+                    blocking=True,
                 )
-                
-                # Track that we created this event to prevent duplicates in same sync
-                created_this_sync.add(event_key)
-                
-                # ✨ PERMANENT TRACKING: Never create this event again (even after restart)
-                self._created_events.add(permanent_key)
-                _LOGGER.debug("📝 Permanently tracked: machine %s at %s", machine_number, start_str)
 
-                _LOGGER.info("✅ Created calendar event: %s", summary)
+                # Persist that we created this — never create again even after restart
+                self._created_events.add(permanent_key)
+                if store:
+                    await store.async_add_calendar_synced_event(machine_number, start_str)
+
+                _LOGGER.info("✅ Created calendar event: %s at %s (UTC)", summary, start_utc)
 
             except Exception as err:
-                _LOGGER.debug(
+                _LOGGER.warning(
                     "Could not sync reservation %s: %s",
-                    reservation.get("ReservationId"),
-                    err,
+                    reservation.get("ReservationId"), err,
                 )
                 continue
+
+    def _times_match(self, event_start: str | None, expected: datetime) -> bool:
+        """Check if a calendar event start time matches expected datetime.
+        
+        Handles string comparison with timezone awareness.
+        """
+        if not event_start:
+            return False
+        try:
+            event_dt = self._parse_datetime(event_start)
+            # Compare as UTC to avoid offset mismatches
+            return (
+                event_dt.astimezone(ZoneInfo("UTC")) ==
+                expected.astimezone(ZoneInfo("UTC"))
+            )
+        except Exception:
+            return False
 
     def _parse_datetime(self, datetime_str: str) -> datetime:
         """Parse datetime string - handle both with and without timezone.

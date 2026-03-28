@@ -20,36 +20,32 @@ class MieleLogicStore:
     """Manage persistent storage for MieleLogic panel."""
 
     def __init__(self, hass: HomeAssistant) -> None:
-        """Initialize store."""
         self.hass = hass
         self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._data: dict[str, Any] = {}
 
     async def async_load(self) -> None:
-        """Load data from storage."""
         stored = await self._store.async_load()
         if stored:
             self._data = stored
         else:
             self._data = self._default_data()
-        
         _LOGGER.info(
-            "✅ MieleLogic store loaded (%d devices, %d notifications, %d bookings)",
+            "MieleLogic store loaded (%d devices, %d notifications, %d bookings)",
             len(self._data.get("devices", [])),
             len(self._data.get("notifications", {})),
             len(self._data.get("bookings", {})),
         )
 
     async def async_save(self) -> None:
-        """Save data to storage."""
         await self._store.async_save(self._data)
 
     def _default_data(self) -> dict[str, Any]:
-        """Return default data structure."""
         return {
-            "devices": [],  # Mobile app devices for notifications
-            "bookings": {},  # Booking metadata {booking_key: metadata}
-            "admin": {  # Admin settings
+            "devices": [],
+            "bookings": {},
+            "calendar_synced": [],  # ✨ v2.1.0: Persistent calendar event tracking
+            "admin": {
                 "booking_locked": False,
                 "lock_message": "Booking er midlertidigt spærret",
                 "info_message": "",
@@ -81,56 +77,39 @@ class MieleLogicStore:
     # ─── Devices ───
 
     def get_devices(self) -> list[str]:
-        """Get all configured mobile app devices."""
         return self._data.get("devices", [])
 
     async def async_save_devices(self, devices: list[str]) -> None:
-        """Save device list."""
         self._data["devices"] = devices
         await self.async_save()
 
     def get_available_mobile_apps(self) -> list[dict[str, Any]]:
-        """Get all available mobile app notify services."""
         services = []
-        
-        # Get all notify services
         for service in self.hass.services.async_services().get("notify", {}).keys():
             if service.startswith("mobile_app_"):
-                # Extract device name
                 device_name = service.replace("mobile_app_", "").replace("_", " ").title()
-                
                 services.append({
                     "service": f"notify.{service}",
                     "name": device_name,
                     "entity_id": service,
                 })
-        
         return services
 
     # ─── Notifications ───
 
     def get_notifications(self) -> dict[str, Any]:
-        """Get all notification configurations."""
         return self._data.get("notifications", {})
 
     def get_notification(self, notification_id: str) -> dict[str, Any] | None:
-        """Get specific notification config."""
         return self._data.get("notifications", {}).get(notification_id)
 
-    async def async_save_notification(
-        self, 
-        notification_id: str, 
-        config: dict[str, Any]
-    ) -> None:
-        """Save notification configuration."""
+    async def async_save_notification(self, notification_id: str, config: dict[str, Any]) -> None:
         if "notifications" not in self._data:
             self._data["notifications"] = {}
-        
         self._data["notifications"][notification_id] = config
         await self.async_save()
 
     async def async_delete_notification(self, notification_id: str) -> bool:
-        """Delete a notification."""
         if notification_id in self._data.get("notifications", {}):
             del self._data["notifications"][notification_id]
             await self.async_save()
@@ -140,15 +119,7 @@ class MieleLogicStore:
     # ─── Booking Metadata ───
 
     def _get_booking_key(self, machine: int, start_time: str) -> str:
-        """Generate unique booking key.
-        
-        Normalizes start_time format to ensure consistency.
-        Accepts: "2026-05-04 07:00:00" or "2026-05-04T07:00:00"
-        Returns: "machine_1_2026-05-04 07:00:00"
-        """
-        # Normalize: Replace T with space for consistency
         normalized_time = start_time.replace("T", " ")
-        # Key format: "machine_1_2026-02-23 14:00:00"
         return f"machine_{machine}_{normalized_time}"
 
     async def async_save_booking_metadata(
@@ -160,21 +131,9 @@ class MieleLogicStore:
         duration: int | None = None,
         calendar_event_id: str | None = None,
     ) -> None:
-        """Save booking metadata (who created it, when, etc).
-        
-        Args:
-            machine: Machine number
-            start_time: Start time string
-            user_name: Username who created booking
-            vaskehus: Vaskehus name
-            duration: Duration in minutes
-            calendar_event_id: Calendar event ID (for deletion on cancel)
-        """
         if "bookings" not in self._data:
             self._data["bookings"] = {}
-        
         key = self._get_booking_key(machine, start_time)
-        
         self._data["bookings"][key] = {
             "created_by": user_name,
             "created_at": datetime.now().isoformat(),
@@ -182,14 +141,12 @@ class MieleLogicStore:
             "start_time": start_time,
             "vaskehus": vaskehus,
             "duration": duration,
-            "calendar_event_id": calendar_event_id,  # ✨ v1.7.0: Track for deletion
+            "calendar_event_id": calendar_event_id,
         }
-        
         await self.async_save()
         _LOGGER.debug("Saved booking metadata for %s (created by %s)", key, user_name)
 
     def get_booking_history(self, days: int = 30) -> list:
-        """Get completed bookings from the last X days, sorted newest first."""
         from datetime import timedelta
         cutoff = datetime.now() - timedelta(days=days)
         history = []
@@ -197,7 +154,6 @@ class MieleLogicStore:
             try:
                 created_at = datetime.fromisoformat(meta["created_at"])
                 if created_at >= cutoff:
-                    # Only include bookings whose start_time is in the past
                     start_str = meta.get("start_time", "")
                     try:
                         start_dt = datetime.fromisoformat(start_str.replace(" ", "T").split("+")[0])
@@ -211,23 +167,21 @@ class MieleLogicStore:
         return history
 
     def get_booking_metadata(self, machine: int, start_time: str) -> dict[str, Any] | None:
-        """Get booking metadata if exists."""
         key = self._get_booking_key(machine, start_time)
         return self._data.get("bookings", {}).get(key)
 
     async def async_delete_booking_metadata(self, machine: int, start_time: str) -> None:
-        """Delete booking metadata when booking is canceled."""
         if "bookings" not in self._data:
             return
-        
         key = self._get_booking_key(machine, start_time)
         if key in self._data["bookings"]:
             del self._data["bookings"][key]
             await self.async_save()
             _LOGGER.debug("Deleted booking metadata for %s", key)
 
+    # ─── Admin ───
+
     def get_admin_settings(self) -> dict:
-        """Get admin settings."""
         return self._data.get("admin", {
             "booking_locked": False,
             "lock_message": "Booking er midlertidigt spærret",
@@ -235,7 +189,6 @@ class MieleLogicStore:
         })
 
     async def async_save_admin_settings(self, settings: dict) -> None:
-        """Save admin settings."""
         self._data["admin"] = {
             "booking_locked": bool(settings.get("booking_locked", False)),
             "lock_message": str(settings.get("lock_message", "Booking er midlertidigt spærret")),
@@ -244,30 +197,48 @@ class MieleLogicStore:
         await self.async_save()
         _LOGGER.debug("Admin settings saved: %s", self._data["admin"])
 
+    # ─── Calendar Sync Tracking (persistent — survives HA restarts) ───
+
+    def get_calendar_synced_events(self) -> set:
+        """Return set of (machine, start_time) tuples already synced to calendar."""
+        raw = self._data.get("calendar_synced", [])
+        return set(tuple(item) for item in raw)
+
+    async def async_add_calendar_synced_event(self, machine: int, start_time: str) -> None:
+        """Record that a calendar event was created — persisted across restarts."""
+        if "calendar_synced" not in self._data:
+            self._data["calendar_synced"] = []
+        key = [machine, start_time]
+        if key not in self._data["calendar_synced"]:
+            self._data["calendar_synced"].append(key)
+            await self.async_save()
+            _LOGGER.debug("Calendar sync recorded: machine %s at %s", machine, start_time)
+
+    async def async_remove_calendar_synced_event(self, machine: int, start_time: str) -> None:
+        """Remove sync record when booking is cancelled."""
+        if "calendar_synced" not in self._data:
+            return
+        key = [machine, start_time]
+        if key in self._data["calendar_synced"]:
+            self._data["calendar_synced"].remove(key)
+            await self.async_save()
+            _LOGGER.debug("Calendar sync removed: machine %s at %s", machine, start_time)
+
+    # ─── Cleanup ───
+
     async def async_cleanup_old_bookings(self, days: int = 7) -> int:
-        """Clean up booking metadata older than X days.
-        
-        Returns number of bookings cleaned up.
-        """
+        """Clean up booking metadata older than X days. Returns count cleaned."""
         if "bookings" not in self._data:
             return 0
-        
         from datetime import timedelta
         cutoff = datetime.now() - timedelta(days=days)
-        cleaned = 0
-        
-        to_delete = []
-        for key, metadata in self._data["bookings"].items():
-            created_at = datetime.fromisoformat(metadata["created_at"])
-            if created_at < cutoff:
-                to_delete.append(key)
-        
+        to_delete = [
+            key for key, meta in self._data["bookings"].items()
+            if datetime.fromisoformat(meta["created_at"]) < cutoff
+        ]
         for key in to_delete:
             del self._data["bookings"][key]
-            cleaned += 1
-        
-        if cleaned > 0:
+        if to_delete:
             await self.async_save()
-            _LOGGER.info("Cleaned up %d old booking metadata entries", cleaned)
-        
-        return cleaned
+            _LOGGER.info("Cleaned up %d old booking metadata entries", len(to_delete))
+        return len(to_delete)

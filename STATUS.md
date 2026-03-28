@@ -47,7 +47,7 @@ MieleLogic er en fuldt funktionel Home Assistant-integration til MieleLogic vask
 
 - **Kalender-cleanup** — `calendar.delete_event` ved booking-aflysning i `booking_manager.py`
 - **Gold Tier tests** — `config_flow_test` og integration test coverage
-- **Brands-indsendelse** — ikon-design og PR til `home-assistant/brands`
+- **Brands-indsendelse** — ikon-design og PR til `home-assistant/brands`udsat til jeg ændre mening
 
 ---
 
