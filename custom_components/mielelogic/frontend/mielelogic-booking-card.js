@@ -2,23 +2,15 @@
  * MieleLogic Booking Card
  * VERSION = "2.0.0"
  *
- * Custom Lovelace card der fungerer som et "remote" til MieleLogic panelet.
- * Registreres automatisk af integrationen - ingen manuel installation nødvendig.
- *
- * Brug i Lovelace dashboard YAML:
- *   type: custom:mielelogic-booking-card
- *
- * Ingen ekstra konfiguration nødvendig!
+ * Custom Lovelace card — same visual language as Heat Manager / Indeklima.
+ * Dark background, uppercase section labels, clean metric rows.
  */
 
 class MieleLogicBookingCard extends HTMLElement {
-  // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-
-    // State
     this._hass = null;
     this._vaskehus = "Klatvask";
     this._slots = [];
@@ -37,20 +29,14 @@ class MieleLogicBookingCard extends HTMLElement {
   }
 
   set hass(hass) {
-    const firstSet = !this._hass;
+    const first = !this._hass;
     this._hass = hass;
-
-    if (firstSet && !this._initialized) {
+    if (first && !this._initialized) {
       this._initialized = true;
       this._render();
       this._loadData();
-
-      // Auto-refresh hvert 30. sekund (samme som panel)
       this._refreshTimer = setInterval(() => {
-        if (this._errorCount > 3) {
-          clearInterval(this._refreshTimer);
-          return;
-        }
+        if (this._errorCount > 3) { clearInterval(this._refreshTimer); return; }
         if (!this._loading && document.visibilityState === "visible") {
           this._loadData().catch(() => this._errorCount++);
         }
@@ -58,200 +44,110 @@ class MieleLogicBookingCard extends HTMLElement {
     }
   }
 
-  setConfig(config) {
-    this._config = config || {};
-  }
+  setConfig(config) { this._config = config || {}; }
 
   disconnectedCallback() {
-    if (this._refreshTimer) {
-      clearInterval(this._refreshTimer);
-      this._refreshTimer = null;
-    }
+    if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
   }
 
-  // ── Data Loading ───────────────────────────────────────────────────────────
+  // ── DATA ────────────────────────────────────────────────────────────────────
 
   async _loadData() {
     try {
-      await Promise.all([
-        this._loadSlots(),
-        this._loadBookings(),
-        this._loadStatus(),
-        this._loadMachines(),
-      ]);
+      await Promise.all([this._loadSlots(), this._loadBookings(), this._loadStatus(), this._loadMachines()]);
       this._errorCount = 0;
-    } catch (e) {
-      this._errorCount++;
-      throw e;
-    }
+    } catch (e) { this._errorCount++; throw e; }
   }
 
   async _loadSlots() {
     try {
-      const result = await this._hass.callWS({
-        type: "mielelogic/get_slots",
-        vaskehus: this._vaskehus,
-      });
-      this._slots = result.slots || [];
-      if (this._slots.length > 0 && !this._selectedSlot) {
-        this._selectedSlot = this._slots[0].start;
-      }
-    } catch (e) {
-      this._error = "Kunne ikke hente tidslots";
-    }
-    this._update();
+      const r = await this._hass.callWS({ type: "mielelogic/get_slots", vaskehus: this._vaskehus });
+      this._slots = r.slots || [];
+      if (this._slots.length > 0 && !this._selectedSlot) this._selectedSlot = this._slots[0].start;
+    } catch (e) { this._error = "Kunne ikke hente tidslots"; }
   }
 
   async _loadBookings() {
     try {
-      const result = await this._hass.callWS({ type: "mielelogic/get_bookings" });
-      this._bookings = result.bookings || [];
-    } catch (e) {
-      console.error("[MieleLogic Card] Bookings load error:", e);
-    }
-    this._update();
+      const r = await this._hass.callWS({ type: "mielelogic/get_bookings" });
+      this._bookings = r.bookings || [];
+    } catch (e) {}
   }
 
   async _loadStatus() {
     try {
-      const result = await this._hass.callWS({ type: "mielelogic/get_status" });
-      this._status = result || {};
-    } catch (e) {
-      console.error("[MieleLogic Card] Status load error:", e);
-    }
-    this._update();
+      const r = await this._hass.callWS({ type: "mielelogic/get_status" });
+      this._status = r || {};
+    } catch (e) {}
   }
 
   async _loadMachines() {
     try {
-      const result = await this._hass.callWS({ type: "mielelogic/get_machines" });
-      this._machines = result.machines || [];
-    } catch (e) {
-      console.error("[MieleLogic Card] Machines load error:", e);
-      this._machines = [];
-    }
+      const r = await this._hass.callWS({ type: "mielelogic/get_machines" });
+      this._machines = r.machines || [];
+    } catch (e) { this._machines = []; }
     this._update();
   }
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-
-  async _handleVaskehusChange(value) {
-    this._vaskehus = value;
+  async _handleVaskehusChange(v) {
+    this._vaskehus = v;
     this._selectedSlot = "";
-    this._slots = [];
-    this._update();
     await this._loadSlots();
+    this._update();
   }
 
   async _handleBooking() {
-    if (!this._selectedSlot || !this._selectedDate) {
-      this._showToast("Vælg tidslot og dato", "warning");
-      return;
-    }
+    if (!this._selectedSlot || !this._selectedDate) { alert("Vælg tidslot og dato"); return; }
+    const slot = this._slots.find(s => s.start === this._selectedSlot);
+    if (!confirm(`Book ${this._vaskehus} ${this._selectedDate} ${slot?.label || ""}?`)) return;
 
-    const slot = this._slots.find((s) => s.start === this._selectedSlot);
-    const confirmMsg = `Book ${this._vaskehus} d. ${this._selectedDate} kl. ${slot?.label || this._selectedSlot}?`;
-    if (!confirm(confirmMsg)) return;
-
-    this._loading = true;
-    this._error = null;
-    this._update();
-
+    this._loading = true; this._error = null; this._update();
     try {
-      const result = await this._hass.callWS({
-        type: "mielelogic/make_booking",
-        vaskehus: this._vaskehus,
-        slot_start: this._selectedSlot,
-        date: this._selectedDate,
-      });
-
-      if (result.success) {
-        this._showToast("✅ " + result.message, "success");
-        await new Promise((r) => setTimeout(r, 500));
-        await this._loadData();
-      } else {
-        this._error = result.message;
-        this._showToast("❌ " + result.message, "error");
-        this._update();
-      }
-    } catch (e) {
-      this._error = e.message;
-      this._showToast("❌ Booking fejlede", "error");
-      this._update();
-    }
-
-    this._loading = false;
-    this._update();
+      const r = await this._hass.callWS({ type: "mielelogic/make_booking", vaskehus: this._vaskehus, slot_start: this._selectedSlot, date: this._selectedDate });
+      if (r.success) { this._showToast(r.message, "success"); await new Promise(res => setTimeout(res, 500)); await this._loadData(); }
+      else { this._showToast(r.message, "error"); this._error = r.message; }
+    } catch (e) { this._showToast("Booking fejlede", "error"); }
+    this._loading = false; this._update();
   }
 
-  async _handleCancel(booking) {
-    const confirmMsg = `Slet ${booking.vaskehus} booking ${this._formatDate(booking.Start)}?`;
-    if (!confirm(confirmMsg)) return;
-
-    this._loading = true;
-    this._update();
-
+  async _handleCancel(b) {
+    if (!confirm(`Slet ${b.vaskehus} booking ${this._fmt(b.Start)}?`)) return;
+    this._loading = true; this._update();
     try {
-      const result = await this._hass.callWS({
-        type: "mielelogic/cancel_booking",
-        machine_number: booking.MachineNumber,
-        start_time: booking.Start,
-        end_time: booking.End,
-      });
-
-      if (result.success) {
-        this._showToast("✅ Booking slettet", "success");
-        await new Promise((r) => setTimeout(r, 500));
-        await this._loadData();
-      } else {
-        this._showToast("❌ " + result.message, "error");
-      }
-    } catch (e) {
-      this._showToast("❌ Sletning fejlede", "error");
-    }
-
-    this._loading = false;
-    this._update();
+      const r = await this._hass.callWS({ type: "mielelogic/cancel_booking", machine_number: b.MachineNumber, start_time: b.Start, end_time: b.End });
+      if (r.success) { this._showToast("Booking slettet", "success"); await new Promise(res => setTimeout(res, 500)); await this._loadData(); }
+      else { this._showToast(r.message, "error"); }
+    } catch (e) { this._showToast("Sletning fejlede", "error"); }
+    this._loading = false; this._update();
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── HELPERS ─────────────────────────────────────────────────────────────────
 
-  _formatDate(dateStr) {
+  _fmt(ds) {
     try {
-      return new Date(dateStr).toLocaleString("da-DK", {
-        weekday: "short",
-        day: "numeric",
-        month: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch (e) {
-      return dateStr;
-    }
+      return new Date(ds).toLocaleString("da-DK", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+    } catch (e) { return ds; }
   }
 
-  _formatCurrency(amount) {
-    try {
-      return new Intl.NumberFormat("da-DK", {
-        style: "currency",
-        currency: "DKK",
-      }).format(amount);
-    } catch (e) {
-      return `${amount} kr.`;
-    }
+  _fmtCur(a) {
+    try { return new Intl.NumberFormat("da-DK", { style: "currency", currency: "DKK" }).format(a); } catch (e) { return `${a} kr.`; }
   }
 
-  _showToast(message, type = "success") {
-    this._toast = { message, type };
+  _dur(b) {
+    const d = b.Duration ?? b.duration;
+    if (d != null && !isNaN(+d)) return +d + " min";
+    try { const m = Math.round((new Date(b.End) - new Date(b.Start)) / 60000); if (m > 0) return m + " min"; } catch (e) {}
+    return "";
+  }
+
+  _showToast(msg, type = "success") {
+    this._toast = { msg, type };
     this._update();
     clearTimeout(this._toastTimer);
-    this._toastTimer = setTimeout(() => {
-      this._toast = null;
-      this._update();
-    }, 3500);
+    this._toastTimer = setTimeout(() => { this._toast = null; this._update(); }, 3500);
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── RENDER ───────────────────────────────────────────────────────────────────
 
   _render() {
     this.shadowRoot.innerHTML = `<style>${this._css()}</style><div id="root"></div>`;
@@ -263,670 +159,357 @@ class MieleLogicBookingCard extends HTMLElement {
     if (!root) return;
 
     const s = this._status;
-    const isOpen = s.is_open !== false;  // default true if unknown
-    const bookingLocked = s.booking_locked === true;
-    const lockMessage = s.lock_message || "Booking er midlertidigt spærret";
-    const canBook = s.can_book !== false && !bookingLocked;
-    const bookingCount = this._bookings.length;
-    const maxRes = s.max_reservations ?? "–";
-    const balance = s.balance != null ? this._formatCurrency(s.balance) : null;
-    const openingTime = s.opening_time ?? "07:00";
-    const closingTime = s.closing_time ?? "21:00";
-    const infoMessage = s.info_message || "";
+    const isOpen     = s.is_open !== false;
+    const locked     = s.booking_locked === true;
+    const lockMsg    = s.lock_message || "Booking er midlertidigt spærret";
+    const canBook    = s.can_book !== false && !locked;
+    const count      = this._bookings.length;
+    const maxRes     = s.max_reservations ?? "–";
+    const balance    = s.balance != null ? this._fmtCur(s.balance) : null;
+    const infoMsg    = s.info_message || "";
+
+    const btnClass = this._loading ? "btn-loading" : !isOpen ? "btn-closed" : locked ? "btn-locked" : canBook ? "btn-ready" : "btn-full";
+    const btnLabel = this._loading
+      ? `<span class="spin">↻</span> Booker…`
+      : locked  ? `🔒 ${lockMsg}`
+      : !isOpen ? `Vaskehuset lukket`
+      : canBook ? `Book nu`
+      : `Max nået (${count}/${maxRes})`;
 
     root.innerHTML = `
       <div class="card-root">
-        ${this._toast ? `
-          <div class="toast toast-${this._toast.type}">${this._toast.message}</div>
-        ` : ""}
 
-        <div class="card-content">
+        ${this._toast ? `<div class="toast toast-${this._toast.type}">${this._toast.msg}</div>` : ""}
 
-          <!-- Header -->
-          <div class="card-header">
-            <div class="header-left">
-              <div>
-                <div class="header-title">Vaskehus</div>
-                <div class="header-title">Booking</div>
-              </div>
-            </div>
-            ${balance ? `<div class="balance-chip">${balance}</div>` : ""}
+        <!-- HEADER -->
+        <div class="card-header">
+          <div class="card-icon">🫧</div>
+          <div class="card-title-block">
+            <span class="card-title">Vaskehus Booking</span>
+            <span class="card-sub">
+              ${count}${maxRes !== "–" ? ` / ${maxRes}` : ""} booking${count !== 1 ? "er" : ""}
+              ${balance ? ` · ${balance}` : ""}
+              ${isOpen
+                ? `<span class="pill pill-open">· Åbent</span>`
+                : `<span class="pill pill-closed">· Lukket</span>`}
+            </span>
           </div>
-
-          ${this._error ? `
-            <div class="error-banner">⚠️ ${this._error}</div>
-          ` : ""}
-
-          <!-- Maskine status -->
-          ${infoMessage ? `<div class="info-banner">📢 ${infoMessage}</div>` : ""}
-          ${this._renderMachines()}
-
-          <!-- Booking formular -->
-          <div class="form-block">
-
-            <div class="field-group">
-              <span class="field-label">Vaskehus</span>
-              <div class="select-wrapper">
-                <select id="vaskehus-select" class="field-select" ${this._loading ? "disabled" : ""}>
-                  <option value="Klatvask" ${this._vaskehus === "Klatvask" ? "selected" : ""}>Klatvask</option>
-                  <option value="Storvask" ${this._vaskehus === "Storvask" ? "selected" : ""}>Storvask</option>
-                </select>
-                <span class="select-arrow">▾</span>
-              </div>
-            </div>
-
-            <div class="field-group">
-              <span class="field-label">Tidsblok</span>
-              <div class="select-wrapper">
-                <select id="slot-select" class="field-select" ${this._loading || this._slots.length === 0 ? "disabled" : ""}>
-                  ${this._slots.length === 0
-                    ? `<option>Henter tidslots…</option>`
-                    : this._slots.map((sl) =>
-                        `<option value="${sl.start}" ${this._selectedSlot === sl.start ? "selected" : ""}>${sl.label}</option>`
-                      ).join("")}
-                </select>
-                <span class="select-arrow">▾</span>
-              </div>
-            </div>
-
-            <div class="field-group">
-              <span class="field-label">Dato</span>
-              <input
-                id="date-input"
-                type="date"
-                class="field-input"
-                value="${this._selectedDate}"
-                ${this._loading ? "disabled" : ""}
-              />
-            </div>
-
-            <button
-              id="book-btn"
-              class="book-button ${this._loading ? "is-loading" : !isOpen ? "is-closed-btn" : bookingCount === 0 ? "is-empty" : !canBook ? "is-full" : "is-partial"}"
-              ${!canBook || this._loading ? "disabled" : ""}
-            >
-              ${this._loading
-                ? `<span class="spinner"></span> Booker…`
-                : bookingLocked
-                ? `🔒 ${lockMessage}`
-                : bookingCount === 0
-                ? "✅ Ingen bookinger – book nu"
-                : canBook
-                ? `📅 ${bookingCount} booking${bookingCount !== 1 ? "er" : ""} – book endnu en`
-                : `🚫 Max bookinger nået (${bookingCount}/${maxRes})`}
-            </button>
-
-          </div>
-
-          <!-- Aktive bookinger -->
-          <div class="bookings-block">
-          <div class="section-title">
-            <span>📋 Mine Bookinger</span>
-            <span class="booking-badge">${bookingCount}</span>
-          </div>
-
-          ${bookingCount === 0
-            ? `<div class="empty-state">📭 Ingen aktive bookinger</div>`
-            : `<div class="bookings-list${bookingCount === 1 ? " is-single" : ""}">
-                ${this._bookings.map((b) => `
-                  <div class="booking-card">
-                    
-                    <div class="booking-info">
-                      <div class="booking-name">${b.vaskehus || "Vaskehus"}</div>
-                      <div class="booking-meta">${this._formatDate(b.Start)} · ${(() => { const d = b.Duration ?? b.duration; if (d != null && !isNaN(+d)) return +d + " min"; try { const m = Math.round((new Date(b.End)-new Date(b.Start))/60000); if (m>0) return m+" min"; } catch(e){} return ""; })()}${b.created_by ? ` · 📱 ${b.created_by}` : ""}</div>
-                    </div>
-                    <button
-                      class="delete-btn"
-                      data-start="${b.Start}"
-                      data-machine="${b.MachineNumber}"
-                      data-end="${b.End}"
-                      ${this._loading ? "disabled" : ""}
-                      title="Slet booking"
-                    >🗑️</button>
-                  </div>
-                `).join("")}
-              </div>`}
-
-          </div><!-- /bookings-block -->
         </div>
+
+        ${this._error ? `<div class="error-bar">⚠ ${this._error}</div>` : ""}
+        ${infoMsg     ? `<div class="info-bar"><span class="info-dot"></span>${infoMsg}</div>` : ""}
+
+        <!-- MASKINER -->
+        ${this._machines.length > 0 ? this._renderMachines(isOpen) : ""}
+
+        <!-- NY BOOKING -->
+        <div class="section">
+          <div class="sec-label">NY BOOKING</div>
+
+          <div class="vhus-row">
+            <button class="vhus-btn ${this._vaskehus === "Klatvask" ? "vhus-on" : ""}" data-v="Klatvask" ${this._loading ? "disabled" : ""}>🫧 Klatvask</button>
+            <button class="vhus-btn ${this._vaskehus === "Storvask" ? "vhus-on" : ""}" data-v="Storvask" ${this._loading ? "disabled" : ""}>♨️ Storvask</button>
+          </div>
+
+          <div class="field-blk">
+            <span class="field-label">TIDSBLOK</span>
+            <div class="sel-wrap">
+              <select id="slot-sel" class="field-select" ${this._loading || this._slots.length === 0 ? "disabled" : ""}>
+                ${this._slots.length === 0
+                  ? `<option>Henter tidslots…</option>`
+                  : this._slots.map(sl => `<option value="${sl.start}" ${this._selectedSlot === sl.start ? "selected" : ""}>${sl.label}</option>`).join("")}
+              </select>
+              <span class="sel-arr">▾</span>
+            </div>
+          </div>
+
+          <div class="field-blk">
+            <span class="field-label">DATO</span>
+            <input id="date-inp" type="date" class="field-input" value="${this._selectedDate}" ${this._loading ? "disabled" : ""} />
+          </div>
+
+          <button id="book-btn" class="book-btn ${btnClass}" ${!canBook || this._loading ? "disabled" : ""}>${btnLabel}</button>
+        </div>
+
+        <!-- AKTIVE BOOKINGER -->
+        <div class="section">
+          <div class="sec-label-row">
+            <span class="sec-label">AKTIVE BOOKINGER</span>
+            <span class="cnt-badge">${count}</span>
+          </div>
+
+          ${count === 0
+            ? `<div class="empty-row">Ingen aktive bookinger</div>`
+            : this._bookings.map(b => `
+                <div class="brow">
+                  <div class="brow-accent ${b.vaskehus === "Storvask" ? "ba-stor" : "ba-klat"}"></div>
+                  <div class="brow-info">
+                    <span class="brow-name">${b.vaskehus || "Booking"}</span>
+                    <span class="brow-meta">${this._fmt(b.Start)}${this._dur(b) ? ` · ${this._dur(b)}` : ""}${b.created_by ? ` · <span class="brow-via">${b.created_by}</span>` : ""}</span>
+                  </div>
+                  <button class="del-btn" data-start="${b.Start}" data-machine="${b.MachineNumber}" data-end="${b.End}" ${this._loading ? "disabled" : ""} title="Slet booking">✕</button>
+                </div>
+              `).join("")}
+        </div>
+
       </div>
     `;
 
-    this._attachListeners();
+    this._bind();
   }
 
-  _renderMachines() {
-    if (!this._machines || this._machines.length === 0) return "";
-    const stateColors = {
-      available: "#4caf50",
-      running:   "#ff9800",
-      reserved:  "#03a9f4",
-      closed:    "#9e9e9e",
-      unknown:   "#9e9e9e",
-    };
-    const stateLabels = {
-      available: "Ledig",
-      running:   "I gang",
-      reserved:  "Reserveret",
-      closed:    "Lukket",
-      unknown:   "Ukendt",
-    };
-    const icons = { washer: "🫧", dryer: "♨️" };
-
-    const isOpen = this._status?.is_open !== false;
+  _renderMachines(isOpen) {
+    const colors = { available: "#4ade80", running: "#fb923c", reserved: "#60a5fa", closed: "#374151", unknown: "#374151" };
+    const labels = { available: "Ledig", running: "I gang", reserved: "Reserveret", closed: "Lukket", unknown: "Ukendt" };
+    const icons  = { washer: "🫧", dryer: "♨️" };
 
     const items = this._machines.map(m => {
       const icon  = icons[m.machine_type] || "🔧";
-      // When laundry is closed, show all machines as closed visually
-      // but preserve real API state in tooltip
-      const displayState = (!isOpen && m.state === "available") ? "closed" : m.state;
-      const color = stateColors[displayState] || "#9e9e9e";
-      const label = stateLabels[displayState] || displayState;
-      const tooltip = !isOpen && m.state === "available"
-        ? `${m.name}: Lukket (API: ${m.status})`
-        : `${m.name}: ${m.status}`;
-      const shortName = m.name.replace(/klatvask|storvask/gi, "").trim() || m.name;
-      return [
-        `<div class="machine-item" title="${tooltip}">`,
-        `  <div class="machine-icon-wrap" style="background:${color}22;border:2px solid ${color}">`,
-        `    <span class="machine-icon">${icon}</span>`,
-        `  </div>`,
-        `  <div class="machine-label">${shortName}</div>`,
-        `  <div class="machine-state" style="color:${color}">${label}</div>`,
-        `</div>`,
-      ].join("");
+      const dState = (!isOpen && m.state === "available") ? "closed" : m.state;
+      const color = colors[dState] || colors.unknown;
+      const label = labels[dState] || dState;
+      const tip   = (!isOpen && m.state === "available") ? `${m.name}: Lukket (API: ${m.status})` : `${m.name}: ${m.status}`;
+      const short = m.name.replace(/klatvask|storvask/gi, "").trim() || m.name;
+      return `
+        <div class="mach-item" title="${tip}">
+          <div class="mach-ring" style="--c:${color}">
+            <span class="mach-icon">${icon}</span>
+          </div>
+          <div class="mach-name">${short}</div>
+          <div class="mach-state" style="color:${color}">${label}</div>
+        </div>
+      `;
     }).join("");
 
-    return `<div class="machines-block">${items}</div>`;
+    return `
+      <div class="section">
+        <div class="sec-label">MASKINER</div>
+        <div class="mach-row">${items}</div>
+      </div>
+    `;
   }
 
-  _attachListeners() {
+  _bind() {
     const root = this.shadowRoot;
 
-    const vaskeSelect = root.querySelector("#vaskehus-select");
-    if (vaskeSelect) {
-      vaskeSelect.addEventListener("change", (e) =>
-        this._handleVaskehusChange(e.target.value)
-      );
-    }
+    root.querySelectorAll(".vhus-btn").forEach(btn => {
+      btn.addEventListener("click", () => this._handleVaskehusChange(btn.dataset.v));
+    });
 
-    const slotSelect = root.querySelector("#slot-select");
-    if (slotSelect) {
-      slotSelect.addEventListener("change", (e) => {
-        this._selectedSlot = e.target.value;
-      });
-    }
+    const slotSel = root.querySelector("#slot-sel");
+    if (slotSel) slotSel.addEventListener("change", e => { this._selectedSlot = e.target.value; });
 
-    const dateInput = root.querySelector("#date-input");
-    if (dateInput) {
-      dateInput.addEventListener("change", (e) => {
-        this._selectedDate = e.target.value;
-      });
-    }
+    const dateInp = root.querySelector("#date-inp");
+    if (dateInp) dateInp.addEventListener("change", e => { this._selectedDate = e.target.value; });
 
     const bookBtn = root.querySelector("#book-btn");
-    if (bookBtn) {
-      bookBtn.addEventListener("click", () => this._handleBooking());
-    }
+    if (bookBtn) bookBtn.addEventListener("click", () => this._handleBooking());
 
-    root.querySelectorAll(".delete-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+    root.querySelectorAll(".del-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
         e.stopPropagation();
-        const booking = this._bookings.find(
-          (b) =>
-            b.Start === btn.dataset.start &&
-            String(b.MachineNumber) === String(btn.dataset.machine)
-        );
-        if (booking) this._handleCancel(booking);
+        const b = this._bookings.find(b => b.Start === btn.dataset.start && String(b.MachineNumber) === String(btn.dataset.machine));
+        if (b) this._handleCancel(b);
       });
     });
   }
 
-  // ── CSS ────────────────────────────────────────────────────────────────────
+  // ── CSS ──────────────────────────────────────────────────────────────────────
 
   _css() {
     return `
       :host { display: block; }
+      #root { display: block; width: 100%; }
 
-      #root {
-        display: block;
-        width: 100%;
-      }
-
+      /* ── CARD SHELL ──────────────────────── */
       .card-root {
         position: relative;
         display: block;
         width: 100%;
-        background: var(--ha-card-background, var(--card-background-color, #1c1c1c));
-        border-width: var(--ha-card-border-width, 1px);
-        border-style: solid;
-        border-color: var(--ha-card-border-color, var(--divider-color, rgba(255,255,255,0.12)));
-        border-radius: var(--ha-card-border-radius, 12px);
-        box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.3));
+        background: #111;
+        border: 1px solid #1e1e1e;
+        border-radius: 14px;
         box-sizing: border-box;
         overflow: hidden;
+        font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+        color: #e8e8e8;
       }
 
-      /* Toast */
+      /* ── TOAST ───────────────────────────── */
       .toast {
-        position: absolute;
-        top: 12px;
-        left: 50%;
+        position: absolute; top: 12px; left: 50%;
         transform: translateX(-50%);
-        padding: 8px 18px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 500;
-        z-index: 100;
-        white-space: nowrap;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-        animation: toastIn 0.25s ease;
-        pointer-events: none;
+        padding: 7px 18px; border-radius: 20px; font-size: 12px;
+        font-weight: 500; z-index: 100; white-space: nowrap;
+        pointer-events: none; animation: tIn 0.2s ease;
       }
-      .toast-success { background: #1b5e20; color: #fff; }
-      .toast-error   { background: #b71c1c; color: #fff; }
-      .toast-warning { background: #e65100; color: #fff; }
-      @keyframes toastIn {
-        from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
-        to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-      }
+      .toast-success { background: #14532d; color: #86efac; border: 1px solid rgba(134,239,172,0.2); }
+      .toast-error   { background: #450a0a; color: #fca5a5; border: 1px solid rgba(252,165,165,0.2); }
+      @keyframes tIn { from { opacity:0; transform: translateX(-50%) translateY(-6px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
 
-      /* Content */
-      .card-content { padding: 16px; }
-
-      /* Header */
+      /* ── HEADER ──────────────────────────── */
       .card-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 2px solid var(--divider-color, #e0e0e0);
-      }
-      .header-left { display: flex; align-items: center; gap: 10px; }
-      .header-icon { font-size: 26px; width: 32px; height: 32px; display: flex; align-items: center; }
-      .header-icon ha-icon { --mdc-icon-size: 30px; }
-      .header-title {
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--primary-text-color, #212121);
-        line-height: 1.2;
-      }
-      .header-sub {
-        font-size: 12px;
-        color: var(--secondary-text-color, #757575);
-        margin-top: 2px;
-      }
-      .hours-chip {
-        font-size: 11px;
-        font-weight: 600;
-        padding: 3px 8px;
-        border-radius: 20px;
-        letter-spacing: 0.3px;
-      }
-      .hours-chip.is-open {
-        background: rgba(67,160,71,0.15);
-        color: #81c784;
-      }
-      .hours-chip.is-closed {
-        background: rgba(229,57,53,0.15);
-        color: #ef9a9a;
-      }
-      .book-button.is-closed-btn {
-        background: linear-gradient(135deg, #616161, #424242);
-        box-shadow: none;
-        cursor: not-allowed;
-        color: #bdbdbd;
-      }
-      .balance-chip {
-        background: linear-gradient(135deg, #03a9f4, #0288d1);
-        color: #fff;
-        font-size: 13px;
-        font-weight: 600;
-        padding: 5px 12px;
-        border-radius: 12px;
-        box-shadow: 0 2px 6px rgba(3,169,244,0.3);
-        white-space: nowrap;
+        display: flex; align-items: center; gap: 12px;
+        padding: 16px 16px 14px;
+        border-bottom: 1px solid #1e1e1e;
       }
 
-      /* Error banner */
-      .error-banner {
-        background: #ffebee;
-        color: #c62828;
-        padding: 10px 14px;
-        border-radius: 8px;
-        margin-bottom: 14px;
-        border-left: 4px solid #c62828;
-        font-size: 13px;
+      .card-icon {
+        width: 40px; height: 40px; border-radius: 12px;
+        background: #1a1a1a; border: 1px solid #2a2a2a;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px; flex-shrink: 0;
       }
 
-      /* Form block */
-      .form-block {
-        background: var(--primary-background-color, #fafafa);
-        border-radius: 10px;
-        padding: 14px;
-        margin-bottom: 16px;
+      .card-title-block { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      .card-title { font-size: 16px; font-weight: 700; color: #f0f0f0; letter-spacing: -0.2px; }
+      .card-sub   { font-size: 12px; color: #555; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+      .pill { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 100px; letter-spacing: 0.3px; }
+      .pill-open   { background: rgba(74,222,128,0.1); color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
+      .pill-closed { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+
+      /* ── ERROR / INFO BARS ───────────────── */
+      .error-bar {
+        margin: 0 14px 0; padding: 9px 12px;
+        background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.2);
+        border-radius: 8px; font-size: 12px; color: #f87171;
+        margin-top: 12px;
       }
-      .field-group { margin-bottom: 12px; }
-      .field-label {
-        display: block;
-        font-size: 12px;
-        font-weight: 500;
-        color: var(--secondary-text-color, #757575);
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        margin-bottom: 5px;
+      .info-bar {
+        display: flex; align-items: center; gap: 8px;
+        margin: 12px 14px 0; padding: 9px 12px;
+        background: rgba(240,192,64,0.07); border: 1px solid rgba(240,192,64,0.18);
+        border-radius: 8px; font-size: 12px; color: #f0c040;
+      }
+      .info-dot { width: 6px; height: 6px; border-radius: 50%; background: #f0c040; flex-shrink: 0; }
+
+      /* ── SECTION ─────────────────────────── */
+      .section { padding: 14px 16px; border-bottom: 1px solid #1a1a1a; }
+      .section:last-child { border-bottom: none; }
+
+      .sec-label {
+        font-size: 10px; font-weight: 700; letter-spacing: 0.9px;
+        color: #333; margin-bottom: 12px;
+      }
+      .sec-label-row {
+        display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+      }
+      .cnt-badge {
+        background: #1a1a1a; color: #444; font-size: 11px; font-weight: 700;
+        padding: 2px 8px; border-radius: 100px; border: 1px solid #2a2a2a;
       }
 
-      /* Select wrapper */
-      .select-wrapper { position: relative; }
-      .select-arrow {
-        position: absolute;
-        right: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        pointer-events: none;
-        color: var(--secondary-text-color, #757575);
-        font-size: 12px;
+      /* ── MACHINES ────────────────────────── */
+      .mach-row {
+        display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px;
       }
+      .mach-row::-webkit-scrollbar { display: none; }
 
-      .field-select,
-      .field-input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 10px 14px;
-        border: 2px solid var(--divider-color, #e0e0e0);
-        border-radius: 8px;
-        font-size: 14px;
-        background: var(--card-background-color, #fff);
-        color: var(--primary-text-color, #212121);
-        appearance: none;
-        -webkit-appearance: none;
-        transition: border-color 0.2s;
-        cursor: pointer;
-        font-family: inherit;
+      .mach-item {
+        display: flex; flex-direction: column; align-items: center;
+        gap: 4px; flex: 1; min-width: 48px; cursor: default;
       }
-      .field-select:focus,
-      .field-input:focus { outline: none; border-color: #03a9f4; }
-      .field-select:disabled,
-      .field-input:disabled { opacity: 0.5; cursor: not-allowed; }
-
-      /* Book button */
-      .book-button {
-        width: 100%;
-        padding: 13px;
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        font-size: 15px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.25s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        margin-top: 4px;
-        font-family: inherit;
-      }
-      /* Grøn — ingen bookinger */
-      .book-button.is-empty {
-        background: linear-gradient(135deg, #43a047, #2e7d32);
-        box-shadow: 0 4px 12px rgba(67,160,71,0.3);
-      }
-      .book-button.is-empty:hover {
-        background: linear-gradient(135deg, #388e3c, #1b5e20);
-        box-shadow: 0 6px 16px rgba(67,160,71,0.4);
-        transform: translateY(-1px);
-      }
-      /* Blå — 1+ booking, kan stadig booke */
-      .book-button.is-partial {
-        background: linear-gradient(135deg, #03a9f4, #0288d1);
-        box-shadow: 0 4px 12px rgba(3,169,244,0.3);
-      }
-      .book-button.is-partial:hover {
-        background: linear-gradient(135deg, #0288d1, #01579b);
-        box-shadow: 0 6px 16px rgba(3,169,244,0.4);
-        transform: translateY(-1px);
-      }
-      /* Gul — max nået */
-      .book-button.is-full {
-        background: linear-gradient(135deg, #f9a825, #f57f17);
-        box-shadow: 0 4px 12px rgba(249,168,37,0.3);
-        cursor: not-allowed;
-        color: #1a1a1a;
-      }
-      /* Loading */
-      .info-banner {
-        background: rgba(255, 160, 0, 0.12);
-        border: 1px solid rgba(255, 160, 0, 0.3);
-        color: #ffa000;
-        border-radius: 8px;
-        padding: 8px 12px;
-        font-size: 12px;
-        margin-bottom: 8px;
-      }
-      .book-button.is-locked {
-        background: linear-gradient(135deg, #616161, #424242);
-        box-shadow: none;
-        cursor: not-allowed;
-        color: #bdbdbd;
-      }
-      .book-button.is-loading {
-        background: linear-gradient(135deg, #03a9f4, #0288d1);
-        opacity: 0.7;
-        cursor: not-allowed;
-      }
-      .book-button:disabled { transform: none; }
-
-      /* Loading spinner */
-      .spinner {
-        width: 14px;
-        height: 14px;
-        border: 2px solid rgba(255,255,255,0.4);
-        border-top-color: #fff;
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
-        display: inline-block;
-        flex-shrink: 0;
-      }
-      @keyframes spin { to { transform: rotate(360deg); } }
-
-
-
-      /* Bookings block - matcher form-block stil */
-      .bookings-block {
-        background: var(--primary-background-color, #fafafa);
-        border-radius: 10px;
-        padding: 10px 14px;
-      }
-
-      /* Maskine status */
-      .machines-block {
-        display: flex;
-        gap: 8px;
-        padding: 12px 14px;
-        background: var(--primary-background-color, #fafafa);
-        border-radius: 10px;
-        margin-bottom: 16px;
-        overflow-x: auto;
-        scrollbar-width: none;
-      }
-      .machines-block::-webkit-scrollbar { display: none; }
-
-      .machine-item {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-        flex: 1;
-        min-width: 52px;
-        cursor: default;
-      }
-      .machine-icon-wrap {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+      .mach-ring {
+        width: 36px; height: 36px; border-radius: 10px;
+        background: color-mix(in srgb, var(--c) 12%, transparent);
+        border: 1.5px solid var(--c);
+        display: flex; align-items: center; justify-content: center;
         transition: transform 0.15s;
       }
-      .machine-item:hover .machine-icon-wrap {
-        transform: scale(1.08);
-      }
-      .machine-icon {
-        font-size: 20px;
-        line-height: 1;
-      }
-      .machine-label {
-        font-size: 10px;
-        font-weight: 600;
-        color: var(--secondary-text-color, #757575);
-        text-align: center;
-        white-space: nowrap;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-      }
-      .machine-state {
-        font-size: 9px;
-        font-weight: 500;
-        text-align: center;
-        white-space: nowrap;
-      }
+      .mach-item:hover .mach-ring { transform: scale(1.07); }
+      .mach-icon  { font-size: 18px; line-height: 1; }
+      .mach-name  { font-size: 9px; font-weight: 700; color: #333; text-align: center; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+      .mach-state { font-size: 9px; font-weight: 500; text-align: center; white-space: nowrap; }
 
-      /* Section title */
-      .section-title {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--primary-text-color, #212121);
-        margin-bottom: 10px;
+      /* ── VASKEHUS TOGGLE ─────────────────── */
+      .vhus-row { display: flex; gap: 8px; margin-bottom: 12px; }
+      .vhus-btn {
+        flex: 1; padding: 9px 8px;
+        background: #1a1a1a; border: 1px solid #2a2a2a;
+        border-radius: 8px; color: #444; font-size: 13px;
+        font-weight: 500; font-family: inherit; cursor: pointer; transition: all 0.15s;
       }
-      .booking-badge {
-        background: var(--divider-color, #e0e0e0);
-        color: var(--secondary-text-color, #757575);
-        font-size: 11px;
-        font-weight: 700;
-        padding: 2px 8px;
-        border-radius: 10px;
-      }
+      .vhus-btn:hover:not(:disabled) { border-color: #3a3a3a; color: #aaa; }
+      .vhus-on { border-color: #888 !important; color: #e8e8e8 !important; background: #1e1e1e !important; font-weight: 600 !important; }
+      .vhus-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-      /* Empty state */
-      .empty-state {
-        text-align: center;
-        color: var(--secondary-text-color, #757575);
-        font-size: 13px;
-        padding: 16px;
-        background: var(--primary-background-color, #fafafa);
-        border-radius: 8px;
-      }
+      /* ── INPUTS ──────────────────────────── */
+      .field-blk { margin-bottom: 10px; }
+      .field-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.7px; color: #333; margin-bottom: 6px; }
 
-      /* Bookings list */
-      .bookings-list {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .bookings-list.is-single {
-        display: flex;
-        justify-content: center;
-      }
-      .bookings-list.is-single .booking-card {
-        width: 100%;
-        max-width: 460px;
-      }
+      .sel-wrap { position: relative; }
+      .sel-arr { position: absolute; right: 11px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #333; font-size: 11px; }
 
-      /* Booking card */
-      .booking-card {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 0;
-        border-bottom: 1px solid var(--divider-color, rgba(255,255,255,0.08));
-        transition: opacity 0.2s;
+      .field-select, .field-input {
+        width: 100%; padding: 9px 12px;
+        background: #1a1a1a; border: 1px solid #2a2a2a;
+        border-radius: 8px; font-size: 13px; font-family: inherit;
+        color: #e8e8e8; transition: border-color 0.15s;
+        appearance: none; -webkit-appearance: none; box-sizing: border-box;
       }
-      .booking-card:last-child {
-        border-bottom: none;
-        padding-bottom: 0;
-      }
-      .booking-card:hover {
-        opacity: 0.85;
-      }
+      .field-select { padding-right: 30px; cursor: pointer; }
+      .field-select:focus, .field-input:focus { outline: none; border-color: #444; background: #1e1e1e; }
+      .field-select:disabled, .field-input:disabled { opacity: 0.45; cursor: not-allowed; }
 
-      .booking-info { flex: 1; min-width: 0; }
-      .booking-name {
-        font-weight: 600;
-        font-size: 13px;
-        color: var(--primary-text-color, #212121);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+      /* ── BOOK BUTTON ─────────────────────── */
+      .book-btn {
+        width: 100%; padding: 12px; border: none; border-radius: 8px;
+        font-size: 14px; font-weight: 600; font-family: inherit;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        gap: 7px; transition: all 0.2s; margin-top: 4px;
       }
-      .booking-meta {
-        font-size: 11px;
-        color: var(--secondary-text-color, #757575);
-        margin-top: 2px;
-      }
+      .btn-ready  { background: #1e1e1e; border: 1px solid #555; color: #e8e8e8; }
+      .btn-ready:hover:not(:disabled) { background: #e8e8e8; color: #0d0d0d; border-color: #e8e8e8; }
+      .btn-full, .btn-locked, .btn-closed { background: #1a1a1a; border: 1px solid #2a2a2a; color: #333; cursor: not-allowed; }
+      .btn-loading { background: #1e1e1e; border: 1px solid #2a2a2a; color: #555; cursor: not-allowed; }
+      .book-btn:disabled { opacity: 0.6; transform: none; }
 
-      /* Delete button */
-      .delete-btn {
-        background: #f44336;
-        color: #fff;
-        border: none;
-        border-radius: 50%;
-        width: 36px;
-        height: 36px;
-        flex-shrink: 0;
-        cursor: pointer;
-        font-size: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-      }
-      .delete-btn:hover:not(:disabled) {
-        background: #d32f2f;
-        transform: scale(1.1);
-      }
-      .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+      /* ── BOOKING ROWS ────────────────────── */
+      .empty-row { font-size: 12px; color: #333; text-align: center; padding: 6px 0 2px; }
 
-      /* Responsive */
-      @media (max-width: 400px) {
-        .card-content { padding: 10px; }
+      .brow { display: flex; align-items: center; padding: 9px 0; border-bottom: 1px solid #1a1a1a; }
+      .brow:last-child { border-bottom: none; padding-bottom: 0; }
+      .brow:hover { opacity: 0.8; }
+
+      .brow-accent { width: 3px; height: 30px; border-radius: 2px; margin-right: 12px; flex-shrink: 0; }
+      .ba-klat { background: #555; }
+      .ba-stor { background: #888; }
+
+      .brow-info { flex: 1; min-width: 0; }
+      .brow-name { display: block; font-size: 13px; font-weight: 600; color: #e8e8e8; }
+      .brow-meta { display: block; font-size: 11px; color: #333; margin-top: 1px; }
+      .brow-via  { color: #2a2a2a; }
+
+      .del-btn {
+        padding: 5px 10px; background: none; border: 1px solid #2a2a2a;
+        border-radius: 6px; color: #2a2a2a; font-size: 11px; cursor: pointer;
+        transition: all 0.15s; font-family: inherit; flex-shrink: 0;
       }
+      .del-btn:hover:not(:disabled) { border-color: #dc2626; color: #dc2626; background: rgba(220,38,38,0.07); }
+      .del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+      /* ── SPINNER ─────────────────────────── */
+      .spin { display: inline-block; animation: sp 0.7s linear infinite; }
+      @keyframes sp { to { transform: rotate(360deg); } }
     `;
   }
 
-  // ── Card meta ──────────────────────────────────────────────────────────────
-
-  static getConfigElement() {
-    return document.createElement("div");
-  }
-
-  static getStubConfig() {
-    return {};
-  }
-
-  getCardSize() { return 8 + (this._bookings ? this._bookings.length * 2 : 0); }
+  static getConfigElement() { return document.createElement("div"); }
+  static getStubConfig()    { return {}; }
+  getCardSize()             { return 6 + (this._bookings ? this._bookings.length : 0); }
 }
 
-// Registrer custom element
 if (!customElements.get("mielelogic-booking-card")) {
   customElements.define("mielelogic-booking-card", MieleLogicBookingCard);
 }
 
-// HACS / Lovelace card info
 window.customCards = window.customCards || [];
-if (!window.customCards.find((c) => c.type === "mielelogic-booking-card")) {
+if (!window.customCards.find(c => c.type === "mielelogic-booking-card")) {
   window.customCards.push({
     type: "mielelogic-booking-card",
     name: "MieleLogic Booking Card",
-    description:
-      "Book, vis og slet vaskehus-bookinger direkte fra dit dashboard.",
+    description: "Book, vis og slet vaskehus-bookinger direkte fra dit dashboard.",
     preview: false,
     documentationURL: "https://github.com/kingpainter/mielelogic",
   });
