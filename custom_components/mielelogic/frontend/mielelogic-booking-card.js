@@ -1,9 +1,11 @@
 /**
  * MieleLogic Booking Card
- * VERSION = "2.0.0"
+ * VERSION = "1.9.2"
  *
  * Custom Lovelace card — same visual language as Heat Manager / Indeklima.
  * Dark background, uppercase section labels, clean metric rows.
+ *
+ * v1.9.2: Date-aware slot availability — booked slots shown as disabled grey chips
  */
 
 class MieleLogicBookingCard extends HTMLElement {
@@ -61,10 +63,27 @@ class MieleLogicBookingCard extends HTMLElement {
 
   async _loadSlots() {
     try {
-      const r = await this._hass.callWS({ type: "mielelogic/get_slots", vaskehus: this._vaskehus });
+      // v1.9.2: Pass current date so backend can annotate booked slots
+      const r = await this._hass.callWS({
+        type: "mielelogic/get_slots",
+        vaskehus: this._vaskehus,
+        date: this._selectedDate,
+      });
       this._slots = r.slots || [];
-      if (this._slots.length > 0 && !this._selectedSlot) this._selectedSlot = this._slots[0].start;
-    } catch (e) { this._error = "Kunne ikke hente tidslots"; }
+
+      // Auto-select first FREE slot; fall back to first slot if all booked
+      const firstFree = this._slots.find(s => !s.booked);
+      const candidate = firstFree || this._slots[0];
+      if (candidate && !this._selectedSlot) {
+        this._selectedSlot = candidate.start;
+      } else if (candidate && this._slots.every(s => s.start !== this._selectedSlot)) {
+        // Previously selected slot is no longer in list (vaskehus changed)
+        this._selectedSlot = candidate.start;
+      }
+    } catch (e) {
+      this._error = "Kunne ikke hente tidslots";
+    }
+    this._update();
   }
 
   async _loadBookings() {
@@ -92,13 +111,23 @@ class MieleLogicBookingCard extends HTMLElement {
   async _handleVaskehusChange(v) {
     this._vaskehus = v;
     this._selectedSlot = "";
-    await this._loadSlots();
+    this._slots = [];
     this._update();
+    await this._loadSlots();
+  }
+
+  // v1.9.2: When date changes, reload slots with new date for availability check
+  async _handleDateChange(date) {
+    this._selectedDate = date;
+    this._selectedSlot = "";
+    this._update();
+    await this._loadSlots();
   }
 
   async _handleBooking() {
     if (!this._selectedSlot || !this._selectedDate) { alert("Vælg tidslot og dato"); return; }
     const slot = this._slots.find(s => s.start === this._selectedSlot);
+    if (slot && slot.booked) { alert("Dette tidslot er allerede booket for den valgte dato."); return; }
     if (!confirm(`Book ${this._vaskehus} ${this._selectedDate} ${slot?.label || ""}?`)) return;
 
     this._loading = true; this._error = null; this._update();
@@ -168,13 +197,26 @@ class MieleLogicBookingCard extends HTMLElement {
     const balance    = s.balance != null ? this._fmtCur(s.balance) : null;
     const infoMsg    = s.info_message || "";
 
-    const btnClass = this._loading ? "btn-loading" : !isOpen ? "btn-closed" : locked ? "btn-locked" : canBook ? "btn-ready" : "btn-full";
+    // v1.9.2: Determine if the currently-selected slot is booked
+    const selectedSlotObj = this._slots.find(sl => sl.start === this._selectedSlot);
+    const selectedIsBooked = selectedSlotObj?.booked === true;
+
+    const btnClass = this._loading ? "btn-loading"
+      : !isOpen    ? "btn-closed"
+      : locked     ? "btn-locked"
+      : selectedIsBooked ? "btn-locked"
+      : canBook    ? "btn-ready"
+      : "btn-full";
+
     const btnLabel = this._loading
       ? `<span class="spin">↻</span> Booker…`
-      : locked  ? `🔒 ${lockMsg}`
-      : !isOpen ? `Vaskehuset lukket`
-      : canBook ? `Book nu`
+      : locked         ? `🔒 ${lockMsg}`
+      : !isOpen        ? `Vaskehuset lukket`
+      : selectedIsBooked ? `Tidslot allerede booket`
+      : canBook        ? `Book nu`
       : `Max nået (${count}/${maxRes})`;
+
+    const btnDisabled = !canBook || this._loading || selectedIsBooked || !isOpen || locked;
 
     root.innerHTML = `
       <div class="card-root">
@@ -217,18 +259,32 @@ class MieleLogicBookingCard extends HTMLElement {
               <select id="slot-sel" class="field-select" ${this._loading || this._slots.length === 0 ? "disabled" : ""}>
                 ${this._slots.length === 0
                   ? `<option>Henter tidslots…</option>`
-                  : this._slots.map(sl => `<option value="${sl.start}" ${this._selectedSlot === sl.start ? "selected" : ""}>${sl.label}</option>`).join("")}
+                  : this._slots.map(sl => `<option value="${sl.start}" ${this._selectedSlot === sl.start ? "selected" : ""} ${sl.booked ? "disabled" : ""}>${sl.label}${sl.booked ? " — optaget" : ""}</option>`).join("")}
               </select>
               <span class="sel-arr">▾</span>
             </div>
           </div>
+
+          <!-- v1.9.2: Availability chips — clickable for free, greyed-out for booked -->
+          ${this._slots.length > 0 ? `
+            <div class="slot-chips">
+              ${this._slots.map(sl => `
+                <button
+                  class="slot-chip ${sl.booked ? "chip-booked" : "chip-free"} ${this._selectedSlot === sl.start && !sl.booked ? "chip-active" : ""}"
+                  data-start="${sl.start}"
+                  ${sl.booked || this._loading ? "disabled" : ""}
+                  title="${sl.booked ? sl.label + " — optaget" : sl.label + " — ledig"}"
+                >${sl.start} ${sl.booked ? "✕" : "✓"}</button>
+              `).join("")}
+            </div>
+          ` : ""}
 
           <div class="field-blk">
             <span class="field-label">DATO</span>
             <input id="date-inp" type="date" class="field-input" value="${this._selectedDate}" ${this._loading ? "disabled" : ""} />
           </div>
 
-          <button id="book-btn" class="book-btn ${btnClass}" ${!canBook || this._loading ? "disabled" : ""}>${btnLabel}</button>
+          <button id="book-btn" class="book-btn ${btnClass}" ${btnDisabled ? "disabled" : ""}>${btnLabel}</button>
         </div>
 
         <!-- AKTIVE BOOKINGER -->
@@ -297,10 +353,26 @@ class MieleLogicBookingCard extends HTMLElement {
     });
 
     const slotSel = root.querySelector("#slot-sel");
-    if (slotSel) slotSel.addEventListener("change", e => { this._selectedSlot = e.target.value; });
+    if (slotSel) slotSel.addEventListener("change", e => {
+      this._selectedSlot = e.target.value;
+      this._update();
+    });
 
+    // v1.9.2: Slot chips — clicking a free chip selects it and updates the dropdown too
+    root.querySelectorAll(".slot-chip:not([disabled])").forEach(chip => {
+      chip.addEventListener("click", () => {
+        this._selectedSlot = chip.dataset.start;
+        const sel = root.querySelector("#slot-sel");
+        if (sel) sel.value = this._selectedSlot;
+        this._update();
+      });
+    });
+
+    // v1.9.2: Date change now triggers slot reload for availability
     const dateInp = root.querySelector("#date-inp");
-    if (dateInp) dateInp.addEventListener("change", e => { this._selectedDate = e.target.value; });
+    if (dateInp) dateInp.addEventListener("change", e => {
+      this._handleDateChange(e.target.value);
+    });
 
     const bookBtn = root.querySelector("#book-btn");
     if (bookBtn) bookBtn.addEventListener("click", () => this._handleBooking());
@@ -451,6 +523,53 @@ class MieleLogicBookingCard extends HTMLElement {
       .field-select { padding-right: 30px; cursor: pointer; }
       .field-select:focus, .field-input:focus { outline: none; border-color: #444; background: #1e1e1e; }
       .field-select:disabled, .field-input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+      /* ── SLOT CHIPS (v1.9.2) ─────────────── */
+      .slot-chips {
+        display: flex; flex-wrap: wrap; gap: 6px;
+        margin-bottom: 12px; margin-top: -4px;
+      }
+
+      .slot-chip {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px; font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        border: 1.5px solid transparent;
+        transition: all 0.15s;
+        white-space: nowrap;
+        line-height: 1.4;
+      }
+
+      /* Free slot — clickable green */
+      .chip-free {
+        background: rgba(74,222,128,0.08);
+        border-color: rgba(74,222,128,0.35);
+        color: #4ade80;
+      }
+      .chip-free:hover:not(:disabled) {
+        background: rgba(74,222,128,0.16);
+        border-color: #4ade80;
+      }
+
+      /* Active/selected free slot */
+      .chip-active {
+        background: rgba(74,222,128,0.22) !important;
+        border-color: #4ade80 !important;
+        box-shadow: 0 0 0 2px rgba(74,222,128,0.18);
+      }
+
+      /* Booked slot — greyed out, not clickable */
+      .chip-booked {
+        background: rgba(55,65,81,0.35);
+        border-color: rgba(55,65,81,0.5);
+        color: #374151;
+        cursor: not-allowed;
+        opacity: 0.6;
+        text-decoration: line-through;
+      }
+      .chip-booked:disabled { cursor: not-allowed; }
 
       /* ── BOOK BUTTON ─────────────────────── */
       .book-btn {
