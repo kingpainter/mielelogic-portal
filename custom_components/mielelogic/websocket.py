@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "1.9.2"
 """WebSocket API for MieleLogic panel."""
 import logging
 import voluptuous as vol
@@ -13,7 +13,6 @@ _LOGGER = logging.getLogger(__name__)
 
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register WebSocket commands for panel communication."""
-    
     websocket_api.async_register_command(hass, ws_get_slots)
     websocket_api.async_register_command(hass, ws_make_booking)
     websocket_api.async_register_command(hass, ws_cancel_booking)
@@ -23,21 +22,17 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_history)
     websocket_api.async_register_command(hass, ws_cleanup_history)
     websocket_api.async_register_command(hass, ws_save_admin)
-    websocket_api.async_register_command(hass, ws_get_machines)  # ✨ v1.9.0
-    
-    # Notification commands
+    websocket_api.async_register_command(hass, ws_get_machines)
     websocket_api.async_register_command(hass, ws_get_devices)
     websocket_api.async_register_command(hass, ws_save_devices)
     websocket_api.async_register_command(hass, ws_get_notifications)
     websocket_api.async_register_command(hass, ws_save_notification)
     websocket_api.async_register_command(hass, ws_test_notification)
     websocket_api.async_register_command(hass, ws_reset_notification)
-    
-    _LOGGER.info("✅ MieleLogic WebSocket API registered (v1.9.0 - 12 commands)")
+    _LOGGER.info("✅ MieleLogic WebSocket API registered (v1.9.2 - 16 commands)")
 
 
 def _get_time_manager(hass: HomeAssistant):
-    """Get the time_manager instance (Secure Me pattern)."""
     domain_data = hass.data.get(DOMAIN, {})
     for key, value in domain_data.items():
         if isinstance(value, dict) and "time_manager" in value:
@@ -46,7 +41,6 @@ def _get_time_manager(hass: HomeAssistant):
 
 
 def _get_booking_manager(hass: HomeAssistant):
-    """Get the booking_manager instance (Secure Me pattern)."""
     domain_data = hass.data.get(DOMAIN, {})
     for key, value in domain_data.items():
         if isinstance(value, dict) and "booking_manager" in value:
@@ -55,7 +49,6 @@ def _get_booking_manager(hass: HomeAssistant):
 
 
 def _get_coordinator(hass: HomeAssistant):
-    """Get the coordinator instance."""
     domain_data = hass.data.get(DOMAIN, {})
     for key, value in domain_data.items():
         if isinstance(value, dict) and "coordinator" in value:
@@ -64,17 +57,61 @@ def _get_coordinator(hass: HomeAssistant):
 
 
 def _get_store(hass: HomeAssistant):
-    """Get the store instance."""
     return hass.data.get(DOMAIN, {}).get("store")
 
 
 def _get_notification_manager(hass: HomeAssistant):
-    """Get the notification_manager instance."""
     domain_data = hass.data.get(DOMAIN, {})
     for key, value in domain_data.items():
         if isinstance(value, dict) and "notification_manager" in value:
             return value["notification_manager"]
     return None
+
+
+def _get_booked_starts_from_timetable(timetable: dict, machine_number: int, date_str: str) -> set:
+    """Extract booked slot start times from timetable data for a specific machine and date.
+
+    Timetable structure:
+      {
+        "MachineTimeTables": {
+          "1": {
+            "TimeTable": [
+              {"Start": "2026-03-30T09:00:00", "End": "...", "Status": "Reserved"},
+              ...
+            ]
+          }
+        }
+      }
+
+    Returns a set of "HH:MM" strings for slots with Status != "Available" on the given date.
+    """
+    booked = set()
+    if not timetable:
+        return booked
+
+    machine_tables = timetable.get("MachineTimeTables", {})
+
+    # Key is string "1", "2" etc.
+    machine_data = machine_tables.get(str(machine_number))
+    if not machine_data:
+        return booked
+
+    for entry in machine_data.get("TimeTable", []):
+        start_raw = entry.get("Start", "")
+        status = entry.get("Status", "Available")
+
+        # start_raw: "2026-03-30T09:00:00"
+        if not start_raw or len(start_raw) < 16:
+            continue
+
+        entry_date = start_raw[:10]   # "2026-03-30"
+        entry_time = start_raw[11:16] # "09:00"
+
+        if entry_date == date_str and status != "Available":
+            booked.add(entry_time)
+            _LOGGER.debug("Timetable: machine %s slot %s on %s is %s", machine_number, entry_time, date_str, status)
+
+    return booked
 
 
 @websocket_api.websocket_command({
@@ -84,7 +121,11 @@ def _get_notification_manager(hass: HomeAssistant):
 })
 @callback
 def ws_get_slots(hass: HomeAssistant, connection, msg):
-    """Get time slots for vaskehus, optionally annotated with availability for a date."""
+    """Get time slots for vaskehus, annotated with real availability from timetable.
+
+    v1.9.2: Uses /timetable endpoint data (all users' bookings) instead of only
+    the current user's reservations. This gives accurate booked/available status.
+    """
     time_manager = _get_time_manager(hass)
 
     if not time_manager:
@@ -93,30 +134,36 @@ def ws_get_slots(hass: HomeAssistant, connection, msg):
 
     try:
         slots = time_manager.get_slots(msg["vaskehus"])
-
-        # Annotate slots with availability if a date is provided
         date_str = msg.get("date")
+
         if date_str:
             coordinator = _get_coordinator(hass)
             booked_starts = set()
 
             if coordinator and coordinator.data:
-                reservations = coordinator.data.get("reservations", {}).get("Reservations", [])
+                timetable = coordinator.data.get("timetable", {})
                 machine = time_manager.get_machine_for_vaskehus(msg["vaskehus"])
 
-                for res in reservations:
-                    # Match machine and date
-                    res_machine = res.get("MachineNumber")
-                    start_raw = res.get("Start", "")
-                    if res_machine != machine:
-                        continue
-                    # start_raw is e.g. "2026-03-28 19:00:00" or "2026-03-28T19:00:00"
-                    res_date = start_raw[:10]
-                    if res_date != date_str:
-                        continue
-                    # Extract HH:MM from start
-                    time_part = start_raw[11:16] if " " in start_raw else start_raw[11:16]
-                    booked_starts.add(time_part)
+                if timetable:
+                    # ✨ v1.9.2: Use timetable (all users) for accurate availability
+                    booked_starts = _get_booked_starts_from_timetable(timetable, machine, date_str)
+                    _LOGGER.debug(
+                        "Timetable slots booked for machine %s on %s: %s",
+                        machine, date_str, booked_starts,
+                    )
+                else:
+                    # Fallback: use own reservations only (old behaviour)
+                    reservations = coordinator.data.get("reservations", {}).get("Reservations", [])
+                    for res in reservations:
+                        if res.get("MachineNumber") != machine:
+                            continue
+                        start_raw = res.get("Start", "")
+                        if start_raw[:10] == date_str:
+                            booked_starts.add(start_raw[11:16])
+                    _LOGGER.debug(
+                        "Fallback own-reservations booked for machine %s on %s: %s",
+                        machine, date_str, booked_starts,
+                    )
 
             for slot in slots:
                 slot["booked"] = slot["start"] in booked_starts
@@ -154,7 +201,6 @@ async def ws_make_booking(hass: HomeAssistant, connection, msg):
         return
     
     try:
-        # Find slot info
         slots = time_manager.get_slots(msg["vaskehus"])
         slot = next((s for s in slots if s["start"] == msg["slot_start"]), None)
         
@@ -162,28 +208,13 @@ async def ws_make_booking(hass: HomeAssistant, connection, msg):
             connection.send_error(msg["id"], "invalid_slot", "Invalid time slot")
             return
         
-        # Get machine number
         machine = time_manager.get_machine_for_vaskehus(msg["vaskehus"])
-        
-        # Build datetime
         start_datetime = f"{msg['date']} {slot['start']}:00"
         
-        _LOGGER.info(
-            "📅 WebSocket booking: %s machine %s at %s",
-            msg["vaskehus"],
-            machine,
-            start_datetime,
-        )
+        _LOGGER.info("📅 WebSocket booking: %s machine %s at %s", msg["vaskehus"], machine, start_datetime)
         
-        # Make booking
-        result = await booking_manager.make_booking(
-            machine,
-            start_datetime,
-            slot["duration"],
-            connection.context,
-        )
+        result = await booking_manager.make_booking(machine, start_datetime, slot["duration"], connection.context)
         
-        # Force coordinator refresh to get latest data
         if result.get("success"):
             coordinator = booking_manager.coordinator
             coordinator.clear_cache()
@@ -213,18 +244,9 @@ async def ws_cancel_booking(hass: HomeAssistant, connection, msg):
         return
     
     try:
-        _LOGGER.info(
-            "🗑️ WebSocket cancel: Machine %s",
-            msg["machine_number"],
-        )
+        _LOGGER.info("🗑️ WebSocket cancel: Machine %s", msg["machine_number"])
+        result = await booking_manager.cancel_booking(msg["machine_number"], msg["start_time"], msg["end_time"])
         
-        result = await booking_manager.cancel_booking(
-            msg["machine_number"],
-            msg["start_time"],
-            msg["end_time"],
-        )
-        
-        # Force coordinator refresh to get latest data
         if result.get("success"):
             coordinator = booking_manager.coordinator
             coordinator.clear_cache()
@@ -254,36 +276,26 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
     
     try:
         bookings = booking_manager.get_current_bookings()
-        
-        # Add vaskehus names and user metadata to bookings
         enhanced_bookings = []
+        
         for booking in bookings:
             enhanced = dict(booking)
-            enhanced["vaskehus"] = time_manager.get_vaskehus_for_machine(
-                booking.get("MachineNumber", 0)
-            )
+            enhanced["vaskehus"] = time_manager.get_vaskehus_for_machine(booking.get("MachineNumber", 0))
             
-            # Add user metadata if available
             if store:
                 api_start = booking.get("Start", "")
                 machine_nr = booking.get("MachineNumber", 0)
-
-                # Try direct lookup first, then normalize T→space and strip timezone
                 metadata = store.get_booking_metadata(machine=machine_nr, start_time=api_start)
                 if not metadata:
                     normalized = api_start.replace("T", " ").split("+")[0].split("Z")[0].strip()
                     metadata = store.get_booking_metadata(machine=machine_nr, start_time=normalized)
-
                 if metadata:
                     enhanced["created_by"] = metadata.get("created_by")
                     enhanced["created_at"] = metadata.get("created_at")
-                else:
-                    _LOGGER.debug("No metadata found for machine %s start '%s'", machine_nr, api_start)
             
             enhanced_bookings.append(enhanced)
         
         _LOGGER.debug("📋 WebSocket: Returning %d bookings", len(enhanced_bookings))
-        
         connection.send_result(msg["id"], {"bookings": enhanced_bookings})
     
     except Exception as err:
@@ -296,7 +308,7 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
 })
 @callback
 def ws_get_status(hass: HomeAssistant, connection, msg):
-    """Get integration status (balance, max reservations, etc)."""
+    """Get integration status."""
     booking_manager = _get_booking_manager(hass)
     
     if not booking_manager:
@@ -308,7 +320,6 @@ def ws_get_status(hass: HomeAssistant, connection, msg):
         max_reservations = booking_manager.get_max_reservations()
         current_count = len(booking_manager.get_current_bookings())
         
-        # Get opening/closing hours from config
         coordinator = _get_coordinator(hass)
         opening_time = "07:00"
         closing_time = "21:00"
@@ -316,39 +327,27 @@ def ws_get_status(hass: HomeAssistant, connection, msg):
             opening_time = coordinator.config_entry.data.get("opening_time", "07:00")
             closing_time = coordinator.config_entry.data.get("closing_time", "21:00")
 
-        # Is the laundry currently open?
         from datetime import datetime
         now = datetime.now()
         open_h, open_m = [int(x) for x in opening_time.split(":")]
         close_h, close_m = [int(x) for x in closing_time.split(":")]
-        open_minutes = open_h * 60 + open_m
-        close_minutes = close_h * 60 + close_m
-        now_minutes = now.hour * 60 + now.minute
-        is_open = open_minutes <= now_minutes < close_minutes
+        is_open = (open_h * 60 + open_m) <= (now.hour * 60 + now.minute) < (close_h * 60 + close_m)
 
-        # Get admin settings
         store = _get_store(hass)
         admin = store.get_admin_settings() if store else {}
-        booking_locked = admin.get("booking_locked", False)
-        lock_message = admin.get("lock_message", "")
-        info_message = admin.get("info_message", "")
 
-        status = {
+        connection.send_result(msg["id"], {
             "balance": balance,
             "max_reservations": max_reservations,
             "current_count": current_count,
-            "can_book": current_count < max_reservations and not booking_locked,
+            "can_book": current_count < max_reservations and not admin.get("booking_locked", False),
             "opening_time": opening_time,
             "closing_time": closing_time,
             "is_open": is_open,
-            "booking_locked": booking_locked,
-            "lock_message": lock_message,
-            "info_message": info_message,
-        }
-        
-        _LOGGER.debug("📊 WebSocket: Status - %s", status)
-        
-        connection.send_result(msg["id"], status)
+            "booking_locked": admin.get("booking_locked", False),
+            "lock_message": admin.get("lock_message", ""),
+            "info_message": admin.get("info_message", ""),
+        })
     
     except Exception as err:
         _LOGGER.exception("Error getting status: %s", err)
@@ -360,17 +359,7 @@ def ws_get_status(hass: HomeAssistant, connection, msg):
 })
 @callback
 def ws_get_machines(hass: HomeAssistant, connection, msg):
-    """Get all machine states for display in booking card.
-
-    ✨ v1.9.0: New command for machine status overview in the booking card.
-
-    Returns a list of machines with:
-      - number:     MachineNumber (int)
-      - name:       UnitName (str)  e.g. "Klatvask 1", "Storvask 3"
-      - status:     Human-readable status text from Text1 + ReservationInfo
-      - state:      Normalised state string: "available" | "reserved" | "running" | "closed" | "unknown"
-      - machine_type: "washer" | "dryer" | "unknown"
-    """
+    """Get all machine states for display in booking card."""
     coordinator = _get_coordinator(hass)
 
     if not coordinator:
@@ -380,8 +369,7 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
     try:
         machine_states = (
             coordinator.data.get("machine_states", {}).get("MachineStates", [])
-            if coordinator.data
-            else []
+            if coordinator.data else []
         )
 
         machines = []
@@ -393,24 +381,13 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
             text_lower = text1.lower()
             name_lower = unit_name.lower()
 
-            # ── Determine machine type ──────────────────────────────────────
-            if (
-                "klatvask" in name_lower
-                or "storvask" in name_lower
-                or "vask" in name_lower
-                or machine_type_code in ("51", "85")
-            ):
+            if "klatvask" in name_lower or "storvask" in name_lower or "vask" in name_lower or machine_type_code in ("51", "85"):
                 machine_type = "washer"
-            elif (
-                "tørre" in name_lower
-                or "dryer" in name_lower
-                or machine_type_code == "58"
-            ):
+            elif "tørre" in name_lower or "dryer" in name_lower or machine_type_code == "58":
                 machine_type = "dryer"
             else:
                 machine_type = "unknown"
 
-            # ── Determine normalised state ──────────────────────────────────
             if "ledig" in text_lower or "available" in text_lower:
                 state = "available"
             elif "resttid" in text_lower or "remaining" in text_lower:
@@ -422,11 +399,7 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
             else:
                 state = "unknown"
 
-            # ── Build human-readable combined status ───────────────────────
-            if reservation_info and reservation_info.strip():
-                combined_status = f"{text1} {reservation_info}".strip()
-            else:
-                combined_status = text1 or "Ukendt"
+            combined_status = f"{text1} {reservation_info}".strip() if reservation_info and reservation_info.strip() else (text1 or "Ukendt")
 
             machines.append({
                 "number": m.get("MachineNumber"),
@@ -436,11 +409,8 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
                 "machine_type": machine_type,
             })
 
-        # Sort by machine number for consistent ordering
         machines.sort(key=lambda x: x.get("number") or 0)
-
         _LOGGER.debug("🔧 WebSocket: Returning %d machines", len(machines))
-
         connection.send_result(msg["id"], {"machines": machines})
 
     except Exception as err:
@@ -457,14 +427,12 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
 })
 @callback
 def ws_get_admin(hass: HomeAssistant, connection, msg):
-    """Get admin settings."""
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
         return
     try:
-        settings = store.get_admin_settings()
-        connection.send_result(msg["id"], settings)
+        connection.send_result(msg["id"], store.get_admin_settings())
     except Exception as err:
         _LOGGER.exception("Error getting admin settings: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
@@ -478,7 +446,6 @@ def ws_get_admin(hass: HomeAssistant, connection, msg):
 })
 @websocket_api.async_response
 async def ws_save_admin(hass: HomeAssistant, connection, msg):
-    """Save admin settings."""
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -505,7 +472,6 @@ async def ws_save_admin(hass: HomeAssistant, connection, msg):
 })
 @callback
 def ws_get_history(hass: HomeAssistant, connection, msg):
-    """Get booking history (last 30 days, completed bookings)."""
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -523,7 +489,6 @@ def ws_get_history(hass: HomeAssistant, connection, msg):
 })
 @websocket_api.async_response
 async def ws_cleanup_history(hass: HomeAssistant, connection, msg):
-    """Clean up booking metadata older than 30 days."""
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -546,22 +511,15 @@ async def ws_cleanup_history(hass: HomeAssistant, connection, msg):
 })
 @callback
 def ws_get_devices(hass: HomeAssistant, connection, msg):
-    """Get configured devices and available mobile apps."""
     store = _get_store(hass)
-    
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
         return
-    
     try:
-        configured_devices = store.get_devices()
-        available_apps = store.get_available_mobile_apps()
-        
         connection.send_result(msg["id"], {
-            "configured": configured_devices,
-            "available": available_apps,
+            "configured": store.get_devices(),
+            "available": store.get_available_mobile_apps(),
         })
-    
     except Exception as err:
         _LOGGER.exception("Error getting devices: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
@@ -573,20 +531,14 @@ def ws_get_devices(hass: HomeAssistant, connection, msg):
 })
 @websocket_api.async_response
 async def ws_save_devices(hass: HomeAssistant, connection, msg):
-    """Save configured notification devices."""
     store = _get_store(hass)
-    
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
         return
-    
     try:
         await store.async_save_devices(msg["devices"])
-        
         _LOGGER.info("📱 Saved %d notification devices", len(msg["devices"]))
-        
         connection.send_result(msg["id"], {"success": True})
-    
     except Exception as err:
         _LOGGER.exception("Error saving devices: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
@@ -597,18 +549,12 @@ async def ws_save_devices(hass: HomeAssistant, connection, msg):
 })
 @callback
 def ws_get_notifications(hass: HomeAssistant, connection, msg):
-    """Get all notification configurations."""
     store = _get_store(hass)
-    
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
         return
-    
     try:
-        notifications = store.get_notifications()
-        
-        connection.send_result(msg["id"], {"notifications": notifications})
-    
+        connection.send_result(msg["id"], {"notifications": store.get_notifications()})
     except Exception as err:
         _LOGGER.exception("Error getting notifications: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
@@ -621,23 +567,14 @@ def ws_get_notifications(hass: HomeAssistant, connection, msg):
 })
 @websocket_api.async_response
 async def ws_save_notification(hass: HomeAssistant, connection, msg):
-    """Save notification configuration."""
     store = _get_store(hass)
-    
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
         return
-    
     try:
-        await store.async_save_notification(
-            msg["notification_id"],
-            msg["config"],
-        )
-        
+        await store.async_save_notification(msg["notification_id"], msg["config"])
         _LOGGER.info("💾 Saved notification: %s", msg["notification_id"])
-        
         connection.send_result(msg["id"], {"success": True})
-    
     except Exception as err:
         _LOGGER.exception("Error saving notification: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
@@ -649,32 +586,19 @@ async def ws_save_notification(hass: HomeAssistant, connection, msg):
 })
 @websocket_api.async_response
 async def ws_test_notification(hass: HomeAssistant, connection, msg):
-    """Send test notification."""
     notification_manager = _get_notification_manager(hass)
-    
     if not notification_manager:
         connection.send_error(msg["id"], "not_ready", "Notification manager not ready")
         return
-    
     try:
         from datetime import datetime, timedelta
         test_time = datetime.now() + timedelta(minutes=15)
-        
-        await notification_manager.send_notification(
-            msg["notification_id"],
-            {
-                "vaskehus": "Klatvask",
-                "time": test_time.strftime("%H:%M"),
-                "date": test_time.strftime("%d-%m-%Y"),
-                "duration": "120 minutter",
-                "machine": "Maskine 1",
-            },
-        )
-        
+        await notification_manager.send_notification(msg["notification_id"], {
+            "vaskehus": "Klatvask", "time": test_time.strftime("%H:%M"),
+            "date": test_time.strftime("%d-%m-%Y"), "duration": "120 minutter", "machine": "Maskine 1",
+        })
         _LOGGER.info("📬 Test notification sent: %s", msg["notification_id"])
-        
         connection.send_result(msg["id"], {"success": True})
-    
     except Exception as err:
         _LOGGER.exception("Error sending test notification: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
@@ -686,34 +610,17 @@ async def ws_test_notification(hass: HomeAssistant, connection, msg):
 })
 @websocket_api.async_response
 async def ws_reset_notification(hass: HomeAssistant, connection, msg):
-    """Reset notification to default template.
-    
-    ✨ v1.8.0: Template reset functionality
-    """
     store = _get_store(hass)
-    
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
         return
-    
     try:
         default_config = await store.async_reset_notification(msg["notification_id"])
-        
         if default_config is None:
-            connection.send_error(
-                msg["id"], 
-                "not_found", 
-                f"Notification {msg['notification_id']} not found"
-            )
+            connection.send_error(msg["id"], "not_found", f"Notification {msg['notification_id']} not found")
             return
-        
         _LOGGER.info("🔄 Reset notification to default: %s", msg["notification_id"])
-        
-        connection.send_result(msg["id"], {
-            "success": True,
-            "config": default_config,
-        })
-    
+        connection.send_result(msg["id"], {"success": True, "config": default_config})
     except Exception as err:
         _LOGGER.exception("Error resetting notification: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
