@@ -440,6 +440,103 @@ class MieleLogicPanel extends HTMLElement {
     </div>`;
   }
 
+  _bindEvents(page) {
+    // Tab switching
+    page.querySelectorAll("[data-tab]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        this._tab = btn.dataset.tab;
+        if (this._tab === "stats" && this._history.length === 0) this._loadHistory();
+        this._render();
+      });
+    });
+    // Vaskehus toggle
+    page.querySelectorAll("[data-vhus]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        this._vaskehus = btn.dataset.vhus;
+        this._selectedSlot = "";
+        this._loadSlots().then(() => this._render());
+      });
+    });
+    // Field inputs
+    const slotSel = page.querySelector("[data-field='slot']");
+    if (slotSel) slotSel.addEventListener("change", e => { this._selectedSlot = e.target.value; });
+    const dateIn = page.querySelector("[data-field='date']");
+    if (dateIn) dateIn.addEventListener("change", e => {
+      this._selectedDate = e.target.value;
+      this._selectedSlot = "";
+      this._loadSlots().then(() => this._render());
+    });
+    // Generic data-action buttons
+    page.querySelectorAll("[data-action]").forEach(el => {
+      el.addEventListener("click", e => {
+        if (el.dataset.stopPropagation !== undefined) { e.stopPropagation(); return; }
+        const action = el.dataset.action;
+        if (action === "book")             this._doBook();
+        else if (action === "refresh")     this._loadAll();
+        else if (action === "clear-error") { this._error = null; this._render(); }
+        else if (action === "save-devices") this._doSaveDevices();
+        else if (action === "save-edit")   this._doSaveEdit();
+        else if (action === "reset-notif") this._doResetNotification();
+        else if (action === "close-modal") { e.stopPropagation(); this._closeModal(); }
+        else if (action === "save-admin")  this._doSaveAdmin();
+        else if (action === "cleanup-history") this._doCleanupHistory();
+      });
+    });
+    // Modal background click to close
+    const modalBg = page.querySelector(".modal-bg");
+    if (modalBg) modalBg.addEventListener("click", e => {
+      if (e.target === modalBg) this._closeModal();
+    });
+    const modalBox = page.querySelector(".modal-box");
+    if (modalBox) modalBox.addEventListener("click", e => e.stopPropagation());
+    // Delete (cancel) booking
+    page.querySelectorAll("[data-cancel]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        try { this._doCancel(JSON.parse(btn.dataset.cancel)); } catch (e) {}
+      });
+    });
+    // Device checkboxes
+    page.querySelectorAll("[data-device]").forEach(cb => {
+      cb.addEventListener("change", () => {
+        const svc = cb.dataset.device;
+        if (cb.checked) { if (!this._devices.includes(svc)) this._devices = [...this._devices, svc]; }
+        else { this._devices = this._devices.filter(d => d !== svc); }
+        cb.closest("label")?.classList.toggle("dev-on", cb.checked);
+      });
+    });
+    // Notification toggles
+    page.querySelectorAll("[data-toggle-notif]").forEach(cb => {
+      cb.addEventListener("change", () => this._doToggleNotification(cb.dataset.toggleNotif));
+    });
+    // Edit notification
+    page.querySelectorAll("[data-edit-notif]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.editNotif;
+        const n  = this._notifications[id]; if (!n) return;
+        this._editingId   = id;
+        this._editTitle   = n.title;
+        this._editMessage = n.message;
+        this._render();
+      });
+    });
+    // Test notification
+    page.querySelectorAll("[data-test-notif]").forEach(btn => {
+      btn.addEventListener("click", () => this._doTestNotification(btn.dataset.testNotif));
+    });
+    // Modal field live editing
+    const titleIn = page.querySelector("[data-modal-field='title']");
+    if (titleIn) titleIn.addEventListener("input", e => { this._editTitle = e.target.value; });
+    const msgTA = page.querySelector("[data-modal-field='message']");
+    if (msgTA) msgTA.addEventListener("input", e => { this._editMessage = e.target.value; });
+    // Admin textareas/inputs
+    page.querySelectorAll("[data-admin]").forEach(el => {
+      el.addEventListener("input", e => { this._admin = { ...this._admin, [el.dataset.admin]: e.target.value }; });
+    });
+    page.querySelectorAll("[data-admin-check]").forEach(cb => {
+      cb.addEventListener("change", () => { this._admin = { ...this._admin, [cb.dataset.adminCheck]: cb.checked }; this._render(); });
+    });
+  }
+
   _htmlStats() {
     const fmt = e => {
       const start = e.start_time || "", date = start.split(" ")[0] || start.split("T")[0] || "–";
@@ -447,3 +544,310 @@ class MieleLogicPanel extends HTMLElement {
       const parts = date.split("-");
       return { dateStr: parts.length===3 ? `${parts[2]}.${parts[1]}` : date, time, dur: e.duration ? e.duration+" min" : "–", user: e.created_by||"–", vaskehus: e.vaskehus||`Maskine ${e.machine}` };
     };
+    const items = this._historyLoading
+      ? `<div class="stats-loading">⏳ Henter historik…</div>`
+      : this._history.length === 0
+      ? `<div class="stats-empty">📭 Ingen afsluttede bookinger de seneste 30 dage</div>`
+      : `<div class="stats-count">${this._history.length} booking${this._history.length !== 1 ? "er" : ""} fundet</div>
+         <div class="history-list">${this._history.map(e => {
+           const f = fmt(e);
+           return `<div class="history-item">
+             <div class="history-left">
+               <span class="history-vaskehus">${f.vaskehus}</span>
+               <span class="history-meta">${f.dateStr} · ${f.time} · ${f.dur}</span>
+             </div>
+             <div class="history-user">👤 ${f.user}</div>
+           </div>`;
+         }).join("")}</div>`;
+    return `
+      <div class="stats-tab">
+        <h2>📊 Statistik</h2>
+        <p class="stats-desc">Afsluttede bookinger de seneste 30 dage</p>
+        ${items}
+        <div class="cleanup-section">
+          <button class="cleanup-btn" data-action="cleanup-history">🧹 Ryd metadata ældre end 30 dage</button>
+          ${this._cleanupResult ? `<p class="cleanup-result">${this._cleanupResult}</p>` : ""}
+        </div>
+      </div>`;
+  }
+
+  _htmlAdmin() {
+    const a = this._admin;
+    return `
+      <div class="admin-tab">
+        <h2>⚙️ Admin</h2>
+        <section class="admin-section">
+          <h3>📢 Driftsbesked</h3>
+          <p class="admin-desc">Vises øverst i booking kortet til alle brugere. Efterlad tom for ingen besked.</p>
+          <textarea class="admin-textarea" data-admin="info_message" placeholder="f.eks. Vaskehuset rengøres fredag d. 3/3 kl. 10-12">${this._esc(a.info_message || "")}</textarea>
+        </section>
+        <section class="admin-section">
+          <h3>🔒 Booking spærring</h3>
+          <p class="admin-desc">Spærrer for nye bookinger i booking kortet. Eksisterende bookinger påvirkes ikke.</p>
+          <label class="admin-toggle">
+            <input type="checkbox" data-admin-check="booking_locked" ${a.booking_locked ? "checked" : ""} />
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">${a.booking_locked ? "🔒 Booking spærret" : "🔓 Booking åben"}</span>
+          </label>
+          ${a.booking_locked ? `<input type="text" class="admin-input" data-admin="lock_message" placeholder="Besked til brugerne..." value="${this._esc(a.lock_message || "")}" />` : ""}
+        </section>
+        <button class="admin-save-btn${this._adminSaving ? " saving" : ""}" data-action="save-admin" ${this._adminSaving ? "disabled" : ""}>
+          ${this._adminSaving ? "💾 Gemmer…" : "💾 Gem indstillinger"}
+        </button>
+      </div>`;
+  }
+
+  // ── CSS ──────────────────────────────────────────────────────────────────
+
+  _css() {
+    return `
+      :host, * { box-sizing: border-box; }
+      :host {
+        display: block; width: 100%; padding: 16px; max-width: 900px;
+        margin: 0 auto; font-family: var(--paper-font-body1_-_font-family, Roboto, sans-serif);
+        color: var(--primary-text-color, #212121);
+      }
+      .panel {
+        background: var(--card-background-color, #1e1e1e);
+        border-radius: 12px; padding: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      }
+      .header { margin-bottom: 8px; }
+      .header h1 { margin: 0 0 4px; font-size: 24px; font-weight: 600; }
+      .subtitle { margin: 0 0 20px; font-size: 13px; color: var(--secondary-text-color); }
+      .error-banner {
+        background: #ffebee; color: #c62828; padding: 10px 14px;
+        border-radius: 8px; margin-bottom: 14px; border-left: 4px solid #c62828; font-size: 13px;
+      }
+      /* Tabs */
+      .tabs {
+        display: flex; gap: 4px; margin-bottom: 24px;
+        border-bottom: 2px solid var(--divider-color, rgba(255,255,255,0.12));
+      }
+      .tab-btn {
+        background: none; border: none; padding: 10px 16px; font-size: 14px; font-weight: 500;
+        color: var(--secondary-text-color); cursor: pointer;
+        border-bottom: 3px solid transparent; margin-bottom: -2px;
+        font-family: inherit; transition: color 0.2s, border-color 0.2s;
+      }
+      .tab-btn:hover { color: var(--primary-color, #03a9f4); }
+      .tab-btn.active { color: var(--primary-color, #03a9f4); border-bottom-color: var(--primary-color, #03a9f4); }
+      /* Booking tab */
+      .booking-tab { display: flex; flex-direction: column; gap: 16px; }
+      .form-block {
+        background: var(--primary-background-color, rgba(255,255,255,0.05));
+        border-radius: 10px; padding: 14px;
+      }
+      .field-group { margin-bottom: 12px; }
+      .field-label {
+        display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.6px;
+        text-transform: uppercase; color: var(--secondary-text-color); margin-bottom: 5px;
+      }
+      .field-select, .field-input {
+        width: 100%; padding: 10px 14px; border-radius: 8px; font-size: 14px;
+        background: var(--card-background-color, #2a2a2a);
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+        color: var(--primary-text-color); appearance: none; font-family: inherit; cursor: pointer;
+      }
+      .field-select:disabled, .field-input:disabled { opacity: 0.5; cursor: not-allowed; }
+      .book-btn {
+        width: 100%; padding: 13px; border: none; border-radius: 8px; font-size: 15px;
+        font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.2s;
+      }
+      .book-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .book-btn.open  { background: linear-gradient(135deg, #03a9f4, #0288d1); color: #fff; }
+      .book-btn.full  { background: #616161; color: #bdbdbd; }
+      .book-btn.closed-btn { background: #424242; color: #bdbdbd; }
+      .bookings-block {
+        background: var(--primary-background-color, rgba(255,255,255,0.05));
+        border-radius: 10px; padding: 10px 14px;
+      }
+      .section-title {
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 14px; font-weight: 600; margin-bottom: 10px;
+      }
+      .booking-badge {
+        background: var(--divider-color, rgba(255,255,255,0.12));
+        color: var(--secondary-text-color); font-size: 11px; font-weight: 700;
+        padding: 2px 8px; border-radius: 10px;
+      }
+      .booking-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 12px; border-radius: 8px; margin-bottom: 6px;
+        background: var(--card-background-color, rgba(255,255,255,0.04));
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.08));
+      }
+      .booking-row:last-child { margin-bottom: 0; }
+      .booking-name { font-size: 14px; font-weight: 600; }
+      .booking-meta { font-size: 12px; color: var(--secondary-text-color); margin-top: 2px; }
+      .del-btn {
+        background: none; border: 1px solid var(--divider-color, rgba(255,255,255,0.2));
+        border-radius: 6px; padding: 5px 9px; cursor: pointer; font-size: 14px;
+        color: var(--secondary-text-color); font-family: inherit; transition: all 0.15s;
+      }
+      .del-btn:hover:not(:disabled) { border-color: #dc2626; color: #dc2626; }
+      .del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+      .empty-state { text-align: center; color: var(--secondary-text-color); padding: 20px; font-size: 13px; }
+      /* Info banner */
+      .info-banner {
+        background: rgba(255,152,0,0.1); color: #ff9800; padding: 10px 14px;
+        border-radius: 8px; margin-bottom: 14px; border-left: 4px solid #ff9800; font-size: 13px;
+      }
+      /* Toast */
+      .toast {
+        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+        padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
+        z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events: none;
+        animation: fadeIn 0.2s ease;
+      }
+      .toast-success { background: #4caf50; color: #fff; }
+      .toast-error   { background: #f44336; color: #fff; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+      /* Spinner */
+      .spin { display: inline-block; animation: sp 0.7s linear infinite; }
+      @keyframes sp { to { transform: rotate(360deg); } }
+      /* Notifications tab */
+      .notif-tab { display: flex; flex-direction: column; gap: 20px; }
+      .section { background: var(--card-background-color, rgba(255,255,255,0.04)); border-radius: 10px; padding: 16px; }
+      .section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--secondary-text-color); margin-bottom: 6px; }
+      .sec-desc { font-size: 12px; color: var(--secondary-text-color); margin: 0 0 12px; }
+      .device-list, .notif-list { display: flex; flex-direction: column; gap: 8px; }
+      .device-row, .notif-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 12px; border-radius: 8px;
+        background: var(--primary-background-color, rgba(255,255,255,0.04));
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.08));
+      }
+      .device-name, .notif-name { font-size: 14px; font-weight: 500; }
+      .notif-msg { font-size: 12px; color: var(--secondary-text-color); margin-top: 2px; }
+      .notif-left { display: flex; align-items: center; gap: 12px; }
+      .notif-texts { display: flex; flex-direction: column; }
+      .notif-acts { display: flex; gap: 6px; }
+      .ghost-btn {
+        background: none; border: 1px solid var(--divider-color, rgba(255,255,255,0.2));
+        border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px;
+        color: var(--secondary-text-color); font-family: inherit; transition: all 0.15s;
+      }
+      .ghost-btn:hover:not(:disabled) { border-color: #03a9f4; color: #03a9f4; }
+      .ghost-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      .ghost-green:hover:not(:disabled) { border-color: #4caf50; color: #4caf50; }
+      .no-devices { font-size: 13px; color: var(--secondary-text-color); text-align: center; padding: 12px; }
+      /* Toggle */
+      .tog-wrap { display: flex; align-items: center; cursor: pointer; }
+      .tog-wrap input { display: none; }
+      .tog-track {
+        width: 36px; height: 20px; background: var(--divider-color, #555);
+        border-radius: 10px; position: relative; transition: background 0.2s; flex-shrink: 0;
+      }
+      .tog-thumb {
+        position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+        background: #fff; border-radius: 50%; transition: left 0.2s;
+      }
+      .tog-wrap input:checked ~ .tog-track { background: #03a9f4; }
+      .tog-thumb.thumb-on { left: 18px; }
+      /* Modal */
+      .modal-bg {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;
+        display: flex; align-items: center; justify-content: center; padding: 16px;
+      }
+      .modal-box {
+        background: var(--card-background-color, #2a2a2a);
+        border-radius: 12px; padding: 24px; max-width: 480px; width: 100%;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      }
+      .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+      .modal-title { font-size: 16px; font-weight: 700; }
+      .modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--secondary-text-color); padding: 4px; font-family: inherit; }
+      .modal-field { margin-bottom: 16px; }
+      .field-label-sm { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--secondary-text-color); margin-bottom: 5px; }
+      .field-input {
+        width: 100%; padding: 10px 12px; border-radius: 8px; font-size: 14px;
+        background: var(--primary-background-color, rgba(255,255,255,0.05));
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.15));
+        color: var(--primary-text-color); font-family: inherit;
+      }
+      .field-input:focus { outline: none; border-color: #03a9f4; }
+      .field-textarea {
+        width: 100%; padding: 10px 12px; border-radius: 8px; font-size: 14px;
+        background: var(--primary-background-color, rgba(255,255,255,0.05));
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.15));
+        color: var(--primary-text-color); font-family: inherit; resize: vertical; min-height: 80px;
+      }
+      .field-textarea:focus { outline: none; border-color: #03a9f4; }
+      .preview-line { font-size: 12px; color: var(--secondary-text-color); margin-top: 5px; }
+      .preview-k { font-weight: 600; margin-right: 4px; }
+      .var-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+      .var-tag { background: rgba(3,169,244,0.1); color: #03a9f4; border-radius: 4px; padding: 2px 6px; font-size: 12px; font-family: monospace; }
+      .modal-acts { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 16px; }
+      .modal-acts-r { display: flex; gap: 8px; }
+      .act-btn {
+        background: linear-gradient(135deg, #03a9f4, #0288d1); color: #fff; border: none;
+        border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 14px;
+        font-weight: 600; font-family: inherit;
+      }
+      /* Stats tab */
+      .stats-tab { padding: 0; max-width: 600px; }
+      .stats-tab h2 { margin: 0 0 4px; font-size: 18px; }
+      .stats-desc { font-size: 12px; color: var(--secondary-text-color); margin: 0 0 16px; }
+      .stats-loading, .stats-empty { text-align: center; padding: 32px; color: var(--secondary-text-color); font-size: 14px; }
+      .stats-count { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 8px; }
+      .history-list { background: var(--card-background-color, #1e1e1e); border-radius: 10px; overflow: hidden; }
+      .history-item {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; border-bottom: 1px solid var(--divider-color, rgba(255,255,255,0.08));
+      }
+      .history-item:last-child { border-bottom: none; }
+      .history-left { display: flex; flex-direction: column; gap: 2px; }
+      .history-vaskehus { font-size: 14px; font-weight: 600; }
+      .history-meta { font-size: 12px; color: var(--secondary-text-color); }
+      .history-user { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; }
+      .cleanup-section { margin-top: 20px; }
+      .cleanup-btn {
+        width: 100%; padding: 11px; background: var(--card-background-color, #1e1e1e);
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+        color: var(--primary-text-color); border-radius: 8px; font-size: 14px; cursor: pointer; font-family: inherit;
+      }
+      .cleanup-btn:hover { background: rgba(255,255,255,0.05); }
+      .cleanup-result { font-size: 13px; text-align: center; margin: 8px 0 0; }
+      /* Admin tab */
+      .admin-tab { padding: 0; max-width: 600px; }
+      .admin-tab h2 { margin: 0 0 20px; font-size: 18px; }
+      .admin-section { margin-bottom: 24px; background: var(--card-background-color, #1e1e1e); border-radius: 10px; padding: 16px; }
+      .admin-section h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+      .admin-desc { font-size: 12px; color: var(--secondary-text-color); margin: 0 0 12px; }
+      .admin-textarea {
+        width: 100%; min-height: 70px; padding: 10px; box-sizing: border-box;
+        background: var(--primary-background-color, rgba(255,255,255,0.05));
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+        border-radius: 8px; color: var(--primary-text-color); font-family: inherit; font-size: 13px; resize: vertical;
+      }
+      .admin-input {
+        width: 100%; padding: 10px; margin-top: 10px; box-sizing: border-box;
+        background: var(--primary-background-color, rgba(255,255,255,0.05));
+        border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+        border-radius: 8px; color: var(--primary-text-color); font-family: inherit; font-size: 13px;
+      }
+      .admin-toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+      .admin-toggle input { display: none; }
+      .toggle-slider {
+        width: 44px; height: 24px; background: var(--divider-color, #555);
+        border-radius: 12px; position: relative; transition: background 0.2s; flex-shrink: 0;
+      }
+      .toggle-slider::after {
+        content: ""; position: absolute; top: 2px; left: 2px;
+        width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: left 0.2s;
+      }
+      .admin-toggle input:checked ~ .toggle-slider { background: #e53935; }
+      .admin-toggle input:checked ~ .toggle-slider::after { left: 22px; }
+      .toggle-label { font-size: 14px; font-weight: 500; }
+      .admin-save-btn {
+        width: 100%; padding: 13px; background: linear-gradient(135deg, #03a9f4, #0288d1);
+        color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
+        cursor: pointer; font-family: inherit;
+      }
+      .admin-save-btn.saving { opacity: 0.6; cursor: not-allowed; }
+    `;
+  }
+}
+
+customElements.define("mielelogic-panel", MieleLogicPanel);
