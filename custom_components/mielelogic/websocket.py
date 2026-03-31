@@ -90,8 +90,6 @@ def _get_booked_starts_from_timetable(timetable: dict, machine_number: int, date
         return booked
 
     machine_tables = timetable.get("MachineTimeTables", {})
-
-    # Key is string "1", "2" etc.
     machine_data = machine_tables.get(str(machine_number))
     if not machine_data:
         return booked
@@ -100,7 +98,6 @@ def _get_booked_starts_from_timetable(timetable: dict, machine_number: int, date
         start_raw = entry.get("Start", "")
         status = entry.get("Status", "Available")
 
-        # start_raw: "2026-03-30T09:00:00"
         if not start_raw or len(start_raw) < 16:
             continue
 
@@ -109,7 +106,10 @@ def _get_booked_starts_from_timetable(timetable: dict, machine_number: int, date
 
         if entry_date == date_str and status != "Available":
             booked.add(entry_time)
-            _LOGGER.debug("Timetable: machine %s slot %s on %s is %s", machine_number, entry_time, date_str, status)
+            _LOGGER.debug(
+                "Timetable: machine %s slot %s on %s is %s",
+                machine_number, entry_time, date_str, status,
+            )
 
     return booked
 
@@ -124,7 +124,7 @@ def ws_get_slots(hass: HomeAssistant, connection, msg):
     """Get time slots for vaskehus, annotated with real availability from timetable.
 
     v1.9.2: Uses /timetable endpoint data (all users' bookings) instead of only
-    the current user's reservations. This gives accurate booked/available status.
+    the current user's reservations. Gives accurate booked/available status.
     """
     time_manager = _get_time_manager(hass)
 
@@ -148,11 +148,11 @@ def ws_get_slots(hass: HomeAssistant, connection, msg):
                     # ✨ v1.9.2: Use timetable (all users) for accurate availability
                     booked_starts = _get_booked_starts_from_timetable(timetable, machine, date_str)
                     _LOGGER.debug(
-                        "Timetable slots booked for machine %s on %s: %s",
+                        "Timetable booked slots for machine %s on %s: %s",
                         machine, date_str, booked_starts,
                     )
                 else:
-                    # Fallback: use own reservations only (old behaviour)
+                    # Fallback: use own reservations only
                     reservations = coordinator.data.get("reservations", {}).get("Reservations", [])
                     for res in reservations:
                         if res.get("MachineNumber") != machine:

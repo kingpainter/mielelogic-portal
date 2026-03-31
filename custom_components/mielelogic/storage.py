@@ -44,7 +44,7 @@ class MieleLogicStore:
         return {
             "devices": [],
             "bookings": {},
-            "calendar_synced": [],  # ✨ v2.1.0: Persistent calendar event tracking
+            "calendar_synced": [],  # v2.1.0: Persistent calendar event tracking
             "admin": {
                 "booking_locked": False,
                 "lock_message": "Booking er midlertidigt spærret",
