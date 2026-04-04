@@ -1,4 +1,4 @@
-# VERSION = "1.9.1"
+# VERSION = "2.0.0"
 """Manage time slots for vaskehus."""
 import logging
 from datetime import datetime

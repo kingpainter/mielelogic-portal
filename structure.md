@@ -17,16 +17,18 @@ custom_components/mielelogic/
 │
 ├── 🛠️ services.py                    # v1.7.0 - Unchanged
 │
-├── ✨ panel.py                       # v1.7.0 - Panel registration
+├── ✨ panel.py                       # v2.0.0 - Energy Hub panel pattern
 ├── ⏰ time_manager.py                # v1.7.0 - Time slot management
 ├── 📝 booking_manager.py             # v2.0.0 - Real user tracking fix
 ├── 🔌 websocket.py                   # v2.0.0 - 17 commands (+ admin + history)
 ├── 💾 storage.py                     # v2.0.0 - + admin_settings + booking_history
 ├── 🔔 notification_manager.py        # v1.8.0 - Rich notifications
 │
+├── 📄 strings.json                   # v2.0.0 - Primary strings (Gold tier)
+│
 ├── 📁 frontend/
 │   ├── 📄 entrypoint.js              # v1.5.0 - Unchanged
-│   ├── 📄 panel.js                   # v2.0.0 - 4 tabs (+ Admin + Statistik)
+│   ├── 📄 panel.js                   # v2.0.0 - Indeklima Designer (blue/cyan)
 │   └── 📄 mielelogic-booking-card.js # v2.0.0 - Info banner + locked state + machine hours
 │
 └── 📁 translations/
@@ -50,14 +52,14 @@ custom_components/mielelogic/
 | `binary_sensor.py` | v2.0.0 | EntityDescription dataclasses |
 | `calendar.py` | v1.7.0 | Dict access pattern |
 | `services.py` | v1.7.0 | Response support |
-| `panel.py` | v1.7.0 | Panel + card registration |
+| `panel.py` | v2.0.0 | Energy Hub pattern + parameterised registration |
 | `time_manager.py` | v1.7.0 | Time slot management |
 | `booking_manager.py` | v2.0.0 | Real HA username lookup |
 | `websocket.py` | v2.0.0 | 17 commands, admin in get_status |
 | `storage.py` | v2.0.0 | admin_settings + get_booking_history |
 | `notification_manager.py` | v1.8.0 | Rich notifications |
 | `frontend/entrypoint.js` | v1.5.0 | Unchanged |
-| `frontend/panel.js` | v2.0.0 | Admin + Statistik tabs |
+| `frontend/panel.js` | v2.0.0 | Indeklima Designer redesign (blue/cyan) |
 | `frontend/mielelogic-booking-card.js` | v2.0.0 | Info banner + locked + hours |
 | `translations/da.json` | v2.0.0 | State translations + encoding fix |
 | `translations/en.json` | v2.0.0 | State translations + reconfigure |

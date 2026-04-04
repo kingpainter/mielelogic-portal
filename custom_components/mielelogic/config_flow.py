@@ -15,6 +15,14 @@ from .const import (
     CONF_LAUNDRY_ID,
     CONF_CLIENT_SECRET,
     AUTH_URL,
+    CONF_SIDEBAR_TITLE,
+    CONF_SIDEBAR_ICON,
+    CONF_PANEL_ENABLED,
+    CONF_REQUIRE_ADMIN,
+    DEFAULT_SIDEBAR_TITLE,
+    DEFAULT_SIDEBAR_ICON,
+    DEFAULT_PANEL_ENABLED,
+    DEFAULT_REQUIRE_ADMIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -255,7 +263,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
         """Show menu: credentials, calendar, laundry hours, machine config, time slots."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["credentials", "calendar", "laundry_hours", "machine_config", "time_slots"],
+            menu_options=["credentials", "calendar", "laundry_hours", "machine_config", "time_slots", "panel"],
         )
 
     async def async_step_credentials(self, user_input=None):
@@ -500,6 +508,40 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
                     "edit_klatvask": f"Rediger Klatvask ({len(klatvask_slots)} blokke)",
                     "done": "Gem og luk",
                 }),
+            }),
+        )
+
+    async def async_step_panel(self, user_input=None):
+        """Configure sidebar panel settings.
+
+        Controls panel visibility, sidebar title, icon, and admin-only access.
+        Changes take effect immediately without HA restart.
+        """
+        if user_input is not None:
+            # Store panel settings in options (not data — these are preferences)
+            return self.async_create_entry(title="", data=user_input)
+
+        # Current options (fall back to defaults)
+        options = self.config_entry.options
+        return self.async_show_form(
+            step_id="panel",
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_PANEL_ENABLED,
+                    default=options.get(CONF_PANEL_ENABLED, DEFAULT_PANEL_ENABLED),
+                ): bool,
+                vol.Optional(
+                    CONF_SIDEBAR_TITLE,
+                    default=options.get(CONF_SIDEBAR_TITLE, DEFAULT_SIDEBAR_TITLE),
+                ): str,
+                vol.Optional(
+                    CONF_SIDEBAR_ICON,
+                    default=options.get(CONF_SIDEBAR_ICON, DEFAULT_SIDEBAR_ICON),
+                ): str,
+                vol.Optional(
+                    CONF_REQUIRE_ADMIN,
+                    default=options.get(CONF_REQUIRE_ADMIN, DEFAULT_REQUIRE_ADMIN),
+                ): bool,
             }),
         )
 

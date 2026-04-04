@@ -1,4 +1,4 @@
-# VERSION = "1.9.1"
+# VERSION = "2.0.0"
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent

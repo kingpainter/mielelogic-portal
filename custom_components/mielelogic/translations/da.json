@@ -11,7 +11,7 @@
           "laundry_id": "Vaskeri ID",
           "client_secret": "Klient Hemmelighed (valgfri)",
           "name": "Navn",
-          "opening_time": "Ã…bningstid (f.eks. 07:00)",
+          "opening_time": "\u00c5bningstid (f.eks. 07:00)",
           "closing_time": "Lukketid (f.eks. 21:00)"
         }
       },
@@ -31,7 +31,7 @@
       "cannot_connect": "Kunne ikke oprette forbindelse til MieleLogic API",
       "invalid_auth": "Ugyldige legitimationsoplysninger",
       "bad_request": "Ugyldig anmodning, tjek indtastede oplysninger",
-      "server_error": "Serverfejl, prÃ¸v igen senere",
+      "server_error": "Serverfejl, pr\u00f8v igen senere",
       "unknown": "Ukendt fejl opstod"
     },
     "abort": {
@@ -45,9 +45,10 @@
         "menu_options": {
           "credentials": "Opdater Login Oplysninger",
           "calendar": "Konfigurer Kalender Synkronisering",
-          "laundry_hours": "Konfigurer Ã…bningstider",
+          "laundry_hours": "Konfigurer \u00c5bningstider",
           "machine_config": "Konfigurer Maskiner",
-          "time_slots": "Konfigurer Tidsblokke"
+          "time_slots": "Konfigurer Tidsblokke",
+          "panel": "Panel Indstillinger"
         }
       },
       "credentials": {
@@ -61,41 +62,41 @@
         },
         "data_description": {
           "username": "Dit MieleLogic brugernavn",
-          "password": "Dit MieleLogic password (krÃ¦ves for at verificere Ã¦ndringer)",
+          "password": "Dit MieleLogic password (kr\u00e6ves for at verificere \u00e6ndringer)",
           "client_id": "OAuth2 client ID",
           "client_secret": "OAuth2 client secret (valgfri)"
         }
       },
       "calendar": {
         "title": "Konfigurer Kalender Synkronisering",
-        "description": "Synkroniser MieleLogic reservationer til en ekstern kalender. Dette er valgfrit - hvis ikke aktiveret bruges kun MieleLogic's indbyggede kalender.\n\nAktuelt: {current_calendar}\nTilgÃ¦ngelige kalendere: {num_calendars}",
+        "description": "Synkroniser MieleLogic reservationer til en ekstern kalender. Dette er valgfrit - hvis ikke aktiveret bruges kun MieleLogic's indbyggede kalender.\n\nAktuelt: {current_calendar}\nTilg\u00e6ngelige kalendere: {num_calendars}",
         "data": {
           "enable_sync": "Aktiver kalender synkronisering",
-          "calendar_entity": "MÃ¥l kalender"
+          "calendar_entity": "M\u00e5l kalender"
         },
         "data_description": {
           "enable_sync": "Synkroniser reservationer til en ekstern kalender (f.eks. CalDAV)",
-          "calendar_entity": "VÃ¦lg hvilken kalender der skal synkroniseres til"
+          "calendar_entity": "V\u00e6lg hvilken kalender der skal synkroniseres til"
         }
       },
       "laundry_hours": {
-        "title": "Konfigurer Vaskehus Ã…bningstider",
-        "description": "Indstil hvornÃ¥r vaskehuset Ã¥bner og lukker. Dette bruges til at vise 'Lukket indtil kl. XX:XX' pÃ¥ maskiner.\n\nAktuelt: Ã…bner {current_opening}, Lukker {current_closing}",
+        "title": "Konfigurer Vaskehus \u00c5bningstider",
+        "description": "Indstil hvorn\u00e5r vaskehuset \u00e5bner og lukker. Dette bruges til at vise 'Lukket indtil kl. XX:XX' p\u00e5 maskiner.\n\nAktuelt: \u00c5bner {current_opening}, Lukker {current_closing}",
         "data": {
-          "opening_time": "Ã…bningstid (f.eks. 07:00)",
+          "opening_time": "\u00c5bningstid (f.eks. 07:00)",
           "closing_time": "Lukketid (f.eks. 21:00)"
         },
         "data_description": {
-          "opening_time": "HvornÃ¥r Ã¥bner vaskehuset (format: HH:MM)",
-          "closing_time": "HvornÃ¥r lukker vaskehuset (format: HH:MM)"
+          "opening_time": "Hvorn\u00e5r \u00e5bner vaskehuset (format: HH:MM)",
+          "closing_time": "Hvorn\u00e5r lukker vaskehuset (format: HH:MM)"
         }
       },
       "machine_config": {
-        "title": "Konfigurer Primære Maskiner",
-        "description": "Vælg hvilken maskine der bruges til API-kald for hvert vaskehus.\n\nAktuelt: Klatvask maskine {current_klatvask}, Storvask maskine {current_storvask}",
+        "title": "Konfigurer Prim\u00e6re Maskiner",
+        "description": "V\u00e6lg hvilken maskine der bruges til API-kald for hvert vaskehus.\n\nAktuelt: Klatvask maskine {current_klatvask}, Storvask maskine {current_storvask}",
         "data": {
-          "klatvask_machine": "Klatvask primær maskine",
-          "storvask_machine": "Storvask primær maskine"
+          "klatvask_machine": "Klatvask prim\u00e6r maskine",
+          "storvask_machine": "Storvask prim\u00e6r maskine"
         },
         "data_description": {
           "klatvask_machine": "Typisk maskine 1 eller 2 (lille vaskehus)",
@@ -106,25 +107,25 @@
         "title": "Konfigurer Tidsblokke",
         "description": "Administrer faste tidsblokke for hvert vaskehus.",
         "data": {
-          "action": "Vælg handling"
+          "action": "V\u00e6lg handling"
         }
       },
       "edit_storvask_slots": {
         "title": "Rediger Storvask Tidsblokke",
-        "description": "Tilføj eller slet tidsblokke for Storvask.",
+        "description": "Tilf\u00f8j eller slet tidsblokke for Storvask.",
         "data": {
-          "action": "Vælg handling"
+          "action": "V\u00e6lg handling"
         }
       },
       "edit_klatvask_slots": {
         "title": "Rediger Klatvask Tidsblokke",
-        "description": "Tilføj eller slet tidsblokke for Klatvask.",
+        "description": "Tilf\u00f8j eller slet tidsblokke for Klatvask.",
         "data": {
-          "action": "Vælg handling"
+          "action": "V\u00e6lg handling"
         }
       },
       "add_storvask_slot": {
-        "title": "Tilføj Storvask Tidsblok",
+        "title": "Tilf\u00f8j Storvask Tidsblok",
         "description": "Angiv start- og sluttidspunkt for den nye tidsblok.\nFormat: HH:MM (f.eks. 07:00 eller 19:30)",
         "data": {
           "start_time": "Start tidspunkt",
@@ -132,22 +133,38 @@
         }
       },
       "add_klatvask_slot": {
-        "title": "Tilføj Klatvask Tidsblok",
+        "title": "Tilf\u00f8j Klatvask Tidsblok",
         "description": "Angiv start- og sluttidspunkt for den nye tidsblok.\nFormat: HH:MM (f.eks. 07:00 eller 19:30)",
         "data": {
           "start_time": "Start tidspunkt",
           "end_time": "Slut tidspunkt"
+        }
+      },
+      "panel": {
+        "title": "Panel Indstillinger",
+        "description": "Konfigurer MieleLogic sidebar-panelet. \u00c6ndringer tr\u00e6der i kraft med det samme uden genstart.",
+        "data": {
+          "panel_enabled": "Vis panel i sidebar",
+          "sidebar_title": "Sidebar titel",
+          "sidebar_icon": "Sidebar ikon (mdi:...)",
+          "require_admin": "Kr\u00e6v admin-adgang"
+        },
+        "data_description": {
+          "panel_enabled": "Aktiver eller deaktiver MieleLogic-panelet i sidebjælken",
+          "sidebar_title": "Titlen der vises i sidebjælkens navigation",
+          "sidebar_icon": "Material Design Icon til sidebjælken (f.eks. mdi:washing-machine)",
+          "require_admin": "Vis kun panelet for admin-brugere"
         }
       }
     },
     "error": {
       "cannot_connect": "Kunne ikke oprette forbindelse til MieleLogic API",
       "invalid_auth": "Ugyldige legitimationsoplysninger - tjek brugernavn og password",
-      "server_error": "Serverfejl, prøv igen senere",
+      "server_error": "Serverfejl, pr\u00f8v igen senere",
       "calendar_not_found": "Valgte kalender findes ikke - tjek at den stadig er konfigureret",
       "invalid_time_format": "Ugyldigt tidsformat - brug HH:MM (f.eks. 07:00)",
-      "end_before_start": "Sluttidspunkt skal være efter starttidspunkt",
-      "slot_overlap": "Tidsblokke må ikke overlappe med eksisterende blokke",
+      "end_before_start": "Sluttidspunkt skal v\u00e6re efter starttidspunkt",
+      "slot_overlap": "Tidsblokke m\u00e5 ikke overlappe med eksisterende blokke",
       "unknown": "Ukendt fejl opstod"
     }
   },
@@ -160,16 +177,16 @@
         "name": "Har Vasker Reservation"
       },
       "has_dryer_reservation": {
-        "name": "Har TÃ¸rretumbler Reservation"
+        "name": "Har T\u00f8rretumbler Reservation"
       },
       "reservation_starting_soon": {
         "name": "Reservation Starter Snart"
       },
       "washer_available": {
-        "name": "Vasker TilgÃ¦ngelig"
+        "name": "Vasker Tilg\u00e6ngelig"
       },
       "dryer_available": {
-        "name": "TÃ¸rretumbler TilgÃ¦ngelig"
+        "name": "T\u00f8rretumbler Tilg\u00e6ngelig"
       }
     },
     "sensor": {
@@ -180,7 +197,7 @@
         "name": "Vasker Status"
       },
       "dryer_status": {
-        "name": "TÃ¸rretumbler Status"
+        "name": "T\u00f8rretumbler Status"
       },
       "account_balance": {
         "name": "Konto Saldo"

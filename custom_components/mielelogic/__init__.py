@@ -1,12 +1,22 @@
-# VERSION = "1.9.1"
+# VERSION = "2.0.0"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    CONF_PANEL_ENABLED,
+    CONF_SIDEBAR_TITLE,
+    CONF_SIDEBAR_ICON,
+    CONF_REQUIRE_ADMIN,
+    DEFAULT_PANEL_ENABLED,
+    DEFAULT_SIDEBAR_TITLE,
+    DEFAULT_SIDEBAR_ICON,
+    DEFAULT_REQUIRE_ADMIN,
+)
 from .coordinator import MieleLogicDataUpdateCoordinator
 from .services import async_setup_services, async_unload_services
-from .panel import async_register_panel
+from .panel import async_register_panel, async_unregister_panel
 from .websocket import async_register_websocket_commands
 from .time_manager import TimeSlotManager
 from .booking_manager import BookingManager
@@ -48,7 +58,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Ensure config has all required keys
     await _ensure_config_complete(hass, entry)
     
-    # ✨ NEW v1.5.0: Initialize store (global, shared)
+    # Listen for option changes → reload automatically, no restart needed
+    entry.async_on_unload(
+        entry.add_update_listener(_async_update_listener)
+    )
+    
+    # Initialize store (global, shared)
     from .storage import MieleLogicStore
     if "store" not in hass.data.get(DOMAIN, {}):
         store = MieleLogicStore(hass)
@@ -62,16 +77,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = MieleLogicDataUpdateCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
     
-    # ✨ NEW v1.5.0: Setup managers
+    # Setup managers
     time_manager = TimeSlotManager(entry)
     
     from .notification_manager import NotificationManager
     notification_manager = NotificationManager(hass, store)
     
-    # v1.5.2: Pass both store and notification_manager to booking_manager
     booking_manager = BookingManager(coordinator, store, notification_manager)
     
-    # Store coordinator (like Secure Me does - platforms need coordinator object)
+    # Store coordinator (platforms need coordinator object)
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
@@ -87,13 +101,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if len([k for k in hass.data[DOMAIN].keys() if k != "store"]) == 1:
         await async_setup_services(hass, coordinator)
         
-        # ✨ NEW v1.5.0: Register panel (only once)
-        await async_register_panel(hass)
+        # Register panel from options (Energy Hub pattern)
+        options = entry.options
+        panel_enabled = options.get(CONF_PANEL_ENABLED, DEFAULT_PANEL_ENABLED)
+
+        if panel_enabled:
+            await async_register_panel(
+                hass,
+                sidebar_title=options.get(CONF_SIDEBAR_TITLE, DEFAULT_SIDEBAR_TITLE),
+                sidebar_icon=options.get(CONF_SIDEBAR_ICON, DEFAULT_SIDEBAR_ICON),
+                require_admin=options.get(CONF_REQUIRE_ADMIN, DEFAULT_REQUIRE_ADMIN),
+            )
+        else:
+            _LOGGER.info("MieleLogic: panel is disabled via settings")
         
-        # ✨ NEW v1.5.0: Register WebSocket commands (only once)
+        # Register WebSocket commands (only once)
         async_register_websocket_commands(hass)
     
-    _LOGGER.info("✅ MieleLogic v1.5.0 setup complete with integrated panel")
+    _LOGGER.info("MieleLogic v2.0.0 setup complete with integrated panel")
     return True
 
 
@@ -128,10 +153,23 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
         
-        # Unload services only if this is the last config entry
-        if not hass.data[DOMAIN]:
+        # Unload services and panel only if this is the last config entry
+        if not any(
+            k for k in hass.data[DOMAIN] if k not in ("store", "_panel_registered")
+        ):
             await async_unload_services(hass)
+            async_unregister_panel(hass)
         
         _LOGGER.info("MieleLogic integration unloaded successfully")
         return True
     return False
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Called automatically when the user saves new settings via Configure.
+
+    Reloads the integration (async_unload_entry + async_setup_entry)
+    without requiring a HA restart.
+    """
+    _LOGGER.debug("MieleLogic: settings updated, reloading panel...")
+    await hass.config_entries.async_reload(entry.entry_id)

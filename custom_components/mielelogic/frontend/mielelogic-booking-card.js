@@ -1,6 +1,6 @@
 /**
  * MieleLogic Booking Card
- * VERSION = "1.9.2"
+ * VERSION = "2.0.0"
  *
  * Custom Lovelace card — same visual language as Heat Manager / Indeklima.
  * Dark background, uppercase section labels, clean metric rows.

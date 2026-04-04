@@ -6,6 +6,58 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.0.0] - 2026-04-04
+
+### Ændret — Panel-registrering (Energy Hub-metoden) 🔧
+- **Parameteriseret panel** — Sidebar titel, ikon, og require_admin kan nu ændres via Options Flow
+- **Panel til/fra toggle** — Panel kan deaktiveres helt fra Indstillinger → Integrationer → Konfigurer
+- **Live reload** — Ændringer træder i kraft med det samme uden HA-genstart (`_async_update_listener`)
+- **Proper unregister** — `async_unregister_panel()` rydder `_panel_registered` flag korrekt
+- **Dependencies** — `manifest.json` deklarerer nu `http`, `frontend`, `panel_custom`
+- **strings.json** — Ny fil tilføjet (Gold tier krav)
+- **6 menupunkter** — Options Flow har nu Credentials, Calendar, Opening Hours, Machines, Time Slots, Panel
+
+### Ændret — Frontend redesign (Indeklima Designer) 🎨
+- **Design tokens** — Blå `#3b82f6` / cyan `#06b6d4` accent-farver fra `indeklima_designer_reference.md`
+- **Typografi** — DM Sans + DM Mono (Google Fonts)
+- **Layout** — `.panel-topbar` (fast) + `.panel-scroll` (flex) — samme pattern som Indeklima og Heat Manager
+- **Header** — Gradient-ikon (blå→cyan) + h1 titel + meta-info
+- **Tab-bar** — Pill-tabs med ikon + label (kun ikon på mobil)
+- **Cards** — `border-radius: 18px`, `var(--bg2)` baggrund, subtle hover
+- **Book-knap** — Gradient `--accent` → `--accent2`
+- **Slot chips** — DM Mono font, accent-glow baggrund
+- **Semantiske farver** — `--green` / `--orange` / `--red` fra Designer-specifikationen
+- **Responsivt** — Tab-labels skjules på mobil, padding reduceres
+
+---
+
+## [2.0.0] - 2026-04-04
+
+### Tilføjet — Panel-registrering (Energy Hub-metoden)
+- Panel til/fra, sidebar-titel, ikon og admin-only via Options Flow
+- Live reload — ændringer træder i kraft uden HA-genstart
+- `_async_update_listener` for automatisk genindlæsning
+- `async_unregister_panel` med proper flag-clearing
+- `strings.json` oprettet (Gold tier krav)
+- `manifest.json` dependencies: `http`, `frontend`, `panel_custom`
+
+### Tilføjet — Frontend redesign (Indeklima Designer)
+- DM Sans + DM Mono typografi (Google Fonts)
+- Blå/cyan accent-farver (`#3b82f6` / `#06b6d4`)
+- Fast topbar + scrollbart indhold (flex layout)
+- Gradient header-ikon, pill-tabs med ikoner
+- Cards med `border-radius: 18px`, subtle borders og hover
+- Semantiske statusfarver (grøn/orange/rød)
+- Responsivt: tab-labels skjules på mobil
+- Konsistent med Heat Manager, Indeklima og Energy Hub
+
+### Ændret
+- Alle .py-filer bumped til VERSION = "2.0.0"
+- Options Flow udvides fra 5 til 6 menupunkter (+ Panel)
+- Panel-indstillinger gemmes i `entry.options` (ikke `entry.data`)
+
+---
+
 ## [1.9.1] - 2026-03-28
 
 ### Tilføjet — Slots tilgængelighed 🟢🔴
@@ -42,7 +94,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
-## [2.0.0] - 2026-02-28
+## [1.8.0] - 2026-02-28
 
 ### Tilføjet — Admin-fane ⚙️
 - Driftsbesked der vises øverst i booking-oversigten
