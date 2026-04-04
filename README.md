@@ -1,6 +1,6 @@
 # MieleLogic — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/version-1.9.1-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.1%2B-blue.svg)](https://www.home-assistant.io/)
@@ -24,6 +24,8 @@ Home Assistant integration til MieleLogic vaskehus-systemer. Book vasketider, ov
 **Admin** — Driftsbesked til alle brugere og mulighed for at spærre for nye bookinger midlertidigt.
 
 **Statistik** — Se de seneste 30 dages afsluttede bookinger med brugernavn og varighed.
+
+**Panel-indstillinger** — Sidebar-titel, ikon, admin-only adgang og panel til/fra kan ændres via Options Flow — uden genstart.
 
 ---
 
@@ -71,6 +73,35 @@ type: custom:mielelogic-booking-card
 
 ---
 
+## Konfiguration (Options Flow)
+
+Indstillinger → Integrationer → MieleLogic → Konfigurer:
+
+| Menupunkt | Beskrivelse |
+|---|---|
+| **Credentials** | Opdater login-oplysninger |
+| **Calendar** | Aktiver/deaktiver synkronisering til ekstern kalender |
+| **Opening Hours** | Åbnings- og lukketider for vaskehuset |
+| **Machines** | Primær maskine for Klatvask og Storvask |
+| **Time Slots** | Tilføj/slet tidsblokke per vaskehus |
+| **Panel** | Sidebar-titel, ikon, til/fra, admin-only adgang |
+
+Alle ændringer træder i kraft med det samme — ingen genstart nødvendig.
+
+---
+
+## Design
+
+Fra v2.0.0 følger panelet **Indeklima Designer** design-sproget, som deles på tværs af alle Flemming's HA-integrationer:
+
+- **Accent-farver:** Blå `#3b82f6` / Cyan `#06b6d4`
+- **Typografi:** DM Sans (tekst) + DM Mono (tal/kode)
+- **Layout:** Fast topbar + scrollbart indhold
+- **Cards:** 18px border-radius, subtle borders og hover-effekter
+- **Responsivt:** Tab-labels skjules på mobil, reduceret padding
+
+---
+
 ## Versionskrav
 
 | Komponent | Minimumversion |
@@ -85,25 +116,26 @@ type: custom:mielelogic-booking-card
 
 ```
 custom_components/mielelogic/
-├── __init__.py
-├── manifest.json
-├── const.py
-├── config_flow.py
-├── coordinator.py
+├── __init__.py                    # Setup + update listener
+├── manifest.json                  # dependencies: http, frontend, panel_custom
+├── const.py                       # Panel constants (CONF_SIDEBAR_TITLE, etc.)
+├── config_flow.py                 # 6 options menu items (incl. Panel)
+├── coordinator.py                 # API polling + calendar sync
 ├── diagnostics.py
-├── sensor.py
-├── binary_sensor.py
+├── sensor.py                      # EntityDescription pattern (Gold tier)
+├── binary_sensor.py               # EntityDescription pattern (Gold tier)
 ├── calendar.py
-├── services.py
-├── panel.py
+├── services.py                    # Response support enabled
+├── panel.py                       # Energy Hub registration pattern
 ├── time_manager.py
 ├── booking_manager.py
-├── websocket.py                # 15 WebSocket-kommandoer
+├── websocket.py                   # 16 WebSocket commands
 ├── storage.py
 ├── notification_manager.py
+├── strings.json                   # Primary translation source
 ├── frontend/
 │   ├── entrypoint.js
-│   ├── panel.js                # Sidebarpanel — vanilla HTMLElement
+│   ├── panel.js                   # Indeklima Designer — vanilla HTMLElement
 │   └── mielelogic-booking-card.js
 └── translations/
     ├── da.json
@@ -114,21 +146,25 @@ custom_components/mielelogic/
 
 ## Panel-arkitektur
 
-Fra v1.9.1 er panelet skrevet i **vanilla HTMLElement** (shadow DOM) — samme arkitektur som Heat Manager og Indeklima. Ingen LitElement-dependency, ingen CDN-kald.
+Panelet er skrevet i **vanilla HTMLElement** (shadow DOM) — samme arkitektur som Heat Manager og Indeklima. Panel-registrering følger **Energy Hub-metoden** med parameteriseret sidebar:
 
-```javascript
-class MieleLogicPanel extends HTMLElement {
-  connectedCallback() { ... }
-  set hass(h) { ... }
-}
-customElements.define("mielelogic-panel", MieleLogicPanel);
+```python
+# panel.py — parameterized registration
+await async_register_panel(
+    hass,
+    sidebar_title=options.get(CONF_SIDEBAR_TITLE, "MieleLogic"),
+    sidebar_icon=options.get(CONF_SIDEBAR_ICON, "mdi:washing-machine"),
+    require_admin=options.get(CONF_REQUIRE_ADMIN, False),
+)
 ```
+
+Live reload via `_async_update_listener` — ændringer i Options Flow genindlæser panelet uden HA-genstart.
 
 ---
 
 ## WebSocket API
 
-17 WebSocket-kommandoer:
+16 WebSocket-kommandoer:
 
 ```
 Booking:        get_slots · make_booking · cancel_booking · get_bookings · get_status · get_machines
@@ -142,14 +178,14 @@ Statistik:      get_history · cleanup_history
 ## Kendte begrænsninger
 
 - Kun én vaskehus-instans understøttes (multi-vaskehus planlagt til v3.0.0)
-- Kalenderbegivenheder slettes ikke automatisk ved aflysning (planlagt v2.1.0)
+- Panel kræver internet (DM Sans font via Google Fonts)
 
 ---
 
 ## Fejlfinding
 
 **Panel vises ikke**
-Ryd browsercache (Ctrl+Shift+R). Panelet registreres ved HA-genstart.
+Ryd browsercache (Ctrl+Shift+R). Panelet registreres ved HA-genstart. Tjek at panelet er aktiveret: Indstillinger → Integrationer → MieleLogic → Konfigurer → Panel.
 
 **Notifikationer virker ikke**
 Panel → Notifikationer → Kontroller at enheder er valgt og notifikationer er aktiveret.
@@ -163,9 +199,9 @@ Kræver Home Assistant 2026.1.0+.
 
 Se [STATUS.md](STATUS.md) for detaljeret plan.
 
-- **v2.0.0** ✅ — Admin-tab, statistik, Gold tier EntityDescription
-- **v2.1.0** — Kalender-cleanup ved aflysning, Gold tier tests, brands-indsendelse
-- **v3.0.0** — Multi-vaskehus, aflys booking fra notifikation
+- **v2.0.0** ✅ — Energy Hub panel-registrering, Indeklima Designer redesign, Panel Options Flow
+- **v2.1.0** — Kalender-cleanup ved aflysning, cancel fra notification, Gold tier tests
+- **v3.0.0** — Multi-vaskehus, historik-udvidelse
 
 ---
 
@@ -175,5 +211,5 @@ MIT — se [LICENSE.md](LICENSE.md)
 
 ---
 
-**Seneste version:** 1.9.1 — 28. marts 2026  
+**Seneste version:** 2.0.0 — 4. april 2026
 **Udvikler:** KingPainter
