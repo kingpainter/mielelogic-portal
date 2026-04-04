@@ -35,6 +35,9 @@ CUSTOM_COMPONENTS = "custom_components"
 CARD_URL = f"/api/{DOMAIN}-card"
 CARD_FILENAME = "mielelogic-booking-card.js"
 
+LOGO_URL = f"/api/{DOMAIN}-logo"
+LOGO_FILENAME = "mielelogic_logo.png"
+
 
 async def async_register_panel(
     hass: HomeAssistant,
@@ -81,12 +84,18 @@ async def async_register_panel(
         panel_mtime = 0
 
     # ── Register static HTTP paths ─────────────────────────────────────────
+    logo_file = os.path.join(frontend_dir, LOGO_FILENAME)
+
     static_paths = [
         StaticPathConfig(PANEL_URL, panel_file, cache_headers=False),
     ]
     if os.path.isfile(card_file):
         static_paths.append(
             StaticPathConfig(CARD_URL, card_file, cache_headers=False)
+        )
+    if os.path.isfile(logo_file):
+        static_paths.append(
+            StaticPathConfig(LOGO_URL, logo_file, cache_headers=True)
         )
 
     try:

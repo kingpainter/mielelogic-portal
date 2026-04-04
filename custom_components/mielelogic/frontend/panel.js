@@ -231,7 +231,7 @@ class MieleLogicPanel extends HTMLElement {
 
   _htmlHeader(count, max) {
     const bal = this._status.balance ? ` · ${this._fmtCurrency(this._status.balance)}` : "";
-    return `<div class="header"><div class="header-icon">🫧</div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.0.0</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
+    return `<div class="header"><div class="header-icon"><img src="/api/mielelogic-logo" alt="MieleLogic" style="width:28px;height:28px;border-radius:4px"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.0.0</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
   }
 
   _htmlTabs() {
@@ -353,8 +353,9 @@ class MieleLogicPanel extends HTMLElement {
 .field-inp:focus,.field-sel:focus{outline:none;border-color:var(--accent)}
 .slot-chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
 .slot-chip{font-size:11px;padding:3px 8px;border-radius:12px;font-weight:600;font-family:'DM Mono',monospace}
-.chip-free{background:rgba(16,185,129,0.15);color:var(--green)}
-.chip-booked{background:rgba(239,68,68,0.12);color:var(--red)}
+.chip-free{background:rgba(74,222,128,0.08);border:1.5px solid rgba(74,222,128,0.35);color:#4ade80;cursor:pointer;transition:all 0.15s}
+.chip-free:hover{background:rgba(74,222,128,0.16);border-color:#4ade80}
+.chip-booked{background:rgba(55,65,81,0.35);border:1.5px solid rgba(55,65,81,0.5);color:#374151;cursor:not-allowed;opacity:0.6;text-decoration:line-through}
 .book-btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity 0.2s}
 .book-btn:disabled{cursor:not-allowed;opacity:0.6}
 .btn-ready{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}

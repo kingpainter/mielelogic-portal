@@ -225,7 +225,7 @@ class MieleLogicBookingCard extends HTMLElement {
 
         <!-- HEADER -->
         <div class="card-header">
-          <div class="card-icon">🫧</div>
+          <div class="card-icon"><img src="/api/mielelogic-logo" alt="MieleLogic" style="width:24px;height:24px;border-radius:4px"></div>
           <div class="card-title-block">
             <span class="card-title">Vaskehus Booking</span>
             <span class="card-sub">
