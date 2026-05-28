@@ -66,7 +66,7 @@ custom_components/mielelogic/
 
 ---
 
-## WebSocket Commands (17 total)
+## WebSocket Commands (16 total)
 
 ### Booking (6)
 ```

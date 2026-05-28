@@ -1,7 +1,7 @@
 # MieleLogic — Projektstatus og Roadmap
 
-**Sidst opdateret:** 28. marts 2026  
-**Aktuel version:** 1.9.1  
+**Sidst opdateret:** 28. maj 2026  
+**Aktuel version:** 2.0.0  
 **HA-krav:** Home Assistant Core 2026.1.0+
 
 ---
@@ -31,10 +31,14 @@ MieleLogic er en fuldt funktionel Home Assistant-integration til MieleLogic vask
 | Genkonfigurationsflow | ✅ Stabil | v2.0.0 |
 | Mørkt UI-design (Heat Manager-stil) | ✅ Stabil | v1.9.1 |
 | Vanilla JS panel (ingen LitElement/CDN) | ✅ Stabil | v1.9.1 |
-| **Slots tilgængelighed (ledig/optaget)** | ✅ Stabil | **v1.9.1** |
-| **Kalender UTC-fix (korrekte tider)** | ✅ Stabil | **v1.9.1** |
-| **Persistent kalender-duplikat-tracking** | ✅ Stabil | **v1.9.1** |
-| **Kalender-sletning ved aflysning** | ⏳ Afventer upload af storage.py + booking_manager.py | **v1.9.1** |
+| Slots tilgængelighed (ledig/optaget) | ✅ Stabil | v1.9.1 |
+| Kalender UTC-fix (korrekte tider) | ✅ Stabil | v1.9.1 |
+| Persistent kalender-duplikat-tracking | ✅ Stabil | v1.9.1 |
+| Kalender-sletning ved aflysning | ✅ Stabil | v1.9.1 |
+| **Energy Hub panel-registrering (parameteriseret)** | ✅ Stabil | **v2.0.0** |
+| **Indeklima Designer redesign (blå/cyan)** | ✅ Stabil | **v2.0.0** |
+| **Panel Options Flow (6 menupunkter)** | ✅ Stabil | **v2.0.0** |
+| **Live reload via _async_update_listener** | ✅ Stabil | **v2.0.0** |
 
 ### Kendte begrænsninger
 
@@ -46,11 +50,13 @@ MieleLogic er en fuldt funktionel Home Assistant-integration til MieleLogic vask
 
 ## Næste skridt — v2.1.0
 
-**Tema:** Gold Tier komplettering og brands-indsendelse
+**Tema:** Kalender-cleanup, stabilitet og Gold Tier komplettering
 
+- **Kalender-event cleanup** — slet kalenderbegivenheder korrekt ved booking-aflysning
+- **Cancel fra notification** — aflys booking direkte fra push-notifikation
+- **`hass.data[DOMAIN]` → `entry.runtime_data`** — migrer til HA 2025+ mønster
 - **Gold Tier tests** — `config_flow_test` og integration test coverage
 - **Brands-indsendelse** — ikon-design og PR til `home-assistant/brands`
-- **Lovelace card** — slots tilgængelighed i booking-kortet (ligesom panel)
 
 ---
 
@@ -62,9 +68,9 @@ MieleLogic er en fuldt funktionel Home Assistant-integration til MieleLogic vask
 
 ---
 
-## Panel-arkitektur (v1.9.1+)
+## Panel-arkitektur (v2.0.0+)
 
-Panelet er skrevet i **vanilla `HTMLElement`** med shadow DOM — præcis samme mønster som Heat Manager og Indeklima:
+Fra v2.0.0 bruger MieleLogic **Energy Hub panel-registrerings-mønstret** med parameteriseret sidebar og live reload. Frontendkoden er skrevet i **vanilla `HTMLElement`** med shadow DOM (samme mønster som Heat Manager og Indeklima):
 
 ```javascript
 class MieleLogicPanel extends HTMLElement {
@@ -142,10 +148,13 @@ v1.5.2  Feb 2026  Brugertracking, automatiske notifikationer
 v1.6.0  Feb 2026  Brugertracking-fix
 v1.7.0  Feb 2026  Produktionslog-rensning
 v2.0.0  Feb 2026  Rige notifikationer, admin-tab, statistik, Gold Tier
-v1.9.1  Mar 2026  Vanilla JS, redesign, ikon, slots tilgængelighed,  ◀ NU
+v1.9.1  Mar 2026  Vanilla JS, redesign, ikon, slots tilgængelighed,
                   kalender-fixes (UTC, duplikater, sletning)
+v2.0.0  Apr 2026  Energy Hub panel-registrering, Indeklima Designer  ◀ NU
+                  redesign, Panel Options Flow, live reload
 ─────────────────────────────────────────────────────────────────────
-v2.1.0  Kommende  Gold Tier tests, brands-indsendelse
+v2.1.0  Kommende  Kalender-cleanup, cancel fra notifikation,
+                  runtime_data-migration, Gold Tier tests
 v3.0.0  Fremtid   Multi-vaskehus, avancerede funktioner
 ```
 
