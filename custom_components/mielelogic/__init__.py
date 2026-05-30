@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "2.3.0"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 from homeassistant.config_entries import ConfigEntry
@@ -117,8 +117,70 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
         # Register WebSocket commands (only once)
         async_register_websocket_commands(hass)
+
+        # Listen for mobile app notification actions (cancel from push)
+        # Action format: MIELELOGIC_CANCEL_{machine}_{start_iso}
+        async def _handle_notification_action(event) -> None:
+            action = event.data.get("action", "")
+            if not action.startswith("MIELELOGIC_CANCEL_"):
+                return
+            try:
+                # Parse: MIELELOGIC_CANCEL_{machine_number}_{start_iso}
+                parts = action[len("MIELELOGIC_CANCEL_"):].split("_", 1)
+                if len(parts) != 2:
+                    _LOGGER.warning("Invalid cancel action format: %s", action)
+                    return
+                machine_number = int(parts[0])
+                start_time = parts[1]  # ISO format: 2026-05-30T14:00:00
+
+                # Find booking end_time from current reservations
+                domain_data = hass.data.get(DOMAIN, {})
+                booking_manager = None
+                for key, value in domain_data.items():
+                    if isinstance(value, dict) and "booking_manager" in value:
+                        booking_manager = value["booking_manager"]
+                        break
+
+                if not booking_manager:
+                    _LOGGER.warning("Cancel from notification: booking_manager not found")
+                    return
+
+                # Find the matching booking to get end_time
+                bookings = booking_manager.get_current_bookings()
+                end_time = None
+                for b in bookings:
+                    b_start = b.get("Start", "").replace(" ", "T")
+                    if b.get("MachineNumber") == machine_number and b_start.startswith(start_time[:16]):
+                        end_time = b.get("End", "")
+                        break
+
+                if not end_time:
+                    _LOGGER.warning(
+                        "Cancel from notification: booking not found for machine %s at %s",
+                        machine_number, start_time,
+                    )
+                    return
+
+                result = await booking_manager.cancel_booking(
+                    machine_number=machine_number,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
+                if result.get("success"):
+                    _LOGGER.info(
+                        "✅ Booking cancelled via push notification: machine %s at %s",
+                        machine_number, start_time,
+                    )
+                else:
+                    _LOGGER.warning(
+                        "Cancel via push notification failed: %s", result.get("message")
+                    )
+            except Exception as err:
+                _LOGGER.exception("Error handling notification cancel action: %s", err)
+
+        hass.bus.async_listen("mobile_app_notification_action", _handle_notification_action)
     
-    _LOGGER.info("MieleLogic v2.0.0 setup complete with integrated panel")
+    _LOGGER.info("MieleLogic v2.3.0 setup complete with integrated panel")
     return True
 
 

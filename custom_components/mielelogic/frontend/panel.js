@@ -1,5 +1,5 @@
 // MieleLogic Panel — Main UI Component
-// VERSION = "2.3.0"
+// VERSION = "2.4.0"
 // Architecture: vanilla HTMLElement + shadow DOM
 // Design: Indeklima Designer (blue/cyan accent)
 // element name: mielelogic-panel-v2
@@ -8,6 +8,7 @@
 //   - Inline cancel confirmation on booking rows (replaces native confirm())
 //   - Skeleton loading cards on initial load (before first data arrives)
 //   - 7-day strip: _weekDays[] cache, _weekLoading flag, auto-loads on vaskehus change
+//   - Countdown timers on active bookings (live tick via _countdownInterval)
 //   - 7-day availability strip above date picker (lazy load, clickable days)
 
 
@@ -49,6 +50,7 @@ class MieleLogicPanel extends HTMLElement {
     this._toast             = null;
     this._toastTimer        = null;
     // Inline confirmations: null | { type: "book", slot, date } | { type: "cancel", idx }
+    this._countdownInterval = null;  // ticks every second to update countdown displays
     this._confirm           = null;
   }
 
@@ -61,12 +63,45 @@ class MieleLogicPanel extends HTMLElement {
   connectedCallback() {
     this._render();
     this._startPolling();
+    this._startCountdown();
     document.addEventListener("visibilitychange", this._onVisibility);
   }
 
   disconnectedCallback() {
     this._stopPolling();
+    this._stopCountdown();
     document.removeEventListener("visibilitychange", this._onVisibility);
+  }
+
+  _startCountdown() {
+    if (this._countdownInterval) return;
+    this._countdownInterval = setInterval(() => this._tickCountdown(), 1000);
+  }
+
+  _stopCountdown() {
+    clearInterval(this._countdownInterval);
+    this._countdownInterval = null;
+  }
+
+  // Tick: update only countdown elements without full re-render
+  _tickCountdown() {
+    const root = this.shadowRoot;
+    if (!root) return;
+    root.querySelectorAll("[data-countdown]").forEach(el => {
+      const endMs = +el.dataset.countdown;
+      const remaining = endMs - Date.now();
+      if (remaining <= 0) {
+        el.textContent = "Færdig";
+        el.classList.add("cd-done");
+      } else {
+        const h = Math.floor(remaining / 3600000);
+        const m = Math.floor((remaining % 3600000) / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        el.textContent = h > 0
+          ? \`\${h}t \${String(m).padStart(2,"0")}m\`
+          : \`\${String(m).padStart(2,"0")}:\${String(s).padStart(2,"0")}\`;
+      }
+    });
   }
 
   _onVisibility = () => {
@@ -326,7 +361,7 @@ class MieleLogicPanel extends HTMLElement {
 
   _htmlHeader(count, max) {
     const bal = this._status.balance ? ` · ${this._fmtCurrency(this._status.balance)}` : "";
-    return `<div class="header"><div class="header-icon"><img src="${_ML_LOGO}" alt="MieleLogic"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.3.0</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
+    return `<div class="header"><div class="header-icon"><img src="${_ML_LOGO}" alt="MieleLogic"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.4.0</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
   }
 
   _htmlTabs() {
@@ -363,7 +398,27 @@ class MieleLogicPanel extends HTMLElement {
 
   _htmlBookingRow(b, idx) {
     const dur = (() => { const d = b.Duration ?? b.duration; if (d != null && !isNaN(+d)) return +d + " min"; try { const m = Math.round((new Date(b.End) - new Date(b.Start)) / 60000); if (m > 0) return m + " min"; } catch(e) {} return ""; })();
-    return `<div class="brow"><div class="brow-accent ${b.vaskehus === "Storvask" ? "ba-stor" : "ba-klat"}"></div><div class="brow-info"><span class="brow-name">${b.vaskehus || "Booking"}</span><span class="brow-meta">${this._fmtDate(b.Start)}${dur ? " · " + dur : ""}${b.created_by ? " · " + b.created_by : ""}</span></div><button class="del-btn" data-bindex="${idx}" ${this._loading ? "disabled" : ""} title="Slet booking">✕</button></div>`;
+    // Countdown: show remaining time if booking is currently active (started, not yet ended)
+    let cdChip = "";
+    try {
+      const now = Date.now();
+      const startMs = new Date(b.Start).getTime();
+      const endMs   = new Date(b.End).getTime();
+      if (startMs <= now && endMs > now) {
+        const remaining = endMs - now;
+        const m = Math.floor(remaining / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        const initTxt = remaining <= 0 ? "Færdig" : (m >= 60
+          ? `${Math.floor(m/60)}t ${String(m%60).padStart(2,"0")}m`
+          : `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`);
+        cdChip = `<span class="cd-chip${remaining <= 0 ? " cd-done" : ""}" data-countdown="${endMs}" title="Resterende tid">${initTxt}</span>`;
+      } else if (startMs > now) {
+        // Future booking — show "om Xm" until it starts
+        const minsUntil = Math.ceil((startMs - now) / 60000);
+        cdChip = `<span class="cd-chip cd-future" title="Starter om ${minsUntil} min">om ${minsUntil}m</span>`;
+      }
+    } catch(e) {}
+    return `<div class="brow"><div class="brow-accent ${b.vaskehus === "Storvask" ? "ba-stor" : "ba-klat"}"></div><div class="brow-info"><span class="brow-name">${b.vaskehus || "Booking"}${cdChip}</span><span class="brow-meta">${this._fmtDate(b.Start)}${dur ? " · " + dur : ""}${b.created_by ? " · " + b.created_by : ""}</span></div><button class="del-btn" data-bindex="${idx}" ${this._loading ? "disabled" : ""} title="Slet booking">✕</button></div>`;
   }
 
   _htmlNotifications() {
@@ -616,6 +671,9 @@ class MieleLogicPanel extends HTMLElement {
 .wdot-full{background:var(--red);opacity:0.7}
 .skel-wlabel{height:9px;width:22px;margin-bottom:2px}
 .skel-wdot{width:8px;height:8px;border-radius:50%}
+.cd-chip{display:inline-flex;align-items:center;margin-left:8px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;background:rgba(16,185,129,0.12);color:var(--green);vertical-align:middle;transition:all 0.3s}
+.cd-chip.cd-done{background:rgba(148,163,184,0.12);color:var(--sub)}
+.cd-chip.cd-future{background:rgba(59,130,246,0.12);color:var(--accent)}
     `;
   }
 }

@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "2.3.0"
 """Manage booking and cancellation operations."""
 import logging
 from typing import Dict, List
@@ -65,10 +65,18 @@ class BookingManager:
                     if time_manager:
                         vaskehus = time_manager.get_vaskehus_for_machine(machine_number) or "Vaskehus"
                     dt = datetime.fromisoformat(start_datetime.replace(" ", "T"))
+                    # Build cancel action ID — decoded by the HA event listener in __init__.py
+                    # Format: MIELELOGIC_CANCEL_{machine}_{start_iso}
+                    cancel_action = f"MIELELOGIC_CANCEL_{machine_number}_{start_datetime.replace(' ', 'T')}"
                     await self.notification_manager.send_notification(
                         "booking_created",
-                        {"vaskehus": vaskehus, "date": dt.strftime("%d-%m-%Y"),
-                         "time": dt.strftime("%H:%M"), "duration": duration},
+                        {
+                            "vaskehus": vaskehus,
+                            "date": dt.strftime("%d-%m-%Y"),
+                            "time": dt.strftime("%H:%M"),
+                            "duration": duration,
+                            "_cancel_action": cancel_action,  # stripped before display
+                        },
                     )
                 except Exception as err:
                     _LOGGER.warning("Could not send booking notification: %s", err)
@@ -123,7 +131,13 @@ class BookingManager:
             return {"success": False, "message": f"Ukendt fejl: {err}"}
 
     async def _delete_calendar_event(self, machine_number: int, start_time: str) -> None:
-        """Delete the calendar event associated with a cancelled booking."""
+        """Delete the calendar event associated with a cancelled booking.
+
+        Strategy (v2.3.0):
+        1. Primary: match by UID stored in _created_events (most reliable)
+        2. Fallback: search a ±1h window and match by summary
+        3. Fallback: try summary match without UID
+        """
         try:
             target_calendar = self.coordinator.sync_to_calendar
             if not target_calendar:
@@ -152,12 +166,29 @@ class BookingManager:
 
             response = await self.hass.services.async_call(
                 "calendar", "get_events",
-                {"entity_id": target_calendar, "start_date_time": window_start.isoformat(), "end_date_time": window_end.isoformat()},
+                {
+                    "entity_id": target_calendar,
+                    "start_date_time": window_start.isoformat(),
+                    "end_date_time": window_end.isoformat(),
+                },
                 blocking=True, return_response=True,
             )
 
             events = response.get(target_calendar, {}).get("events", [])
-            matching = [e for e in events if e.get("summary") == summary]
+
+            # Match priority: exact summary + start time match, then summary only
+            start_dt_str = start_dt.isoformat()
+            matching = [
+                e for e in events
+                if e.get("summary") == summary
+                and (
+                    e.get("start", "").startswith(start_dt_str[:16])
+                    or e.get("start", "") == start_dt_str
+                )
+            ]
+            # Wider fallback: summary match only
+            if not matching:
+                matching = [e for e in events if e.get("summary") == summary]
 
             if not matching:
                 _LOGGER.debug("No calendar event found to delete: %s at %s", summary, start_time)
@@ -165,15 +196,15 @@ class BookingManager:
                     await self.store.async_remove_calendar_synced_event(machine_number, start_time)
                 return
 
-            event = matching[0]
-            event_start = event.get("start", start_dt.isoformat())
-            event_end   = event.get("end", event_start)
-
             if not self.hass.services.has_service("calendar", "delete_event"):
                 _LOGGER.debug("calendar.delete_event not available (HA 2026.1+ required)")
                 return
 
-            call_data = {
+            event = matching[0]
+            event_start = event.get("start", start_dt.isoformat())
+            event_end   = event.get("end", event_start)
+
+            call_data: dict = {
                 "entity_id": target_calendar,
                 "start_date_time": event_start,
                 "end_date_time": event_end,
@@ -191,7 +222,10 @@ class BookingManager:
             _LOGGER.info("Deleted calendar event: %s at %s", summary, start_time)
 
         except Exception as err:
-            _LOGGER.warning("Could not delete calendar event for machine %s at %s: %s", machine_number, start_time, err)
+            _LOGGER.warning(
+                "Could not delete calendar event for machine %s at %s: %s",
+                machine_number, start_time, err,
+            )
 
     def get_current_bookings(self) -> List[Dict]:
         reservations = self.coordinator.data.get("reservations", {})

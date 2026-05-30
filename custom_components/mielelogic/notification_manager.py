@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "2.3.0"
 """Notification manager for MieleLogic."""
 
 import logging
@@ -50,12 +50,44 @@ class NotificationManager:
         # Send to all devices
         for device in devices:
             try:
+                # Build rich notification data
+                notification_data: dict[str, Any] = {
+                    "url": "/mielelogic",  # Deep link to panel on tap
+                    "push": {"sound": "default"},
+                }
+
+                # For booking_created: add Cancel action button
+                # Action identifier encodes machine + start_time for the event listener
+                cancel_action = variables.get("_cancel_action")
+                if cancel_action:
+                    notification_data["actions"] = [
+                        {
+                            "action": cancel_action,
+                            "title": "Aflys booking",
+                            "destructive": True,
+                        },
+                        {
+                            "action": "URI",
+                            "title": "Åbn panel",
+                            "uri": "/mielelogic",
+                        },
+                    ]
+                else:
+                    notification_data["actions"] = [
+                        {
+                            "action": "URI",
+                            "title": "Åbn panel",
+                            "uri": "/mielelogic",
+                        },
+                    ]
+
                 await self.hass.services.async_call(
                     "notify",
                     device.replace("notify.", ""),
                     {
                         "title": title,
                         "message": message,
+                        "data": notification_data,
                     },
                     blocking=False,
                 )
