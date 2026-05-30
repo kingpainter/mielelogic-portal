@@ -98,8 +98,8 @@ class MieleLogicPanel extends HTMLElement {
         const m = Math.floor((remaining % 3600000) / 60000);
         const s = Math.floor((remaining % 60000) / 1000);
         el.textContent = h > 0
-          ? \`\${h}t \${String(m).padStart(2,"0")}m\`
-          : \`\${String(m).padStart(2,"0")}:\${String(s).padStart(2,"0")}\`;
+          ? `${h}t ${String(m).padStart(2,"0")}m`
+          : `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
       }
     });
   }

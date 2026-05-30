@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.4.0] - 2026-05-30
+
+### Tilføjet — Backend/stabilitet & UX
+- **Cancel fra push-notifikation** — `booking_created`-notifikation får nu en “Aflys booking” action-knap (destructive, iOS + Android). Event listener på `mobile_app_notification_action` i `__init__.py` parser action-ID og kalder `cancel_booking()` direkte
+- **Countdown-chip på aktive bookinger** — Grøn chip med MM:SS når booking er aktiv nu, blå chip med “om Xm” når fremtidig, grå “Færdig” når udløbet. Ticker på 1s interval opdaterer kun `[data-countdown]` elementer — ingen fuld re-render
+- **Robust kalender-sletning** — `_delete_calendar_event` matcher nu på summary + præcis starttid først, derefter summary-only fallback. `delete_event`-tjek rykket før event-access
+- **Rige notifikationer** — Alle notifikationer får nu `data.url = "/mielelogic"` (tap åbner panel) og `data.push.sound = "default"`. Åbn Panel-knap på alle typer
+- **Versioner:** `__init__.py`, `booking_manager.py`, `notification_manager.py` — alle bumped til 2.3.0. `panel.js` → v2.4.0
+
+---
+
 ## [2.3.0] - 2026-05-30
 
 ### Tilføjet — 7-dages dag-strip
