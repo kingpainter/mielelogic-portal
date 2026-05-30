@@ -1,5 +1,5 @@
 // MieleLogic Panel — Main UI Component
-// VERSION = "2.4.0"
+// VERSION = "2.5.0"
 // Architecture: vanilla HTMLElement + shadow DOM
 // Design: Indeklima Designer (blue/cyan accent)
 // element name: mielelogic-panel-v2
@@ -9,6 +9,7 @@
 //   - Skeleton loading cards on initial load (before first data arrives)
 //   - 7-day strip: _weekDays[] cache, _weekLoading flag, auto-loads on vaskehus change
 //   - Countdown timers on active bookings (live tick via _countdownInterval)
+//   - Secondary calendar chips in booking form (get_calendars WS)
 //   - 7-day availability strip above date picker (lazy load, clickable days)
 
 
@@ -51,6 +52,9 @@ class MieleLogicPanel extends HTMLElement {
     this._toastTimer        = null;
     // Inline confirmations: null | { type: "book", slot, date } | { type: "cancel", idx }
     this._countdownInterval = null;  // ticks every second to update countdown displays
+    this._calendars         = [];    // [{entity_id, name}] secondary calendars from get_calendars
+    this._calendarSel       = [];    // entity_ids currently selected by user
+    this._calendarsLoaded   = false;
     this._confirm           = null;
   }
 
@@ -121,7 +125,7 @@ class MieleLogicPanel extends HTMLElement {
 
   _stopPolling() { clearInterval(this._interval); this._interval = null; }
 
-  async _init() { await Promise.all([this._loadCore(), this._loadAdmin(), this._loadWeek()]); }
+  async _init() { await Promise.all([this._loadCore(), this._loadAdmin(), this._loadWeek(), this._loadCalendars()]); }
 
   async _loadCore() {
     if (!this._hass) return;
@@ -192,11 +196,23 @@ class MieleLogicPanel extends HTMLElement {
     this._historyLoading = false; this._render();
   }
 
+
+  async _loadCalendars() {
+    if (!this._hass || this._calendarsLoaded) return;
+    try {
+      const r = await this._hass.callWS({ type: "mielelogic/get_calendars" });
+      this._calendars = r.secondary || [];
+      // Default: none selected (secondary calendars are opt-in)
+      this._calendarSel = [];
+      this._calendarsLoaded = true;
+    } catch (e) { this._calendars = []; this._calendarsLoaded = true; }
+  }
+
   // Called when user clicks "Book nu" — shows inline confirmation instead of booking immediately
   _requestBook() {
     if (!this._selectedSlot || !this._selectedDate) { this._showToast("Vælg tidslot og dato", "warn"); return; }
     const slot = this._slots.find(s => s.start === this._selectedSlot);
-    this._confirm = { type: "book", label: slot?.label || this._selectedSlot, vaskehus: this._vaskehus, date: this._selectedDate };
+    this._confirm = { type: "book", label: slot?.label || this._selectedSlot, vaskehus: this._vaskehus, date: this._selectedDate, calendars: [...this._calendarSel] };
     this._render();
   }
 
@@ -204,7 +220,7 @@ class MieleLogicPanel extends HTMLElement {
     this._confirm = null;
     this._loading = true; this._error = null; this._render();
     try {
-      const r = await this._hass.callWS({ type: "mielelogic/make_booking", vaskehus: this._vaskehus, slot_start: this._selectedSlot, date: this._selectedDate });
+      const r = await this._hass.callWS({ type: "mielelogic/make_booking", vaskehus: this._vaskehus, slot_start: this._selectedSlot, date: this._selectedDate, extra_calendars: this._confirm?.calendars || [] });
       if (r.success) { this._showToast("✓ Booking oprettet!", "ok"); await new Promise(res => setTimeout(res, 400)); await this._loadCore(); }
       else { this._error = r.message; this._showToast(r.message, "warn"); }
     } catch (e) { this._error = e.message; this._showToast("Booking fejlede: " + e.message, "err"); }
@@ -361,7 +377,7 @@ class MieleLogicPanel extends HTMLElement {
 
   _htmlHeader(count, max) {
     const bal = this._status.balance ? ` · ${this._fmtCurrency(this._status.balance)}` : "";
-    return `<div class="header"><div class="header-icon"><img src="${_ML_LOGO}" alt="MieleLogic"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.4.0</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
+    return `<div class="header"><div class="header-icon"><img src="${_ML_LOGO}" alt="MieleLogic"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.5.0</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
   }
 
   _htmlTabs() {
@@ -381,7 +397,7 @@ class MieleLogicPanel extends HTMLElement {
       return `<span class="slot-chip chip-free${this._selectedSlot === sl.start ? " chip-selected" : ""}" data-chipslot="${sl.start}" title="Vælg ${sl.label}">${sl.start} ✓</span>`;
     }).join("");
     const bookingsHtml = this._bookings.length === 0 ? `<div class="empty-row">Ingen aktive bookinger</div>` : this._bookings.map((b, i) => this._htmlBookingRow(b, i)).join("");
-    return `<div class="card">${infoMsg}${lockMsg}<div class="section-title">NY BOOKING</div><div class="vhus-toggle"><button class="vhus-btn${this._vaskehus === "Klatvask" ? " vhus-active" : ""}" data-vhus="Klatvask">${this._svgKlatvask()} Klatvask</button><button class="vhus-btn${this._vaskehus === "Storvask" ? " vhus-active" : ""}" data-vhus="Storvask">${this._svgStorvask()} Storvask</button></div><div class="field-blk"><span class="field-lbl">TIDSBLOK</span><div class="sel-wrap"><select class="field-sel" data-field="slot" ${this._loading || !this._slots.length ? "disabled" : ""}>${slotsOpts}</select><span class="sel-arr">▾</span></div></div><div class="slot-chips">${chips}</div><div class="field-blk"><span class="field-lbl">DATO</span><input type="date" class="field-inp" data-field="date" value="${this._selectedDate}" ${this._loading ? "disabled" : ""}/></div>${this._htmlWeekStrip()}${bookBtn}</div><div class="card"><div class="section-title-row"><span class="section-title">AKTIVE BOOKINGER</span><span class="cnt-badge">${this._bookings.length}</span></div>${bookingsHtml}</div>`;
+    return `<div class="card">${infoMsg}${lockMsg}<div class="section-title">NY BOOKING</div><div class="vhus-toggle"><button class="vhus-btn${this._vaskehus === "Klatvask" ? " vhus-active" : ""}" data-vhus="Klatvask">${this._svgKlatvask()} Klatvask</button><button class="vhus-btn${this._vaskehus === "Storvask" ? " vhus-active" : ""}" data-vhus="Storvask">${this._svgStorvask()} Storvask</button></div><div class="field-blk"><span class="field-lbl">TIDSBLOK</span><div class="sel-wrap"><select class="field-sel" data-field="slot" ${this._loading || !this._slots.length ? "disabled" : ""}>${slotsOpts}</select><span class="sel-arr">▾</span></div></div><div class="slot-chips">${chips}</div><div class="field-blk"><span class="field-lbl">DATO</span><input type="date" class="field-inp" data-field="date" value="${this._selectedDate}" ${this._loading ? "disabled" : ""}/></div>${this._htmlWeekStrip()}${this._htmlCalendarChips()}${bookBtn}</div><div class="card"><div class="section-title-row"><span class="section-title">AKTIVE BOOKINGER</span><span class="cnt-badge">${this._bookings.length}</span></div>${bookingsHtml}</div>`;
   }
 
 
@@ -394,6 +410,15 @@ class MieleLogicPanel extends HTMLElement {
       const dot = d.has_free ? `<span class="wdot wdot-free" title="${d.total - d.booked} ledige"></span>` : `<span class="wdot wdot-full" title="Fuldt booket"></span>`;
       return `<button class="${cls}" data-weekday="${d.date}" title="${d.date}${d.is_today ? " (i dag)" : ""}: ${d.has_free ? d.total - d.booked + " ledige" : "fuldt"}">${dot}<span class="wday-label">${d.label}</span><span class="wday-num">${d.day_num}</span></button>`;
     }).join("")}</div>`;
+  }
+
+  _htmlCalendarChips() {
+    if (!this._calendars.length) return "";
+    const chips = this._calendars.map(c => {
+      const sel = this._calendarSel.includes(c.entity_id);
+      return `<button class="cal-chip${sel ? " cal-chip-sel" : ""}" data-calid="${c.entity_id}" title="${sel ? "Fjern fra booking" : "Tilføj til booking"}">📅 ${c.name}</button>`;
+    }).join("");
+    return `<div class="field-blk"><span class="field-lbl">TILFØJ TIL KALENDER</span><div class="cal-chips">${chips}</div></div>`;
   }
 
   _htmlBookingRow(b, idx) {
@@ -455,6 +480,16 @@ class MieleLogicPanel extends HTMLElement {
     root.querySelectorAll("[data-vhus]").forEach(b => b.addEventListener("click", () => { this._vaskehus=b.dataset.vhus; this._selectedSlot=""; this._weekDays=[]; Promise.all([this._loadSlots(), this._loadWeek()]); }));
     const slotSel=root.querySelector("[data-field='slot']"); if(slotSel) slotSel.addEventListener("change",e=>{this._selectedSlot=e.target.value; this._render();});
     const dateIn=root.querySelector("[data-field='date']"); if(dateIn) dateIn.addEventListener("change",e=>{this._selectedDate=e.target.value;this._selectedSlot="";this._loadSlots().then(()=>this._render());});
+    root.querySelectorAll("[data-calid]").forEach(btn => btn.addEventListener("click", () => {
+      const id = btn.dataset.calid;
+      if (this._calendarSel.includes(id)) {
+        this._calendarSel = this._calendarSel.filter(c => c !== id);
+        btn.classList.remove("cal-chip-sel");
+      } else {
+        this._calendarSel = [...this._calendarSel, id];
+        btn.classList.add("cal-chip-sel");
+      }
+    }));
     root.querySelectorAll("[data-weekday]").forEach(btn => btn.addEventListener("click", () => {
       this._selectedDate = btn.dataset.weekday;
       this._selectedSlot = "";
@@ -674,6 +709,10 @@ class MieleLogicPanel extends HTMLElement {
 .cd-chip{display:inline-flex;align-items:center;margin-left:8px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;background:rgba(16,185,129,0.12);color:var(--green);vertical-align:middle;transition:all 0.3s}
 .cd-chip.cd-done{background:rgba(148,163,184,0.12);color:var(--sub)}
 .cd-chip.cd-future{background:rgba(59,130,246,0.12);color:var(--accent)}
+.cal-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.cal-chip{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:10px;cursor:pointer;background:var(--bg);border:1.5px solid var(--div);color:var(--sub);font-size:13px;font-weight:500;font-family:inherit;transition:all 0.15s}
+.cal-chip:hover{border-color:var(--accent2);color:var(--accent2)}
+.cal-chip-sel{border-color:var(--accent2)!important;background:rgba(6,182,212,0.12)!important;color:var(--accent2)!important}
     `;
   }
 }

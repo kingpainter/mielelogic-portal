@@ -6,6 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.0] - 2026-05-30
+
+### Tilføjet — Multi-kalender + runtime_data migration
+- **Primær kalender** — auto-sync som før (koordinator) + per-booking via panel. Konfigureres i Options Flow under Kalender
+- **Sekundære kalendere** — valgfrie chips i booking-formularen (“TILFØJ TIL KALENDER”). Ikke-default, brugeren aktiverer aktivt. Cyan chips, toggle ved klik
+- **Sletning ved cancel** — sekundære kalenderevents slettes automatisk ved cancel; hvilke kalendere der var valgt gemmes persistent i storage
+- **`runtime_data`-migration** — `hass.data[DOMAIN][entry_id]` erstattet af `entry.runtime_data` i `__init__.py`. Alle managers tilgængelige via `_get_from_runtime()` helper i websocket.py med `hass.data`-fallback
+- **`get_calendars` WS-kommando** — 18 kommandoer i alt. Returnerer primær + sekundære med venlige navne fra HA state
+- **`make_booking` WS** — modtager nu `extra_calendars: list` parameter
+- **`storage.py`** — ny `secondary_calendar_synced` datastruktur, `async_save_booking_metadata` udvidet med `secondary_calendars`, duplikatsektion ryddet op
+- **Options Flow kalender-trin** — primær dropdown + sekundær komma-separeret tekstfelt
+
+---
+
 ## [2.4.0] - 2026-05-30
 
 ### Tilføjet — Backend/stabilitet & UX
