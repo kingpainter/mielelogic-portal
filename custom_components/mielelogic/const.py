@@ -1,7 +1,7 @@
-# VERSION = "2.0.0"
+# VERSION = "2.5.0"
 """Constants for MieleLogic integration."""
 DOMAIN = "mielelogic"
-VERSION = "2.0.0"
+VERSION = "2.5.0"
 
 # API credentials
 CONF_USERNAME = "username"
@@ -24,3 +24,9 @@ DEFAULT_SIDEBAR_TITLE = "MieleLogic"
 DEFAULT_SIDEBAR_ICON = "mdi:washing-machine"
 DEFAULT_PANEL_ENABLED = True
 DEFAULT_REQUIRE_ADMIN = False
+
+# Calendar configuration (v2.5.0)
+# Primary: always synced (auto by coordinator + on booking via panel)
+# Secondary: optional per-booking chips in panel, never auto-synced
+CONF_PRIMARY_CALENDAR = "primary_calendar"       # replaces sync_to_calendar
+CONF_SECONDARY_CALENDARS = "secondary_calendars"  # list[str] of entity_ids

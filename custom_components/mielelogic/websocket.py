@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "2.5.0"
 """WebSocket API for MieleLogic panel."""
 import logging
 import voluptuous as vol
@@ -30,43 +30,46 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_test_notification)
     websocket_api.async_register_command(hass, ws_reset_notification)
     websocket_api.async_register_command(hass, ws_get_week_availability)
-    _LOGGER.info("✅ MieleLogic WebSocket API registered (v2.3.0 - 17 commands)")
+    websocket_api.async_register_command(hass, ws_get_calendars)
+    _LOGGER.info("✅ MieleLogic WebSocket API registered (v2.5.0 - 18 commands)")
+
+
+def _get_from_runtime(hass: HomeAssistant, key: str):
+    """Get a manager from runtime_data (v2.5.0). Falls back to hass.data."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        rd = getattr(entry, "runtime_data", None)
+        if rd and key in rd:
+            return rd[key]
+    # Legacy fallback
+    domain_data = hass.data.get(DOMAIN, {})
+    for value in domain_data.values():
+        if isinstance(value, dict) and key in value:
+            return value[key]
+    return None
 
 
 def _get_time_manager(hass: HomeAssistant):
-    domain_data = hass.data.get(DOMAIN, {})
-    for key, value in domain_data.items():
-        if isinstance(value, dict) and "time_manager" in value:
-            return value["time_manager"]
-    return None
+    return _get_from_runtime(hass, "time_manager")
 
 
 def _get_booking_manager(hass: HomeAssistant):
-    domain_data = hass.data.get(DOMAIN, {})
-    for key, value in domain_data.items():
-        if isinstance(value, dict) and "booking_manager" in value:
-            return value["booking_manager"]
-    return None
+    return _get_from_runtime(hass, "booking_manager")
 
 
 def _get_coordinator(hass: HomeAssistant):
-    domain_data = hass.data.get(DOMAIN, {})
-    for key, value in domain_data.items():
-        if isinstance(value, dict) and "coordinator" in value:
-            return value["coordinator"]
-    return None
+    return _get_from_runtime(hass, "coordinator")
 
 
 def _get_store(hass: HomeAssistant):
+    # Store is also kept in hass.data[DOMAIN]["store"] (global singleton)
+    store = _get_from_runtime(hass, "store")
+    if store:
+        return store
     return hass.data.get(DOMAIN, {}).get("store")
 
 
 def _get_notification_manager(hass: HomeAssistant):
-    domain_data = hass.data.get(DOMAIN, {})
-    for key, value in domain_data.items():
-        if isinstance(value, dict) and "notification_manager" in value:
-            return value["notification_manager"]
-    return None
+    return _get_from_runtime(hass, "notification_manager")
 
 
 def _get_booked_starts_from_timetable(timetable: dict, machine_number: int, date_str: str) -> set:
@@ -190,6 +193,7 @@ def ws_get_slots(hass: HomeAssistant, connection, msg):
     vol.Required("vaskehus"): str,
     vol.Required("slot_start"): str,
     vol.Required("date"): str,
+    vol.Optional("extra_calendars", default=[]): list,  # v2.5.0: secondary calendars
 })
 @websocket_api.async_response
 async def ws_make_booking(hass: HomeAssistant, connection, msg):
@@ -214,7 +218,11 @@ async def ws_make_booking(hass: HomeAssistant, connection, msg):
         
         _LOGGER.info("📅 WebSocket booking: %s machine %s at %s", msg["vaskehus"], machine, start_datetime)
         
-        result = await booking_manager.make_booking(machine, start_datetime, slot["duration"], connection.context)
+        result = await booking_manager.make_booking(
+            machine, start_datetime, slot["duration"],
+            connection.context(msg),
+            extra_calendars=msg.get("extra_calendars", []),
+        )
         
         if result.get("success"):
             coordinator = booking_manager.coordinator
@@ -685,4 +693,50 @@ async def ws_reset_notification(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"success": True, "config": default_config})
     except Exception as err:
         _LOGGER.exception("Error resetting notification: %s", err)
+        connection.send_error(msg["id"], "unknown_error", str(err))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/get_calendars",
+})
+@callback
+def ws_get_calendars(hass: HomeAssistant, connection, msg):
+    """Return primary and secondary calendar configuration for the panel.
+
+    v2.5.0: Panel uses this to show secondary calendar chips in booking form.
+    Response:
+      {
+        "primary": "calendar.flemming" | null,
+        "secondary": [{"entity_id": "calendar.lukas", "name": "Lukas"}]
+      }
+    """
+    coordinator = _get_coordinator(hass)
+    if not coordinator:
+        connection.send_error(msg["id"], "not_ready", "Integration not ready")
+        return
+    try:
+        from .const import CONF_PRIMARY_CALENDAR, CONF_SECONDARY_CALENDARS
+        entry = coordinator.config_entry
+        primary = (
+            entry.data.get(CONF_PRIMARY_CALENDAR)
+            or entry.data.get("sync_to_calendar")
+        )
+        secondary_ids = entry.data.get(CONF_SECONDARY_CALENDARS, [])
+
+        # Build secondary list with friendly names from HA state
+        secondary = []
+        for entity_id in secondary_ids:
+            state = hass.states.get(entity_id)
+            if state:
+                name = state.attributes.get("friendly_name") or entity_id.split(".")[-1].replace("_", " ").title()
+            else:
+                name = entity_id.split(".")[-1].replace("_", " ").title()
+            secondary.append({"entity_id": entity_id, "name": name})
+
+        connection.send_result(msg["id"], {
+            "primary": primary,
+            "secondary": secondary,
+        })
+    except Exception as err:
+        _LOGGER.exception("Error getting calendars: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))

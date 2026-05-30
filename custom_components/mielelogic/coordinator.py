@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "2.5.0"
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -16,6 +16,7 @@ from .const import (
     CONF_CLIENT_ID,
     CONF_LAUNDRY_ID,
     CONF_CLIENT_SECRET,
+    CONF_PRIMARY_CALENDAR,
     API_BASE_URL,
     AUTH_URL,
 )
@@ -39,8 +40,14 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         self.laundry_id = config_entry.data[CONF_LAUNDRY_ID]
         self.client_secret = config_entry.data.get(CONF_CLIENT_SECRET)
         
-        # Calendar sync settings
-        self.sync_to_calendar = config_entry.data.get("sync_to_calendar")
+        # Calendar sync — primary calendar (auto-synced by coordinator)
+        # Backwards-compatible: fall back to legacy sync_to_calendar key
+        self.primary_calendar = (
+            config_entry.data.get(CONF_PRIMARY_CALENDAR)
+            or config_entry.data.get("sync_to_calendar")
+        )
+        # Keep sync_to_calendar as alias for legacy code paths
+        self.sync_to_calendar = self.primary_calendar
 
         self.access_token = None
         self.refresh_token = None
@@ -204,13 +211,13 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         await self._do_sync_to_external_calendar(data)
     
     def _get_store(self):
-        """Get the MieleLogicStore from hass.data."""
-        from .const import DOMAIN
-        domain_data = self.hass.data.get(DOMAIN, {})
-        for key, value in domain_data.items():
-            if isinstance(value, dict) and "store" in value:
-                return value["store"]
-        return None
+        """Get the MieleLogicStore — prefer runtime_data, fall back to hass.data."""
+        # v2.5.0: runtime_data pattern
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            if hasattr(entry, "runtime_data") and entry.runtime_data:
+                return entry.runtime_data.get("store")
+        # Legacy fallback
+        return self.hass.data.get(DOMAIN, {}).get("store")
 
     async def _do_sync_to_external_calendar(self, data):
         """Internal sync implementation."""

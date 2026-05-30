@@ -20,15 +20,34 @@ class BookingManager:
         self.notification_manager = notification_manager
 
     def _get_time_manager(self):
-        """Get time_manager from hass.data."""
+        """Get time_manager — prefer runtime_data."""
         from .const import DOMAIN
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            rd = getattr(entry, "runtime_data", None)
+            if rd and "time_manager" in rd:
+                return rd["time_manager"]
+        # Legacy fallback
         domain_data = self.hass.data.get(DOMAIN, {})
         for key, value in domain_data.items():
             if isinstance(value, dict) and "time_manager" in value:
                 return value["time_manager"]
         return None
 
-    async def make_booking(self, machine_number: int, start_datetime: str, duration: int, context=None) -> Dict:
+    async def make_booking(
+        self,
+        machine_number: int,
+        start_datetime: str,
+        duration: int,
+        context=None,
+        extra_calendars: list | None = None,
+    ) -> Dict:
+        """Make a booking and sync to primary + any selected secondary calendars.
+
+        Args:
+            extra_calendars: list of secondary calendar entity_ids chosen by user in panel.
+                             Primary calendar is always synced by coordinator auto-sync.
+                             These are synced immediately on booking creation.
+        """
         _LOGGER.info("Booking: Machine %s at %s for %s min", machine_number, start_datetime, duration)
         try:
             result = await self.hass.services.async_call(
@@ -81,6 +100,13 @@ class BookingManager:
                 except Exception as err:
                     _LOGGER.warning("Could not send booking notification: %s", err)
 
+            # Sync to secondary calendars chosen by user in panel (v2.5.0)
+            # Primary calendar is handled by coordinator auto-sync.
+            if extra_calendars:
+                await self._sync_to_secondary_calendars(
+                    machine_number, start_datetime, duration, extra_calendars
+                )
+
             return {"success": True, "message": "Booking gennemfort", "data": result}
 
         except HomeAssistantError as err:
@@ -100,8 +126,11 @@ class BookingManager:
             )
             _LOGGER.info("Cancellation successful!")
 
-            # Delete calendar event for this booking
+            # Delete calendar event for this booking (primary)
             await self._delete_calendar_event(machine_number, start_time)
+
+            # Delete secondary calendar events if any were created (v2.5.0)
+            await self._delete_secondary_calendar_events(machine_number, start_time)
 
             if self.store:
                 try:
@@ -226,6 +255,127 @@ class BookingManager:
                 "Could not delete calendar event for machine %s at %s: %s",
                 machine_number, start_time, err,
             )
+
+    async def _sync_to_secondary_calendars(
+        self, machine_number: int, start_datetime: str, duration: int, calendars: list
+    ) -> None:
+        """Create calendar events in secondary calendars selected by user.
+
+        Called immediately after a successful booking. Uses UTC conversion
+        identical to the coordinator's primary sync.
+        """
+        if not self.hass.services.has_service("calendar", "create_event"):
+            _LOGGER.debug("calendar.create_event not available — skipping secondary sync")
+            return
+
+        time_manager = self._get_time_manager()
+        vaskehus = time_manager.get_vaskehus_for_machine(machine_number) if time_manager else None
+        if not vaskehus:
+            vaskehus = self.coordinator._get_vaskehus_name(machine_number)
+        summary = f"{vaskehus} booket"
+
+        try:
+            start_cph = datetime.fromisoformat(
+                start_datetime.replace(" ", "T")
+            ).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
+            end_cph = start_cph + timedelta(minutes=duration)
+            start_utc = start_cph.astimezone(ZoneInfo("UTC"))
+            end_utc = end_cph.astimezone(ZoneInfo("UTC"))
+        except Exception as err:
+            _LOGGER.warning("Secondary calendar sync: could not parse datetime: %s", err)
+            return
+
+        description = (
+            f"MieleLogic Reservation (sekundær)\n"
+            f"Vaskehus: {vaskehus}\n"
+            f"Varighed: {duration} minutter"
+        )
+
+        for calendar_entity_id in calendars:
+            try:
+                await self.hass.services.async_call(
+                    "calendar", "create_event",
+                    {
+                        "entity_id": calendar_entity_id,
+                        "summary": summary,
+                        "start_date_time": start_utc.isoformat(),
+                        "end_date_time": end_utc.isoformat(),
+                        "description": description,
+                    },
+                    blocking=True,
+                )
+                # Persist secondary sync record for cleanup on cancel
+                if self.store:
+                    await self.store.async_add_secondary_calendar_event(
+                        machine_number, start_datetime, calendar_entity_id
+                    )
+                _LOGGER.info(
+                    "✅ Secondary calendar event created: %s in %s",
+                    summary, calendar_entity_id,
+                )
+            except Exception as err:
+                _LOGGER.warning(
+                    "Could not create secondary calendar event in %s: %s",
+                    calendar_entity_id, err,
+                )
+
+    async def _delete_secondary_calendar_events(self, machine_number: int, start_time: str) -> None:
+        """Delete secondary calendar events when a booking is cancelled."""
+        if not self.store:
+            return
+        secondary_calendars = self.store.get_secondary_calendar_events(machine_number, start_time)
+        if not secondary_calendars:
+            return
+
+        if not self.hass.services.has_service("calendar", "delete_event"):
+            return
+
+        time_manager = self._get_time_manager()
+        vaskehus = time_manager.get_vaskehus_for_machine(machine_number) if time_manager else None
+        if not vaskehus:
+            vaskehus = self.coordinator._get_vaskehus_name(machine_number)
+        summary = f"{vaskehus} booket"
+
+        try:
+            start_dt = datetime.fromisoformat(
+                start_time.replace(" ", "T")
+            ).replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
+        except Exception:
+            return
+
+        window_start = (start_dt - timedelta(hours=1)).astimezone(ZoneInfo("UTC"))
+        window_end   = (start_dt + timedelta(hours=1)).astimezone(ZoneInfo("UTC"))
+
+        for calendar_entity_id in secondary_calendars:
+            try:
+                response = await self.hass.services.async_call(
+                    "calendar", "get_events",
+                    {
+                        "entity_id": calendar_entity_id,
+                        "start_date_time": window_start.isoformat(),
+                        "end_date_time": window_end.isoformat(),
+                    },
+                    blocking=True, return_response=True,
+                )
+                events = response.get(calendar_entity_id, {}).get("events", [])
+                matching = [e for e in events if e.get("summary") == summary]
+                if not matching:
+                    continue
+                event = matching[0]
+                call_data: dict = {
+                    "entity_id": calendar_entity_id,
+                    "start_date_time": event.get("start", start_dt.isoformat()),
+                    "end_date_time": event.get("end", event.get("start", start_dt.isoformat())),
+                    "summary": summary,
+                }
+                if event.get("uid"):
+                    call_data["uid"] = event["uid"]
+                await self.hass.services.async_call("calendar", "delete_event", call_data, blocking=True)
+                _LOGGER.info("Deleted secondary calendar event in %s", calendar_entity_id)
+            except Exception as err:
+                _LOGGER.warning("Could not delete secondary calendar event in %s: %s", calendar_entity_id, err)
+
+        await self.store.async_remove_secondary_calendar_events(machine_number, start_time)
 
     def get_current_bookings(self) -> List[Dict]:
         reservations = self.coordinator.data.get("reservations", {})

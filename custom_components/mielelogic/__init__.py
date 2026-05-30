@@ -1,4 +1,4 @@
-# VERSION = "2.3.0"
+# VERSION = "2.5.0"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 from homeassistant.config_entries import ConfigEntry
@@ -85,20 +85,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     booking_manager = BookingManager(coordinator, store, notification_manager)
     
-    # Store coordinator (platforms need coordinator object)
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
+    # runtime_data (v2.5.0 — replaces hass.data[DOMAIN][entry_id])
+    entry.runtime_data = {
         "coordinator": coordinator,
         "time_manager": time_manager,
         "booking_manager": booking_manager,
         "notification_manager": notification_manager,
+        "store": store,
     }
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = entry.runtime_data
     
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     # Set up services (only once, not per config entry)
-    if len([k for k in hass.data[DOMAIN].keys() if k != "store"]) == 1:
+    if len([k for k in hass.data[DOMAIN].keys() if k not in ("store", "_panel_registered")]) == 1:
         await async_setup_services(hass, coordinator)
         
         # Register panel from options (Energy Hub pattern)
@@ -133,17 +135,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 machine_number = int(parts[0])
                 start_time = parts[1]  # ISO format: 2026-05-30T14:00:00
 
-                # Find booking end_time from current reservations
-                domain_data = hass.data.get(DOMAIN, {})
-                booking_manager = None
-                for key, value in domain_data.items():
-                    if isinstance(value, dict) and "booking_manager" in value:
-                        booking_manager = value["booking_manager"]
+                # Prefer runtime_data, fall back to hass.data
+                bm = None
+                for e in hass.config_entries.async_entries(DOMAIN):
+                    rd = getattr(e, "runtime_data", None)
+                    if rd and "booking_manager" in rd:
+                        bm = rd["booking_manager"]
                         break
-
-                if not booking_manager:
+                if not bm:
                     _LOGGER.warning("Cancel from notification: booking_manager not found")
                     return
+                booking_manager = bm
 
                 # Find the matching booking to get end_time
                 bookings = booking_manager.get_current_bookings()
@@ -180,7 +182,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         hass.bus.async_listen("mobile_app_notification_action", _handle_notification_action)
     
-    _LOGGER.info("MieleLogic v2.3.0 setup complete with integrated panel")
+    _LOGGER.info("MieleLogic v2.5.0 setup complete with integrated panel")
     return True
 
 

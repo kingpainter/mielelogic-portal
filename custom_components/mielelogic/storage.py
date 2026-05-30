@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "2.5.0"
 """Data storage for MieleLogic panel configuration."""
 
 import logging
@@ -44,7 +44,8 @@ class MieleLogicStore:
         return {
             "devices": [],
             "bookings": {},
-            "calendar_synced": [],  # v2.1.0: Persistent calendar event tracking
+            "calendar_synced": [],              # primary calendar event tracking
+            "secondary_calendar_synced": {},    # v2.5.0: {"key": [entity_id, ...]}
             "admin": {
                 "booking_locked": False,
                 "lock_message": "Booking er midlertidigt spærret",
@@ -116,6 +117,15 @@ class MieleLogicStore:
             return True
         return False
 
+    async def async_reset_notification(self, notification_id: str) -> dict[str, Any] | None:
+        """Reset a notification to its default config. Returns default or None if not found."""
+        defaults = self._default_data()["notifications"]
+        if notification_id not in defaults:
+            return None
+        default_config = defaults[notification_id]
+        await self.async_save_notification(notification_id, default_config)
+        return default_config
+
     # ─── Booking Metadata ───
 
     def _get_booking_key(self, machine: int, start_time: str) -> str:
@@ -130,6 +140,7 @@ class MieleLogicStore:
         vaskehus: str | None = None,
         duration: int | None = None,
         calendar_event_id: str | None = None,
+        secondary_calendars: list | None = None,
     ) -> None:
         if "bookings" not in self._data:
             self._data["bookings"] = {}
@@ -142,6 +153,7 @@ class MieleLogicStore:
             "vaskehus": vaskehus,
             "duration": duration,
             "calendar_event_id": calendar_event_id,
+            "secondary_calendars": secondary_calendars or [],
         }
         await self.async_save()
         _LOGGER.debug("Saved booking metadata for %s (created by %s)", key, user_name)
@@ -197,15 +209,15 @@ class MieleLogicStore:
         await self.async_save()
         _LOGGER.debug("Admin settings saved: %s", self._data["admin"])
 
-    # ─── Calendar Sync Tracking (persistent — survives HA restarts) ───
+    # ─── Primary Calendar Sync Tracking ───
 
     def get_calendar_synced_events(self) -> set:
-        """Return set of (machine, start_time) tuples already synced to calendar."""
+        """Return set of (machine, start_time) tuples already synced to primary calendar."""
         raw = self._data.get("calendar_synced", [])
         return set(tuple(item) for item in raw)
 
     async def async_add_calendar_synced_event(self, machine: int, start_time: str) -> None:
-        """Record that a calendar event was created — persisted across restarts."""
+        """Record that a primary calendar event was created."""
         if "calendar_synced" not in self._data:
             self._data["calendar_synced"] = []
         key = [machine, start_time]
@@ -215,7 +227,7 @@ class MieleLogicStore:
             _LOGGER.debug("Calendar sync recorded: machine %s at %s", machine, start_time)
 
     async def async_remove_calendar_synced_event(self, machine: int, start_time: str) -> None:
-        """Remove sync record when booking is cancelled."""
+        """Remove primary calendar sync record on cancel."""
         if "calendar_synced" not in self._data:
             return
         key = [machine, start_time]
@@ -223,6 +235,47 @@ class MieleLogicStore:
             self._data["calendar_synced"].remove(key)
             await self.async_save()
             _LOGGER.debug("Calendar sync removed: machine %s at %s", machine, start_time)
+
+    # ─── Secondary Calendar Sync Tracking (v2.5.0) ───
+    # Tracks which secondary calendars had events created for each booking.
+    # Keyed by "{machine}_{start_iso}" → list of calendar entity_ids.
+
+    def _secondary_key(self, machine: int, start_time: str) -> str:
+        return f"{machine}_{start_time.replace(' ', 'T')}"
+
+    def get_secondary_calendar_events(self, machine: int, start_time: str) -> list[str]:
+        """Return list of secondary calendar entity_ids that had events created."""
+        key = self._secondary_key(machine, start_time)
+        return self._data.get("secondary_calendar_synced", {}).get(key, [])
+
+    async def async_add_secondary_calendar_event(
+        self, machine: int, start_time: str, calendar_entity_id: str
+    ) -> None:
+        """Record that a secondary calendar event was created."""
+        if "secondary_calendar_synced" not in self._data:
+            self._data["secondary_calendar_synced"] = {}
+        key = self._secondary_key(machine, start_time)
+        existing = self._data["secondary_calendar_synced"].get(key, [])
+        if calendar_entity_id not in existing:
+            existing.append(calendar_entity_id)
+            self._data["secondary_calendar_synced"][key] = existing
+            await self.async_save()
+            _LOGGER.debug(
+                "Secondary calendar recorded: machine %s at %s → %s",
+                machine, start_time, calendar_entity_id,
+            )
+
+    async def async_remove_secondary_calendar_events(
+        self, machine: int, start_time: str
+    ) -> None:
+        """Remove secondary calendar records when a booking is cancelled."""
+        if "secondary_calendar_synced" not in self._data:
+            return
+        key = self._secondary_key(machine, start_time)
+        if key in self._data["secondary_calendar_synced"]:
+            del self._data["secondary_calendar_synced"][key]
+            await self.async_save()
+            _LOGGER.debug("Secondary calendar records removed for machine %s at %s", machine, start_time)
 
     # ─── Cleanup ───
 

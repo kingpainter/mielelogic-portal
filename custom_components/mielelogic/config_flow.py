@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "2.5.0"
 import logging
 import aiohttp
 import voluptuous as vol
@@ -23,6 +23,8 @@ from .const import (
     DEFAULT_SIDEBAR_ICON,
     DEFAULT_PANEL_ENABLED,
     DEFAULT_REQUIRE_ADMIN,
+    CONF_PRIMARY_CALENDAR,
+    CONF_SECONDARY_CALENDARS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -338,28 +340,42 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_calendar(self, user_input=None):
-        """Configure calendar sync - SEPARATE from credentials."""
+        """Configure calendar sync — primary (auto) + secondary (manual per booking)."""
         errors = {}
+
+        # All calendars except MieleLogic's own
+        all_calendars = [
+            entity_id
+            for entity_id in self.hass.states.async_entity_ids("calendar")
+            if "mielelogic" not in entity_id.lower()
+        ]
 
         if user_input is not None:
             try:
-                # Update ONLY calendar settings, keep existing credentials
                 new_data = dict(self.config_entry.data)
 
-                if user_input.get("enable_sync"):
-                    calendar_entity = user_input.get("calendar_entity")
-                    
-                    # Validate calendar entity exists
-                    if calendar_entity and not self.hass.states.get(calendar_entity):
-                        errors["base"] = "calendar_not_found"
-                    else:
-                        new_data["sync_to_calendar"] = calendar_entity
+                # Primary calendar
+                primary = user_input.get("primary_calendar") or None
+                if primary and primary not in all_calendars:
+                    errors["primary_calendar"] = "calendar_not_found"
                 else:
-                    # Disable sync
-                    new_data["sync_to_calendar"] = None
+                    new_data[CONF_PRIMARY_CALENDAR] = primary
+                    new_data["sync_to_calendar"] = primary  # legacy alias
+
+                # Secondary calendars — comma-separated entity IDs from text field
+                secondary_raw = user_input.get("secondary_calendars_text", "").strip()
+                secondary = [
+                    s.strip() for s in secondary_raw.split(",")
+                    if s.strip() and s.strip() in all_calendars
+                ] if secondary_raw else []
+
+                # Validate secondaries don’t include primary
+                if primary and primary in secondary:
+                    secondary.remove(primary)
+
+                new_data[CONF_SECONDARY_CALENDARS] = secondary
 
                 if not errors:
-                    # DON'T touch credentials!
                     self.hass.config_entries.async_update_entry(
                         self.config_entry, data=new_data
                     )
@@ -369,37 +385,33 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
                 _LOGGER.exception("Unexpected exception: %s", err)
                 errors["base"] = "unknown"
 
-        # Get all calendar entities (exclude MieleLogic's own calendar)
-        all_calendars = [
-            entity_id
-            for entity_id in self.hass.states.async_entity_ids("calendar")
-            if "mielelogic" not in entity_id.lower()
-        ]
+        # Current settings
+        current_primary = (
+            self.config_entry.data.get(CONF_PRIMARY_CALENDAR)
+            or self.config_entry.data.get("sync_to_calendar")
+            or ""
+        )
+        current_secondary = self.config_entry.data.get(CONF_SECONDARY_CALENDARS, [])
+        current_secondary_text = ", ".join(current_secondary)
 
-        # Current settings with safe defaults
-        current_calendar = self.config_entry.data.get("sync_to_calendar")
-        sync_enabled = bool(current_calendar)
-
-        # Build schema dynamically based on available calendars
-        schema_dict = {
-            vol.Optional("enable_sync", default=sync_enabled): bool,
-        }
+        schema_dict = {}
 
         if all_calendars:
-            # Add dropdown only if calendars exist
-            default_cal = current_calendar if current_calendar in all_calendars else (all_calendars[0] if all_calendars else "")
-            schema_dict[vol.Optional(
-                "calendar_entity",
-                default=default_cal
-            )] = vol.In(all_calendars)
+            cal_options = {"": "(Ingen)"} | {c: c for c in all_calendars}
+            schema_dict[vol.Optional("primary_calendar", default=current_primary)] = vol.In(cal_options)
+        else:
+            schema_dict[vol.Optional("primary_calendar", default=current_primary)] = str
+
+        schema_dict[vol.Optional("secondary_calendars_text", default=current_secondary_text)] = str
 
         return self.async_show_form(
             step_id="calendar",
             data_schema=vol.Schema(schema_dict),
             errors=errors,
             description_placeholders={
-                "current_calendar": current_calendar or "None",
-                "num_calendars": str(len(all_calendars)),
+                "current_primary": current_primary or "Ingen",
+                "current_secondary": current_secondary_text or "Ingen",
+                "available_calendars": ", ".join(all_calendars) if all_calendars else "Ingen fundet",
             },
         )
 
