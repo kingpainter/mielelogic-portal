@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.3.0] - 2026-05-30
+
+### Tilføjet — 7-dages dag-strip
+- **Dag-strip** — Vandret strip over dato-input viser de næste 7 dage med grøn dot (ledige tider) eller rød dot (fuldt booket)
+- **Klikbare dage** — Klik på en dag sætter datoen og henter slots automatisk
+- **I dag-markering** — Dags dato fremhæves med accent-farvet label
+- **Valgt dato** — Highlightes med blå border i strippen
+- **Skeleton loading** — Shimmer-animerede dag-knapper mens ugen loades
+- **Auto-reload** — Strippen genindlæses når vaskehus skiftes
+- **Backend** — Nyt `mielelogic/get_week_availability` WebSocket-kommando (17 i alt); bruger eksisterende timetable-data fra koordinatoren, ingen ekstra API-kald
+
+---
+
 ## [2.2.0] - 2026-05-30
 
 ### Tilføjet — UX polish

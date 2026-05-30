@@ -29,7 +29,8 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_save_notification)
     websocket_api.async_register_command(hass, ws_test_notification)
     websocket_api.async_register_command(hass, ws_reset_notification)
-    _LOGGER.info("✅ MieleLogic WebSocket API registered (v1.9.2 - 16 commands)")
+    websocket_api.async_register_command(hass, ws_get_week_availability)
+    _LOGGER.info("✅ MieleLogic WebSocket API registered (v2.3.0 - 17 commands)")
 
 
 def _get_time_manager(hass: HomeAssistant):
@@ -601,6 +602,67 @@ async def ws_test_notification(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"success": True})
     except Exception as err:
         _LOGGER.exception("Error sending test notification: %s", err)
+        connection.send_error(msg["id"], "unknown_error", str(err))
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/get_week_availability",
+    vol.Required("vaskehus"): str,
+    vol.Optional("start_date"): str,  # "YYYY-MM-DD", defaults to today
+})
+@callback
+def ws_get_week_availability(hass: HomeAssistant, connection, msg):
+    """Return slot availability (has_free, total, booked) for next 7 days.
+
+    Uses existing coordinator timetable data — no extra API call.
+    Response: {"days": [{"date": "YYYY-MM-DD", "label": "Man", "has_free": bool,
+                         "total": int, "booked": int, "is_today": bool}]}
+    """
+    from datetime import date, timedelta
+
+    time_manager = _get_time_manager(hass)
+    coordinator = _get_coordinator(hass)
+
+    if not time_manager:
+        connection.send_error(msg["id"], "not_ready", "Integration not ready")
+        return
+
+    try:
+        vaskehus = msg["vaskehus"]
+        start_raw = msg.get("start_date")
+        try:
+            start = date.fromisoformat(start_raw) if start_raw else date.today()
+        except ValueError:
+            start = date.today()
+
+        machine = time_manager.get_machine_for_vaskehus(vaskehus)
+        all_slots = time_manager.get_slots(vaskehus)
+        timetable = {}
+        if coordinator and coordinator.data:
+            timetable = coordinator.data.get("timetable", {})
+
+        _DAY_LABELS = ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"]
+        today = date.today()
+        days = []
+        for offset in range(7):
+            d = start + timedelta(days=offset)
+            date_str = d.isoformat()
+            booked_starts = _get_booked_starts_from_timetable(timetable, machine, date_str)
+            total = len(all_slots)
+            booked = sum(1 for s in all_slots if s["start"] in booked_starts)
+            days.append({
+                "date": date_str,
+                "label": _DAY_LABELS[d.weekday()],
+                "day_num": d.day,
+                "has_free": booked < total,
+                "total": total,
+                "booked": booked,
+                "is_today": d == today,
+            })
+
+        connection.send_result(msg["id"], {"days": days})
+    except Exception as err:
+        _LOGGER.exception("Error getting week availability: %s", err)
         connection.send_error(msg["id"], "unknown_error", str(err))
 
 
