@@ -69,14 +69,14 @@
       },
       "calendar": {
         "title": "Configure Calendar Sync",
-        "description": "Sync MieleLogic reservations to an external calendar. This is optional - if not enabled, only MieleLogic's built-in calendar will be used.\n\nCurrent: {current_calendar}\nAvailable calendars: {num_calendars}",
+        "description": "Primary calendar: auto-synced to all bookings. Secondary calendars: optional per-booking selection in the panel.\n\nCurrent primary: {primary}\nSecondary: {secondaries}\n\nHint: {hint}",
         "data": {
-          "enable_sync": "Enable calendar sync",
-          "calendar_entity": "Target calendar"
+          "primary_calendar": "Primary calendar",
+          "secondary_calendars": "Secondary calendars (comma-separated entity IDs)"
         },
         "data_description": {
-          "enable_sync": "Sync reservations to an external calendar (e.g. CalDAV)",
-          "calendar_entity": "Select which calendar to sync to"
+          "primary_calendar": "Always synced automatically — all bookings go here",
+          "secondary_calendars": "Optional calendars for per-booking selection in the panel (e.g. calendar.lukas)"
         }
       },
       "laundry_hours": {
