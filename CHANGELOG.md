@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.2.0] - 2026-05-30
+
+### Tilføjet — UX polish
+- **Inline booking-bekræftelse** — "Book nu" viser centeret overlay med vaskehus, dato og tidsblok; to knapper: Annuller / Book nu ✓. Ingen native `confirm()` dialog.
+- **Inline cancel-bekræftelse** — ✕-knap på booking-rækker åbner rød overlay-variant med "Behold" / "Slet ✕"
+- **Skeleton loading** — Booking-tab viser shimmer-animerede placeholder-cards ved initial load (`_initialLoaded` flag); forsvinder automatisk når data ankommer
+- **Bekræftelsesoverlay** — backdrop-blur baggrund, fade-in animation, mobilvenlig centrering
+
+---
+
 ## [2.1.0] - 2026-05-30
 
 ### Tilføjet — Performance & UX forbedringer

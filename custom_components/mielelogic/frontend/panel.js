@@ -1,17 +1,13 @@
 // MieleLogic Panel — Main UI Component
-// VERSION = "2.1.0"
+// VERSION = "2.2.0"
 // Architecture: vanilla HTMLElement + shadow DOM
 // Design: Indeklima Designer (blue/cyan accent)
 // element name: mielelogic-panel-v2
-// Changes v2.1.0:
-//   - Split _loadAll: notifications only on tab switch (fewer WS calls)
-//   - @import font removed from CSS (injected once via entrypoint.js)
-//   - In-panel toast replaces persistent_notification for trivial feedback
-//   - Slot chips are now clickable (sync with select)
-//   - _historyLoaded flag replaces .length check (fixes empty-cache bug)
-//   - _errCount: exponential backoff + auto-resume on visibilitychange
-//   - data-cancel JSON → data-bindex (safer, no escaping issues)
-//   - Cached state preserved on WS errors (no flicker to empty)
+// Changes v2.2.0:
+//   - Inline booking confirmation (replaces native confirm() dialog)
+//   - Inline cancel confirmation on booking rows (replaces native confirm())
+//   - Skeleton loading cards on initial load (before first data arrives)
+//   - Tooltip on machine-status bubbles via CSS title + custom tooltip element
 
 
 const _ML_LOGO = "data:image/png;base64,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";
@@ -23,6 +19,7 @@ class MieleLogicPanel extends HTMLElement {
     this._hass              = null;
     this._tab               = "booking";
     this._loading           = false;
+    this._initialLoaded     = false;  // skeleton: true after first _loadCore completes
     this._error             = null;
     this._errCount          = 0;
     this._backoffTimer      = null;
@@ -43,11 +40,13 @@ class MieleLogicPanel extends HTMLElement {
     this._admin             = { booking_locked: false, lock_message: "Booking er midlertidigt spærret", info_message: "" };
     this._adminSaving       = false;
     this._history           = [];
-    this._historyLoaded     = false;   // fix: was .length check → stale empty cache
+    this._historyLoaded     = false;
     this._historyLoading    = false;
     this._cleanupResult     = "";
     this._toast             = null;
     this._toastTimer        = null;
+    // Inline confirmations: null | { type: "book", slot, date } | { type: "cancel", idx }
+    this._confirm           = null;
   }
 
   set hass(h) {
@@ -68,7 +67,6 @@ class MieleLogicPanel extends HTMLElement {
   }
 
   _onVisibility = () => {
-    // Resume polling and reload when tab becomes visible after error backoff
     if (document.visibilityState === "visible" && !this._interval) {
       this._errCount = 0;
       this._startPolling();
@@ -83,38 +81,26 @@ class MieleLogicPanel extends HTMLElement {
     }, 30000);
   }
 
-  _stopPolling() {
-    clearInterval(this._interval);
-    this._interval = null;
-  }
+  _stopPolling() { clearInterval(this._interval); this._interval = null; }
 
-  async _init() {
-    await Promise.all([this._loadCore(), this._loadAdmin()]);
-  }
+  async _init() { await Promise.all([this._loadCore(), this._loadAdmin()]); }
 
-  // Primary load: slots + bookings + status only (fast, runs every 30s)
   async _loadCore() {
     if (!this._hass) return;
     try {
       await Promise.all([this._loadSlots(), this._loadBookings(), this._loadStatus()]);
       this._errCount = 0;
+      this._initialLoaded = true;
     } catch (e) {
       this._errCount++;
+      this._initialLoaded = true; // show UI even on error, not stuck skeleton
       if (this._errCount >= 4) {
-        // Exponential backoff: stop polling, retry after delay, resume on visibility
         this._stopPolling();
         const delay = Math.min(60000, 5000 * Math.pow(2, this._errCount - 4));
         this._backoffTimer = setTimeout(() => { this._errCount = 0; this._startPolling(); }, delay);
       }
     }
     this._render();
-  }
-
-  // Notifications: only loaded on tab switch (slow, rarely changes)
-  async _loadNotifLazy() {
-    if (this._notifLoaded) return;
-    await this._loadNotifications();
-    this._notifLoaded = false; // allow reload on next explicit switch
   }
 
   async _loadSlots() {
@@ -126,21 +112,15 @@ class MieleLogicPanel extends HTMLElement {
         const preferred = firstFree || this._slots[0];
         if (!this._selectedSlot || this._slots.every(s => s.booked)) this._selectedSlot = preferred.start;
       }
-    } catch (e) { this._error = "Kunne ikke hente tidslots"; /* keep previous slots */ }
+    } catch (e) { this._error = "Kunne ikke hente tidslots"; }
   }
 
   async _loadBookings() {
-    try {
-      const r = await this._hass.callWS({ type: "mielelogic/get_bookings" });
-      this._bookings = r.bookings || [];
-    } catch (e) { /* keep previous bookings on error */ }
+    try { const r = await this._hass.callWS({ type: "mielelogic/get_bookings" }); this._bookings = r.bookings || []; } catch (e) {}
   }
 
   async _loadStatus() {
-    try {
-      const r = await this._hass.callWS({ type: "mielelogic/get_status" });
-      this._status = r || {};
-    } catch (e) { /* keep previous status on error */ }
+    try { const r = await this._hass.callWS({ type: "mielelogic/get_status" }); this._status = r || {}; } catch (e) {}
   }
 
   async _loadNotifications() {
@@ -155,53 +135,52 @@ class MieleLogicPanel extends HTMLElement {
   }
 
   async _loadAdmin() {
-    try {
-      const r = await this._hass.callWS({ type: "mielelogic/get_admin" });
-      this._admin = r || this._admin;
-      this._render();
-    } catch (e) {}
+    try { const r = await this._hass.callWS({ type: "mielelogic/get_admin" }); this._admin = r || this._admin; this._render(); } catch (e) {}
   }
 
   async _loadHistory() {
     this._historyLoading = true; this._cleanupResult = ""; this._render();
-    try {
-      const r = await this._hass.callWS({ type: "mielelogic/get_history" });
-      this._history = r.history || [];
-      this._historyLoaded = true;
-    } catch (e) { this._history = []; this._historyLoaded = true; }
+    try { const r = await this._hass.callWS({ type: "mielelogic/get_history" }); this._history = r.history || []; this._historyLoaded = true; }
+    catch (e) { this._history = []; this._historyLoaded = true; }
     this._historyLoading = false; this._render();
   }
 
-  async _doBook() {
+  // Called when user clicks "Book nu" — shows inline confirmation instead of booking immediately
+  _requestBook() {
     if (!this._selectedSlot || !this._selectedDate) { this._showToast("Vælg tidslot og dato", "warn"); return; }
+    const slot = this._slots.find(s => s.start === this._selectedSlot);
+    this._confirm = { type: "book", label: slot?.label || this._selectedSlot, vaskehus: this._vaskehus, date: this._selectedDate };
+    this._render();
+  }
+
+  async _doBook() {
+    this._confirm = null;
     this._loading = true; this._error = null; this._render();
     try {
       const r = await this._hass.callWS({ type: "mielelogic/make_booking", vaskehus: this._vaskehus, slot_start: this._selectedSlot, date: this._selectedDate });
-      if (r.success) {
-        this._showToast("✓ Booking oprettet!", "ok");
-        await new Promise(res => setTimeout(res, 400));
-        await this._loadCore();
-      } else {
-        this._error = r.message;
-        this._showToast(r.message, "warn");
-      }
+      if (r.success) { this._showToast("✓ Booking oprettet!", "ok"); await new Promise(res => setTimeout(res, 400)); await this._loadCore(); }
+      else { this._error = r.message; this._showToast(r.message, "warn"); }
     } catch (e) { this._error = e.message; this._showToast("Booking fejlede: " + e.message, "err"); }
     this._loading = false; this._render();
   }
 
+  // Called when user clicks ✕ on a booking row — shows inline confirmation
+  _requestCancel(idx) {
+    const b = this._bookings[idx];
+    if (!b) return;
+    this._confirm = { type: "cancel", idx, label: `${b.vaskehus || "Booking"} · ${this._fmtDate(b.Start)}` };
+    this._render();
+  }
+
   async _doCancel(idx) {
+    this._confirm = null;
     const b = this._bookings[idx];
     if (!b) return;
     this._loading = true; this._render();
     try {
       const r = await this._hass.callWS({ type: "mielelogic/cancel_booking", machine_number: b.MachineNumber, start_time: b.Start, end_time: b.End });
-      if (r.success) {
-        this._showToast("Booking slettet", "ok");
-        await new Promise(res => setTimeout(res, 400));
-        await this._loadCore();
-      } else {
-        this._showToast(r.message, "warn");
-      }
+      if (r.success) { this._showToast("Booking slettet", "ok"); await new Promise(res => setTimeout(res, 400)); await this._loadCore(); }
+      else { this._showToast(r.message, "warn"); }
     } catch (e) { this._showToast("Sletning fejlede: " + e.message, "err"); }
     this._loading = false; this._render();
   }
@@ -217,11 +196,8 @@ class MieleLogicPanel extends HTMLElement {
   }
 
   async _doSaveNotification(id, cfg) {
-    try {
-      await this._hass.callWS({ type: "mielelogic/save_notification", notification_id: id, config: cfg });
-      this._showToast("Notifikation gemt", "ok");
-      await this._loadNotifications(); this._render();
-    } catch (e) { this._showToast("Kunne ikke gemme", "err"); }
+    try { await this._hass.callWS({ type: "mielelogic/save_notification", notification_id: id, config: cfg }); this._showToast("Notifikation gemt", "ok"); await this._loadNotifications(); this._render(); }
+    catch (e) { this._showToast("Kunne ikke gemme", "err"); }
   }
 
   async _doTestNotification(id) {
@@ -262,13 +238,10 @@ class MieleLogicPanel extends HTMLElement {
     try {
       const r = await this._hass.callWS({ type: "mielelogic/cleanup_history" });
       this._cleanupResult = r.cleaned > 0 ? `${r.cleaned} poster ryddet` : "Ingen gamle poster at rydde";
-      this._historyLoaded = false;
-      await this._loadHistory();
+      this._historyLoaded = false; await this._loadHistory();
     } catch (e) { this._cleanupResult = "Fejl ved oprydning"; this._render(); }
   }
 
-  // In-panel toast — replaces persistent_notification for non-critical feedback
-  // type: "ok" | "warn" | "err"
   _showToast(msg, type = "ok") {
     clearTimeout(this._toastTimer);
     this._toast = { msg, type };
@@ -286,11 +259,9 @@ class MieleLogicPanel extends HTMLElement {
   }
 
   _closeModal() { this._editingId = null; this._editTitle = ""; this._editMessage = ""; this._render(); }
+  _cancelConfirm() { this._confirm = null; this._render(); }
 
-  _fmtDate(ds) {
-    return new Date(ds).toLocaleString("da-DK", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
-  }
-
+  _fmtDate(ds) { return new Date(ds).toLocaleString("da-DK", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }); }
   _fmtCurrency(a) { return new Intl.NumberFormat("da-DK", { style: "currency", currency: "DKK" }).format(a); }
 
   _preview(tpl) {
@@ -302,19 +273,13 @@ class MieleLogicPanel extends HTMLElement {
 
   _esc(s) { return String(s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
-  _svgKlatvask() {
-    return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="12" cy="13" r="4"/><circle cx="12" cy="13" r="1.8" stroke-width="1"/><line x1="7" y1="8" x2="9" y2="8" stroke-width="1"/><circle cx="6" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg>`;
-  }
-
-  _svgStorvask() {
-    return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2.2" stroke-width="1"/><line x1="6" y1="8" x2="9" y2="8" stroke-width="1"/><circle cx="5" cy="8" r="0.8" fill="currentColor" stroke="none"/><path d="M5 14 Q6 11 8 12" stroke-width="1" fill="none"/></svg>`;
-  }
+  _svgKlatvask() { return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="12" cy="13" r="4"/><circle cx="12" cy="13" r="1.8" stroke-width="1"/><line x1="7" y1="8" x2="9" y2="8" stroke-width="1"/><circle cx="6" cy="8" r="0.8" fill="currentColor" stroke="none"/></svg>`; }
+  _svgStorvask() { return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2.5"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2.2" stroke-width="1"/><line x1="6" y1="8" x2="9" y2="8" stroke-width="1"/><circle cx="5" cy="8" r="0.8" fill="currentColor" stroke="none"/><path d="M5 14 Q6 11 8 12" stroke-width="1" fill="none"/></svg>`; }
 
   /* ════════════════════ RENDER ════════════════════ */
 
   _render() {
     const root = this.shadowRoot;
-    // Preserve toast across full renders
     const toastEl = root.querySelector(".toast-wrap");
     root.innerHTML = `<style>${this._css()}</style>${this._html()}`;
     if (toastEl) root.appendChild(toastEl);
@@ -325,12 +290,31 @@ class MieleLogicPanel extends HTMLElement {
     if (!this._hass) return `<div class="page"><div class="loading-wrap"><span class="spin">↻</span> Indlæser MieleLogic…</div></div>`;
     const count = this._bookings.length;
     const max = this._status.max_reservations;
-    return `<div class="panel-topbar">${this._htmlHeader(count, max)}${this._htmlTabs()}</div><div class="panel-scroll">${this._error ? `<div class="error-strip"><span>⚠ ${this._error}</span><button data-action="clear-error">✕</button></div>` : ""}${this._tab === "booking" ? this._htmlBooking() : ""}${this._tab === "notifications" ? this._htmlNotifications() : ""}${this._tab === "stats" ? this._htmlStats() : ""}${this._tab === "admin" ? this._htmlAdmin() : ""}${this._editingId ? this._htmlModal() : ""}</div>`;
+    const confirmOverlay = this._confirm ? this._htmlConfirm() : "";
+    return `<div class="panel-topbar">${this._htmlHeader(count, max)}${this._htmlTabs()}</div><div class="panel-scroll">${this._error ? `<div class="error-strip"><span>⚠ ${this._error}</span><button data-action="clear-error">✕</button></div>` : ""}${this._tab === "booking" ? (this._initialLoaded ? this._htmlBooking() : this._htmlSkeleton()) : ""}${this._tab === "notifications" ? this._htmlNotifications() : ""}${this._tab === "stats" ? this._htmlStats() : ""}${this._tab === "admin" ? this._htmlAdmin() : ""}${this._editingId ? this._htmlModal() : ""}${confirmOverlay}</div>`;
+  }
+
+  // Skeleton loading — shown on booking tab before first data arrives
+  _htmlSkeleton() {
+    const row = `<div class="skel-row"><div class="skel skel-icon"></div><div class="skel-lines"><div class="skel skel-line skel-l70"></div><div class="skel skel-line skel-l45"></div></div></div>`;
+    return `<div class="card"><div class="skel skel-title"></div><div class="skel skel-select"></div><div class="skel skel-chips"></div><div class="skel skel-select"></div><div class="skel skel-btn"></div></div><div class="card"><div class="skel skel-title"></div>${row}${row}</div>`;
+  }
+
+  // Inline confirmation overlay — slides up from bottom of scroll area
+  _htmlConfirm() {
+    const c = this._confirm;
+    if (c.type === "book") {
+      return `<div class="confirm-overlay"><div class="confirm-box"><div class="confirm-icon">📋</div><div class="confirm-title">Bekræft booking</div><div class="confirm-detail">${this._esc(c.vaskehus)} · ${this._esc(c.date)}<br><strong>${this._esc(c.label)}</strong></div><div class="confirm-btns"><button class="confirm-cancel" data-action="cancel-confirm">Annuller</button><button class="confirm-ok" data-action="confirm-book">Book nu ✓</button></div></div></div>`;
+    }
+    if (c.type === "cancel") {
+      return `<div class="confirm-overlay"><div class="confirm-box confirm-box-red"><div class="confirm-icon">🗑️</div><div class="confirm-title">Slet booking?</div><div class="confirm-detail">${this._esc(c.label)}</div><div class="confirm-btns"><button class="confirm-cancel" data-action="cancel-confirm">Behold</button><button class="confirm-ok confirm-ok-red" data-action="confirm-cancel-booking">Slet ✕</button></div></div></div>`;
+    }
+    return "";
   }
 
   _htmlHeader(count, max) {
     const bal = this._status.balance ? ` · ${this._fmtCurrency(this._status.balance)}` : "";
-    return `<div class="header"><div class="header-icon"><img src="${_ML_LOGO}" alt="MieleLogic"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.1.0</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
+    return `<div class="header"><div class="header-icon"><img src="${_ML_LOGO}" alt="MieleLogic"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.2.0</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
   }
 
   _htmlTabs() {
@@ -344,8 +328,7 @@ class MieleLogicPanel extends HTMLElement {
     const infoMsg = s.info_message ? `<div class="info-strip">📢 ${s.info_message}</div>` : "";
     const lockMsg = locked ? `<div class="lock-strip">🔒 ${s.lock_message || "Booking er midlertidigt spærret"}</div>` : "";
     const slotsOpts = this._slots.length === 0 ? `<option>Henter tidslots…</option>` : this._slots.map(sl => `<option value="${sl.start}" ${this._selectedSlot === sl.start ? "selected" : ""} ${sl.booked ? "disabled" : ""}>${sl.booked ? sl.label + " — Optaget" : sl.label}</option>`).join("");
-    const bookBtn = this._loading ? `<button class="book-btn btn-loading" disabled><span class="spin">↻</span> Booker…</button>` : locked ? `<button class="book-btn btn-locked" disabled>🔒 ${s.lock_message || "Booking spærret"}</button>` : !canBook ? `<button class="book-btn btn-full" disabled>Max bookinger nået</button>` : `<button class="book-btn btn-ready" data-action="book">Book nu</button>`;
-    // Chips: clickable for free slots, syncs with select
+    const bookBtn = this._loading ? `<button class="book-btn btn-loading" disabled><span class="spin">↻</span> Booker…</button>` : locked ? `<button class="book-btn btn-locked" disabled>🔒 ${s.lock_message || "Booking spærret"}</button>` : !canBook ? `<button class="book-btn btn-full" disabled>Max bookinger nået</button>` : `<button class="book-btn btn-ready" data-action="request-book">Book nu</button>`;
     const chips = this._slots.map(sl => {
       if (sl.booked) return `<span class="slot-chip chip-booked" title="Optaget">${sl.start} ✕</span>`;
       return `<span class="slot-chip chip-free${this._selectedSlot === sl.start ? " chip-selected" : ""}" data-chipslot="${sl.start}" title="Vælg ${sl.label}">${sl.start} ✓</span>`;
@@ -356,7 +339,6 @@ class MieleLogicPanel extends HTMLElement {
 
   _htmlBookingRow(b, idx) {
     const dur = (() => { const d = b.Duration ?? b.duration; if (d != null && !isNaN(+d)) return +d + " min"; try { const m = Math.round((new Date(b.End) - new Date(b.Start)) / 60000); if (m > 0) return m + " min"; } catch(e) {} return ""; })();
-    // data-bindex instead of JSON in attribute — safer, no escaping issues
     return `<div class="brow"><div class="brow-accent ${b.vaskehus === "Storvask" ? "ba-stor" : "ba-klat"}"></div><div class="brow-info"><span class="brow-name">${b.vaskehus || "Booking"}</span><span class="brow-meta">${this._fmtDate(b.Start)}${dur ? " · " + dur : ""}${b.created_by ? " · " + b.created_by : ""}</span></div><button class="del-btn" data-bindex="${idx}" ${this._loading ? "disabled" : ""} title="Slet booking">✕</button></div>`;
   }
 
@@ -394,30 +376,30 @@ class MieleLogicPanel extends HTMLElement {
     root.querySelectorAll("[data-vhus]").forEach(b => b.addEventListener("click", () => { this._vaskehus=b.dataset.vhus; this._selectedSlot=""; this._loadSlots().then(()=>this._render()); }));
     const slotSel=root.querySelector("[data-field='slot']"); if(slotSel) slotSel.addEventListener("change",e=>{this._selectedSlot=e.target.value; this._render();});
     const dateIn=root.querySelector("[data-field='date']"); if(dateIn) dateIn.addEventListener("change",e=>{this._selectedDate=e.target.value;this._selectedSlot="";this._loadSlots().then(()=>this._render());});
-    // Clickable chips — sync with select and re-render chips highlight
     root.querySelectorAll("[data-chipslot]").forEach(chip => chip.addEventListener("click", () => {
       this._selectedSlot = chip.dataset.chipslot;
-      // Update select
       const sel = root.querySelector("[data-field='slot']");
       if (sel) sel.value = this._selectedSlot;
-      // Re-render chips only (lightweight)
       root.querySelectorAll("[data-chipslot]").forEach(c => c.classList.toggle("chip-selected", c.dataset.chipslot === this._selectedSlot));
     }));
     root.querySelectorAll("[data-action]").forEach(el => el.addEventListener("click", e => {
-      const a=el.dataset.action;
-      if(a==="book") this._doBook();
-      else if(a==="refresh") this._loadCore();
-      else if(a==="clear-error"){this._error=null;this._render();}
-      else if(a==="save-devices") this._doSaveDevices();
-      else if(a==="save-edit") this._doSaveEdit();
-      else if(a==="reset-notif") this._doResetNotification();
-      else if(a==="close-modal"){e.stopPropagation();this._closeModal();}
-      else if(a==="save-admin") this._doSaveAdmin();
-      else if(a==="cleanup-history") this._doCleanupHistory();
+      const a = el.dataset.action;
+      if (a === "request-book") this._requestBook();
+      else if (a === "confirm-book") this._doBook();
+      else if (a === "cancel-confirm") this._cancelConfirm();
+      else if (a === "confirm-cancel-booking") this._doCancel(this._confirm?.idx);
+      else if (a === "refresh") this._loadCore();
+      else if (a === "clear-error") { this._error=null; this._render(); }
+      else if (a === "save-devices") this._doSaveDevices();
+      else if (a === "save-edit") this._doSaveEdit();
+      else if (a === "reset-notif") this._doResetNotification();
+      else if (a === "close-modal") { e.stopPropagation(); this._closeModal(); }
+      else if (a === "save-admin") this._doSaveAdmin();
+      else if (a === "cleanup-history") this._doCleanupHistory();
     }));
     const mb=root.querySelector(".modal-bg"); if(mb) mb.addEventListener("click",e=>{if(e.target===mb)this._closeModal();});
-    // data-bindex replaces JSON in data-cancel
-    root.querySelectorAll("[data-bindex]").forEach(b => b.addEventListener("click", () => { this._doCancel(+b.dataset.bindex); }));
+    // del-btn now triggers _requestCancel (inline confirm) instead of direct cancel
+    root.querySelectorAll("[data-bindex]").forEach(b => b.addEventListener("click", () => { this._requestCancel(+b.dataset.bindex); }));
     root.querySelectorAll("[data-device]").forEach(cb => cb.addEventListener("change",()=>{const s=cb.dataset.device;this._devices=cb.checked?[...this._devices.filter(d=>d!==s),s]:this._devices.filter(d=>d!==s);cb.closest("label")?.classList.toggle("dev-on",cb.checked);}));
     root.querySelectorAll("[data-toggle-notif]").forEach(cb => cb.addEventListener("change",()=>this._doToggleNotification(cb.dataset.toggleNotif)));
     root.querySelectorAll("[data-edit-notif]").forEach(b => b.addEventListener("click",()=>{const id=b.dataset.editNotif,n=this._notifications[id];if(!n)return;this._editingId=id;this._editTitle=n.title;this._editMessage=n.message;this._render();}));
@@ -428,14 +410,14 @@ class MieleLogicPanel extends HTMLElement {
     root.querySelectorAll("[data-admin-check]").forEach(cb=>cb.addEventListener("change",()=>{this._admin={...this._admin,[cb.dataset.adminCheck]:cb.checked};this._render();}));
   }
 
-  /* ════════════════════ CSS — Indeklima Designer ════════════════════ */
+  /* ════════════════════ CSS ════════════════════ */
 
   _css() {
     return `
 :host,*{box-sizing:border-box;margin:0;padding:0}
 :host{--bg:var(--primary-background-color,#0f1923);--bg2:var(--secondary-background-color,#1a2535);--bg3:#243044;--text:var(--primary-text-color,#e2e8f0);--sub:var(--secondary-text-color,#94a3b8);--div:var(--divider-color,rgba(148,163,184,0.12));--green:#10b981;--orange:#f59e0b;--red:#ef4444;--accent:#3b82f6;--accent2:#06b6d4;--accent-glow:rgba(59,130,246,0.15);--card-radius:18px;display:flex;flex-direction:column;height:100%;font-family:'DM Sans',var(--paper-font-body1_-_font-family,sans-serif);color:var(--text);background:var(--bg)}
 .panel-topbar{flex-shrink:0;padding:16px 28px 12px;background:var(--bg);border-bottom:1px solid var(--div)}
-.panel-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:20px 28px 48px}
+.panel-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:20px 28px 48px;position:relative}
 .header{display:flex;align-items:center;gap:12px}
 .header-icon{width:42px;height:42px;border-radius:12px;overflow:hidden;flex-shrink:0}
 .header-icon img{width:100%;height:100%;object-fit:cover;display:block}
@@ -564,6 +546,31 @@ class MieleLogicPanel extends HTMLElement {
 .toast-warn{background:rgba(245,158,11,0.92);color:#fff}
 .toast-err{background:rgba(239,68,68,0.92);color:#fff}
 @keyframes toast-in{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.skel{background:linear-gradient(90deg,var(--bg3) 25%,rgba(36,48,68,0.7) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px}
+.skel-title{height:12px;width:120px;margin-bottom:14px}
+.skel-select{height:42px;width:100%;border-radius:10px;margin-bottom:10px}
+.skel-chips{height:24px;width:70%;margin-bottom:10px}
+.skel-btn{height:46px;width:100%;border-radius:10px;margin-top:4px}
+.skel-row{display:flex;align-items:center;gap:10px;padding:10px 0}
+.skel-icon{width:4px;height:36px;border-radius:2px;flex-shrink:0}
+.skel-lines{flex:1;display:flex;flex-direction:column;gap:6px}
+.skel-line{height:12px;border-radius:6px}
+.skel-l70{width:70%}
+.skel-l45{width:45%}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.confirm-overlay{position:absolute;inset:0;background:rgba(15,25,35,0.75);backdrop-filter:blur(4px);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;animation:cfm-in 0.18s ease}
+@keyframes cfm-in{from{opacity:0}to{opacity:1}}
+.confirm-box{background:var(--bg2);border:1px solid var(--div);border-radius:var(--card-radius);padding:28px 24px;max-width:360px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.confirm-box-red{border-color:rgba(239,68,68,0.3)}
+.confirm-icon{font-size:32px;margin-bottom:12px}
+.confirm-title{font-size:16px;font-weight:700;margin-bottom:8px}
+.confirm-detail{font-size:13px;color:var(--sub);line-height:1.5;margin-bottom:20px}
+.confirm-btns{display:flex;gap:10px}
+.confirm-cancel{flex:1;padding:11px;background:var(--bg);border:1px solid var(--div);border-radius:10px;color:var(--sub);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 0.2s}
+.confirm-cancel:hover{border-color:var(--accent);color:var(--accent)}
+.confirm-ok{flex:1;padding:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity 0.2s}
+.confirm-ok:hover{opacity:0.9}
+.confirm-ok-red{background:var(--red)}
     `;
   }
 }
