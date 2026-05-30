@@ -6,6 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.1.0] - 2026-05-30
+
+### Tilføjet — Performance & UX forbedringer
+- **Font preload** — DM Sans/DM Mono injiceres nu én gang fra `entrypoint.js` i stedet for `@import` inde i `_css()` der kørte ved hvert `_render()`-kald
+- **Split load-loop** — `_loadCore()` (slots + bookings + status, 30s interval) adskilt fra notifikationer som nu kun loades lazy ved tab-skift
+- **In-panel toast** — Grøn/orange/rød slide-in toast erstatter `persistent_notification` for al triviel feedback (3.5s auto-dismiss)
+- **Klikbare slot-chips** — Fri chips kan nu klikkes direkte og synkroniserer med select-feltet; valgt chip fremhæves med `chip-selected` styling
+- **`_historyLoaded` flag** — Rettet bug hvor tom historik blev cachet som "allerede loaded"; henter korrekt igen ved næste tab-skift
+- **Exponential backoff** — Polling stopper efter 4 fejl og venter 5→10→20→60s; genoptager automatisk via `visibilitychange`-event når siden bliver aktiv
+- **Cached state ved fejl** — `_loadBookings()` / `_loadStatus()` beholder nu forrige data ved WS-fejl i stedet for at overskrive med tomt objekt
+- **`data-bindex`** — Erstatter JSON-streng i `data-cancel` attribut på slet-knapper; sikrere og fri for escaping-problemer
+
+---
+
 ## [2.0.0] - 2026-04-04
 
 ### Tilføjet — Panel-registrering (Energy Hub-metoden) 🔧
