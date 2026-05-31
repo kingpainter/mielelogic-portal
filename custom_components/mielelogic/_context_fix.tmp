@@ -1,3 +1,0 @@
-        result = await booking_manager.make_booking(machine, start_datetime, slot["duration"], connection.context(msg))
-        
-        if result.get("success"):

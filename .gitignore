@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Home Assistant runtime files — never commit these
+.storage/
+*.db
+home-assistant.log*
+home-assistant_v2.db*
+
+# Secrets and credentials — never commit these
+.env
+.env.*
+secrets.yaml
+secrets.json
+*.secret
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+
+# Node
+node_modules/

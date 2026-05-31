@@ -15,6 +15,7 @@ from .const import (
     CONF_LAUNDRY_ID,
     CONF_CLIENT_SECRET,
     AUTH_URL,
+    DEFAULT_CLIENT_ID,
     CONF_SIDEBAR_TITLE,
     CONF_SIDEBAR_ICON,
     CONF_PANEL_ENABLED,
@@ -116,7 +117,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_USERNAME): str,
                     vol.Required(CONF_PASSWORD): str,
                     vol.Required(
-                        CONF_CLIENT_ID, default="YV1ZAQ7BTE9IT2ZBZXLJ"
+                        CONF_CLIENT_ID, default=DEFAULT_CLIENT_ID
                     ): str,
                     vol.Required(CONF_LAUNDRY_ID): str,
                     vol.Optional(CONF_CLIENT_SECRET): str,
@@ -240,7 +241,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_USERNAME, default=current.get(CONF_USERNAME, "")): str,
                     vol.Required(CONF_PASSWORD): str,
-                    vol.Required(CONF_CLIENT_ID, default=current.get(CONF_CLIENT_ID, "YV1ZAQ7BTE9IT2ZBZXLJ")): str,
+                    vol.Required(CONF_CLIENT_ID, default=current.get(CONF_CLIENT_ID, DEFAULT_CLIENT_ID)): str,
                     vol.Required(CONF_LAUNDRY_ID, default=current.get(CONF_LAUNDRY_ID, "")): str,
                     vol.Optional(CONF_CLIENT_SECRET, default=current.get(CONF_CLIENT_SECRET, "")): str,
                 }
@@ -374,7 +375,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
 
         # Get current data with safe defaults
         current_username = self.config_entry.data.get(CONF_USERNAME, "")
-        current_client_id = self.config_entry.data.get(CONF_CLIENT_ID, "YV1ZAQ7BTE9IT2ZBZXLJ")
+        current_client_id = self.config_entry.data.get(CONF_CLIENT_ID, DEFAULT_CLIENT_ID)
         current_client_secret = self.config_entry.data.get(CONF_CLIENT_SECRET, "")
 
         # Show form with current credentials

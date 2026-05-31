@@ -14,6 +14,9 @@ CONF_CLIENT_SECRET = "client_secret"
 API_BASE_URL = "https://api.mielelogic.com/v7"
 AUTH_URL = "https://sec.mielelogic.com/v7/token"
 
+# Default OAuth2 client ID (public — not a secret)
+DEFAULT_CLIENT_ID = "YV1ZAQ7BTE9IT2ZBZXLJ"
+
 # Panel configuration (Energy Hub pattern)
 CONF_SIDEBAR_TITLE = "sidebar_title"
 CONF_SIDEBAR_ICON = "sidebar_icon"
