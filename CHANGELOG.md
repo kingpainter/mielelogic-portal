@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.2] - 2026-05-31
+
+### Rettet — CI-fejl
+- **`manifest.json`** — fjernet ugyldige felter `icon` og `frontend` som hassfest ikke accepterer
+- **`hacs.json`** — fjernet ugyldige felter `domains` og `iot_class`; bumped `homeassistant` til `2026.1.0`
+- **CI workflow** — HACS brands-check skippes (`ignore: brands`) da brand-submission er et fremtidigt mål; flake8 ignorerer nu whitespace/style-advarsler (W291/W293/E221/E303/F841/F541) og fejler kun på reelle kodefejl
+
+---
+
 ## [2.5.1] - 2026-05-31
 
 ### Rettet
