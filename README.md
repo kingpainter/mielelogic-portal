@@ -1,6 +1,6 @@
 # MieleLogic — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/version-2.5.1-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
+[![Version](https://img.shields.io/badge/version-2.5.3-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
 [![CI](https://github.com/kingpainter/mielelogic/actions/workflows/validate.yml/badge.svg)](https://github.com/kingpainter/mielelogic/actions/workflows/validate.yml)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
