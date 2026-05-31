@@ -1,4 +1,4 @@
-# VERSION = "2.5.0"
+# VERSION = "2.5.1"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 from homeassistant.config_entries import ConfigEntry
@@ -100,7 +100,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     # Set up services (only once, not per config entry)
-    if len([k for k in hass.data[DOMAIN].keys() if k not in ("store", "_panel_registered")]) == 1:
+    entry_ids = [k for k in hass.data[DOMAIN].keys() if k not in ("store", "_panel_registered")]
+    _LOGGER.debug("MieleLogic: active entries in hass.data: %s", entry_ids)
+    if len(entry_ids) == 1:
         await async_setup_services(hass, coordinator)
         
         # Register panel from options (Energy Hub pattern)

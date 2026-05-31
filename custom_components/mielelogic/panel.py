@@ -1,4 +1,4 @@
-# VERSION = "2.0.0"
+# VERSION = "2.5.1"
 """Panel registration for MieleLogic.
 
 Serves the JS panel as a static HTTP path and registers it in the HA
@@ -46,18 +46,7 @@ async def async_register_panel(
     require_admin: bool = DEFAULT_REQUIRE_ADMIN,
     frontend_url_path: str = DOMAIN,
 ) -> None:
-    """Register the MieleLogic sidebar panel and booking card.
-
-    Serves the JS files as static HTTP endpoints so HA can load them,
-    then registers the panel with panel_custom.
-
-    Args:
-        hass: Home Assistant instance.
-        sidebar_title: Title shown in the sidebar.
-        sidebar_icon: MDI icon for the sidebar entry.
-        require_admin: Whether the panel requires admin access.
-        frontend_url_path: URL path for the panel (default: domain name).
-    """
+    """Register the MieleLogic sidebar panel and booking card."""
     # Guard against double registration within the same HA session
     if hass.data.get(DOMAIN, {}).get("_panel_registered", False):
         _LOGGER.debug("MieleLogic panel already registered, skipping")
@@ -70,44 +59,31 @@ async def async_register_panel(
 
     if not os.path.isfile(panel_file):
         _LOGGER.error(
-            "MieleLogic: panel JS not found at %s — "
-            "make sure %s exists inside custom_components/mielelogic/frontend/",
-            panel_file,
-            PANEL_FILENAME,
+            "MieleLogic: panel JS not found at %s", panel_file,
         )
         return
 
-    # Cache busting via file mtime
     try:
         panel_mtime = int(os.path.getmtime(panel_file))
     except OSError:
         panel_mtime = 0
 
-    # ── Register static HTTP paths ─────────────────────────────────────────
     logo_file = os.path.join(frontend_dir, LOGO_FILENAME)
 
     static_paths = [
         StaticPathConfig(PANEL_URL, panel_file, cache_headers=False),
     ]
     if os.path.isfile(card_file):
-        static_paths.append(
-            StaticPathConfig(CARD_URL, card_file, cache_headers=False)
-        )
+        static_paths.append(StaticPathConfig(CARD_URL, card_file, cache_headers=False))
     if os.path.isfile(logo_file):
-        static_paths.append(
-            StaticPathConfig(LOGO_URL, logo_file, cache_headers=True)
-        )
+        static_paths.append(StaticPathConfig(LOGO_URL, logo_file, cache_headers=True))
 
     try:
         await hass.http.async_register_static_paths(static_paths)
-        _LOGGER.info(
-            "MieleLogic: static paths registered: %s",
-            [p.url_path for p in static_paths],
-        )
+        _LOGGER.info("MieleLogic: static paths registered: %s", [p.url_path for p in static_paths])
     except RuntimeError as err:
         _LOGGER.debug("MieleLogic: static paths already registered: %s", err)
 
-    # ── Register sidebar panel via panel_custom ────────────────────────────
     try:
         await panel_custom.async_register_panel(
             hass,
@@ -119,15 +95,8 @@ async def async_register_panel(
             require_admin=require_admin,
             config={},
         )
-        _LOGGER.info(
-            "MieleLogic: panel '%s' (%s) registered in sidebar at /%s "
-            "(require_admin=%s)",
-            sidebar_title,
-            sidebar_icon,
-            frontend_url_path,
-            require_admin,
-        )
-    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.info("MieleLogic: panel registered in sidebar at /%s", frontend_url_path)
+    except Exception as err:
         _LOGGER.warning("MieleLogic: could not register panel: %s", err)
 
     # ── Register booking card as Lovelace resource ─────────────────────────
@@ -140,22 +109,27 @@ async def async_register_panel(
             except OSError:
                 card_mtime = 0
 
-            add_extra_js_url(hass, f"{CARD_URL}?v={VERSION}&m={card_mtime}")
-            _LOGGER.info("MieleLogic: booking card registered as Lovelace resource")
-        except Exception as err:  # pylint: disable=broad-except
+            card_url = f"{CARD_URL}?v={VERSION}&m={card_mtime}"
+            add_extra_js_url(hass, card_url)
+            _LOGGER.warning(
+                "MieleLogic: booking card registered at %s (size=%d bytes)",
+                card_url,
+                os.path.getsize(card_file),
+            )
+        except Exception as err:
             _LOGGER.warning("MieleLogic: could not register booking card: %s", err)
+    else:
+        _LOGGER.error(
+            "MieleLogic: booking card JS NOT FOUND at %s — card will not load",
+            card_file,
+        )
 
-    # Mark as registered
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["_panel_registered"] = True
 
 
 def async_unregister_panel(hass: HomeAssistant) -> None:
-    """Remove the MieleLogic panel from the sidebar.
-
-    The _panel_registered flag MUST be cleared here so the next
-    async_setup_entry() re-registers cleanly after options change.
-    """
+    """Remove the MieleLogic panel from the sidebar."""
     from homeassistant.components import frontend
 
     if hass.data.get(DOMAIN, {}).get("_panel_registered", False):

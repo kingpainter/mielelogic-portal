@@ -170,43 +170,21 @@
   },
   "entity": {
     "binary_sensor": {
-      "has_reservation": {
-        "name": "Has Reservation"
-      },
-      "has_washer_reservation": {
-        "name": "Has Washer Reservation"
-      },
-      "has_dryer_reservation": {
-        "name": "Has Dryer Reservation"
-      },
-      "reservation_starting_soon": {
-        "name": "Reservation Starting Soon"
-      },
-      "washer_available": {
-        "name": "Washer Available"
-      },
-      "dryer_available": {
-        "name": "Dryer Available"
-      }
+      "has_reservation": {"name": "Has Reservation"},
+      "has_washer_reservation": {"name": "Has Washer Reservation"},
+      "has_dryer_reservation": {"name": "Has Dryer Reservation"},
+      "reservation_starting_soon": {"name": "Reservation Starting Soon"},
+      "washer_available": {"name": "Washer Available"},
+      "dryer_available": {"name": "Dryer Available"}
     },
     "sensor": {
-      "reservations": {
-        "name": "Reservations"
-      },
-      "washer_status": {
-        "name": "Washer Status"
-      },
-      "dryer_status": {
-        "name": "Dryer Status"
-      },
-      "account_balance": {
-        "name": "Account Balance"
-      }
+      "reservations": {"name": "Reservations"},
+      "washer_status": {"name": "Washer Status"},
+      "dryer_status": {"name": "Dryer Status"},
+      "account_balance": {"name": "Account Balance"}
     },
     "calendar": {
-      "reservations": {
-        "name": "Reservations"
-      }
+      "reservations": {"name": "Reservations"}
     }
   }
 }

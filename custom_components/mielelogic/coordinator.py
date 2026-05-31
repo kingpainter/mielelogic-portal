@@ -1,4 +1,4 @@
-# VERSION = "2.5.0"
+# VERSION = "2.5.1"
 import logging
 import asyncio
 from datetime import datetime, timedelta

@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.1] - 2026-05-31
+
+### Rettet
+- **`_renderWeekStrip` manglede** — metoden blev kaldt i `_update()` men eksisterede ikke i klassen, hvilket fik booking-kortet til at crashe med `TypeError: this._renderWeekStrip is not a function` på alle mobile og desktop enheder
+- Feltnavne justeret til at matche `get_week_availability` WS-response (`has_free`, `label`, `day_num` fremfor `free`, `weekday`, `day`)
+- **CI/CD workflow** — `.github/workflows/validate.yml` tilføjet med 6 jobs: hassfest, HACS-validering, Python lint (flake8), JS syntakstjek, translations-paritet og versions-konsistens
+
+---
+
 ## [2.5.0] - 2026-05-30
 
 ### Tilføjet — Multi-kalender + runtime_data migration

@@ -423,6 +423,37 @@ class MieleLogicBookingCard extends HTMLElement {
     });
   }
 
+  // ── WEEK STRIP ────────────────────────────────────────────────────────────────
+
+  _renderWeekStrip() {
+    if (this._weekLoading && this._weekDays.length === 0) {
+      const skels = Array.from({length: 7}, () =>
+        `<div class="wd wd-skel">
+          <div class="wd-dot-skel"></div>
+          <div class="wd-lbl-skel"></div>
+          <div class="wd-num-skel"></div>
+        </div>`
+      ).join("");
+      return `<div class="week-strip">${skels}</div>`;
+    }
+    if (!this._weekDays.length) return "";
+    const days = this._weekDays.map(d => {
+      const isSel = d.date === this._selectedDate;
+      const isToday = d.date === new Date().toISOString().split("T")[0];
+      const dot = d.has_free
+        ? `<div class="wd-dot dot-free"></div>`
+        : `<div class="wd-dot dot-full"></div>`;
+      const cls = ["wd", isSel ? "wd-sel" : "", isToday ? "wd-today" : ""].filter(Boolean).join(" ");
+      const lblCls = isToday ? "wd-lbl wd-lbl-today" : "wd-lbl";
+      return `<button class="${cls}" data-wdate="${d.date}" title="${d.label || d.date}">
+        ${dot}
+        <span class="${lblCls}">${d.label || ""}</span>
+        <span class="wd-num">${d.day_num || ""}</span>
+      </button>`;
+    }).join("");
+    return `<div class="week-strip">${days}</div>`;
+  }
+
   // ── CSS ──────────────────────────────────────────────────────────────────────
 
   _css() {

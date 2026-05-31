@@ -1,6 +1,7 @@
 # MieleLogic — Home Assistant Integration
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
+[![Version](https://img.shields.io/badge/version-2.5.1-blue.svg)](https://github.com/kingpainter/mielelogic/releases)
+[![CI](https://github.com/kingpainter/mielelogic/actions/workflows/validate.yml/badge.svg)](https://github.com/kingpainter/mielelogic/actions/workflows/validate.yml)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.1%2B-blue.svg)](https://www.home-assistant.io/)
@@ -194,6 +195,7 @@ Konfigurer sekundære kalendere under Indstillinger → Integrationer → MieleL
 
 Se [CHANGELOG.md](CHANGELOG.md) for fuld versionshistorik.
 
+- **v2.5.1** ✅ — Bugfix: `_renderWeekStrip` crash på booking-kort, CI/CD workflow
 - **v2.5.0** ✅ — Multi-kalender, runtime_data migration, sekundær kalender-tracking
 - **v2.4.0** ✅ — Cancel fra push-notifikation, countdown-timer, rige notifikationer
 - **v2.3.0** ✅ — 7-dages dag-strip med ledig/optaget-indikator
@@ -210,5 +212,5 @@ MIT — se [LICENSE.md](LICENSE.md)
 
 ---
 
-**Seneste version:** 2.5.0 — 30. maj 2026  
+**Seneste version:** 2.5.1 — 31. maj 2026  
 **Udvikler:** KingPainter

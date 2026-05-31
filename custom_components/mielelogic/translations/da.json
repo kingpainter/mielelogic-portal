@@ -69,19 +69,19 @@
       },
       "calendar": {
         "title": "Konfigurer Kalender Synkronisering",
-        "description": "Synkroniser MieleLogic reservationer til en ekstern kalender. Dette er valgfrit - hvis ikke aktiveret bruges kun MieleLogic's indbyggede kalender.\n\nAktuelt: {current_calendar}\nTilg\u00e6ngelige kalendere: {num_calendars}",
+        "description": "Prim\u00e6r kalender: synkroniseres automatisk til alle bookinger. Sekund\u00e6re kalendere: valgfri per-booking valg i panelet.\n\nAktuelt prim\u00e6r: {primary}\nSekund\u00e6re: {secondaries}\n\nHint: {hint}",
         "data": {
-          "enable_sync": "Aktiver kalender synkronisering",
-          "calendar_entity": "M\u00e5l kalender"
+          "primary_calendar": "Prim\u00e6r kalender",
+          "secondary_calendars": "Sekund\u00e6re kalendere (komma-separerede entity IDs)"
         },
         "data_description": {
-          "enable_sync": "Synkroniser reservationer til en ekstern kalender (f.eks. CalDAV)",
-          "calendar_entity": "V\u00e6lg hvilken kalender der skal synkroniseres til"
+          "primary_calendar": "Synkroniseres altid automatisk \u2014 alle bookinger tilf\u00f8jes her",
+          "secondary_calendars": "Valgfrie kalendere til per-booking valg i panelet (f.eks. calendar.lukas)"
         }
       },
       "laundry_hours": {
         "title": "Konfigurer Vaskehus \u00c5bningstider",
-        "description": "Indstil hvorn\u00e5r vaskehuset \u00e5bner og lukker. Dette bruges til at vise 'Lukket indtil kl. XX:XX' p\u00e5 maskiner.\n\nAktuelt: \u00c5bner {current_opening}, Lukker {current_closing}",
+        "description": "Indstil hvorn\u00e5r vaskehuset \u00e5bner og lukker.\n\nAktuelt: \u00c5bner {current_opening}, Lukker {current_closing}",
         "data": {
           "opening_time": "\u00c5bningstid (f.eks. 07:00)",
           "closing_time": "Lukketid (f.eks. 21:00)"
@@ -106,39 +106,27 @@
       "time_slots": {
         "title": "Konfigurer Tidsblokke",
         "description": "Administrer faste tidsblokke for hvert vaskehus.",
-        "data": {
-          "action": "V\u00e6lg handling"
-        }
+        "data": {"action": "V\u00e6lg handling"}
       },
       "edit_storvask_slots": {
         "title": "Rediger Storvask Tidsblokke",
         "description": "Tilf\u00f8j eller slet tidsblokke for Storvask.",
-        "data": {
-          "action": "V\u00e6lg handling"
-        }
+        "data": {"action": "V\u00e6lg handling"}
       },
       "edit_klatvask_slots": {
         "title": "Rediger Klatvask Tidsblokke",
         "description": "Tilf\u00f8j eller slet tidsblokke for Klatvask.",
-        "data": {
-          "action": "V\u00e6lg handling"
-        }
+        "data": {"action": "V\u00e6lg handling"}
       },
       "add_storvask_slot": {
         "title": "Tilf\u00f8j Storvask Tidsblok",
         "description": "Angiv start- og sluttidspunkt for den nye tidsblok.\nFormat: HH:MM (f.eks. 07:00 eller 19:30)",
-        "data": {
-          "start_time": "Start tidspunkt",
-          "end_time": "Slut tidspunkt"
-        }
+        "data": {"start_time": "Start tidspunkt", "end_time": "Slut tidspunkt"}
       },
       "add_klatvask_slot": {
         "title": "Tilf\u00f8j Klatvask Tidsblok",
         "description": "Angiv start- og sluttidspunkt for den nye tidsblok.\nFormat: HH:MM (f.eks. 07:00 eller 19:30)",
-        "data": {
-          "start_time": "Start tidspunkt",
-          "end_time": "Slut tidspunkt"
-        }
+        "data": {"start_time": "Start tidspunkt", "end_time": "Slut tidspunkt"}
       },
       "panel": {
         "title": "Panel Indstillinger",
@@ -170,43 +158,21 @@
   },
   "entity": {
     "binary_sensor": {
-      "has_reservation": {
-        "name": "Har Reservation"
-      },
-      "has_washer_reservation": {
-        "name": "Har Vasker Reservation"
-      },
-      "has_dryer_reservation": {
-        "name": "Har T\u00f8rretumbler Reservation"
-      },
-      "reservation_starting_soon": {
-        "name": "Reservation Starter Snart"
-      },
-      "washer_available": {
-        "name": "Vasker Tilg\u00e6ngelig"
-      },
-      "dryer_available": {
-        "name": "T\u00f8rretumbler Tilg\u00e6ngelig"
-      }
+      "has_reservation": {"name": "Har Reservation"},
+      "has_washer_reservation": {"name": "Har Vasker Reservation"},
+      "has_dryer_reservation": {"name": "Har T\u00f8rretumbler Reservation"},
+      "reservation_starting_soon": {"name": "Reservation Starter Snart"},
+      "washer_available": {"name": "Vasker Tilg\u00e6ngelig"},
+      "dryer_available": {"name": "T\u00f8rretumbler Tilg\u00e6ngelig"}
     },
     "sensor": {
-      "reservations": {
-        "name": "Reservationer"
-      },
-      "washer_status": {
-        "name": "Vasker Status"
-      },
-      "dryer_status": {
-        "name": "T\u00f8rretumbler Status"
-      },
-      "account_balance": {
-        "name": "Konto Saldo"
-      }
+      "reservations": {"name": "Reservationer"},
+      "washer_status": {"name": "Vasker Status"},
+      "dryer_status": {"name": "T\u00f8rretumbler Status"},
+      "account_balance": {"name": "Konto Saldo"}
     },
     "calendar": {
-      "reservations": {
-        "name": "Reservationer"
-      }
+      "reservations": {"name": "Reservationer"}
     }
   }
 }

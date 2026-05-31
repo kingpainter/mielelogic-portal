@@ -1,0 +1,136 @@
+name: Validate
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── 1. hassfest ─────────────────────────────────────────────────────────────
+  # Validates manifest.json, strings.json, quality_scale.yaml and translation
+  # files against Home Assistant's own quality-scale rules.
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  # ── 2. HACS validation ──────────────────────────────────────────────────────
+  # Checks hacs.json, README, and repository structure for HACS compatibility.
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  # ── 3. Python lint ──────────────────────────────────────────────────────────
+  # PEP 8 compliance + basic error detection across all Python source files.
+  python-lint:
+    name: Python lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install flake8
+        run: pip install flake8
+      - name: Run flake8
+        run: |
+          flake8 custom_components/mielelogic/ \
+            --max-line-length=120 \
+            --extend-ignore=E501,W503 \
+            --exclude=__pycache__
+
+  # ── 4. JavaScript syntax check ──────────────────────────────────────────────
+  # Verifies that all frontend JS files are syntactically valid.
+  js-syntax:
+    name: JS syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check JS syntax
+        run: |
+          for f in custom_components/mielelogic/frontend/*.js; do
+            echo "Checking $f"
+            node --check "$f"
+          done
+
+  # ── 5. Translation completeness ─────────────────────────────────────────────
+  # Ensures da.json has the same top-level keys as en.json (strings.json parity).
+  translations:
+    name: Translation completeness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check da.json vs en.json parity
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+
+          def top_keys(path):
+              with open(path) as f:
+                  return set(json.load(f).keys())
+
+          en = top_keys("custom_components/mielelogic/translations/en.json")
+          da = top_keys("custom_components/mielelogic/translations/da.json")
+
+          missing_da = en - da
+          missing_en = da - en
+
+          ok = True
+          if missing_da:
+              print(f"❌ Keys in en.json but missing from da.json: {missing_da}")
+              ok = False
+          if missing_en:
+              print(f"⚠️  Keys in da.json but missing from en.json: {missing_en}")
+          if ok:
+              print("✅ Translation keys match")
+          sys.exit(0 if ok else 1)
+          EOF
+
+  # ── 6. Version consistency ───────────────────────────────────────────────────
+  # Verifies that manifest.json version matches VERSION in const.py.
+  version-consistency:
+    name: Version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check manifest vs const.py version
+        run: |
+          python3 - <<'EOF'
+          import json, re, sys
+
+          with open("custom_components/mielelogic/manifest.json") as f:
+              manifest_version = json.load(f)["version"]
+
+          with open("custom_components/mielelogic/const.py") as f:
+              content = f.read()
+
+          match = re.search(r'^VERSION\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
+          if not match:
+              print("❌ VERSION not found in const.py")
+              sys.exit(1)
+
+          const_version = match.group(1)
+
+          if manifest_version != const_version:
+              print(f"❌ Version mismatch: manifest.json={manifest_version}, const.py={const_version}")
+              sys.exit(1)
+
+          print(f"✅ Version consistent: {manifest_version}")
+          EOF
