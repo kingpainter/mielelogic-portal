@@ -31,6 +31,7 @@ class MieleLogicStore:
         stored = await self._store.async_load()
         if stored:
             self._data = stored
+            self._migrate_data()
         else:
             self._data = self._default_data()
         _LOGGER.info(
@@ -39,6 +40,21 @@ class MieleLogicStore:
             len(self._data.get("notifications", {})),
             len(self._data.get("bookings", {})),
         )
+
+    def _migrate_data(self) -> None:
+        """Patch missing keys into existing storage without losing user data."""
+        defaults = self._default_data()
+        # Ensure all default notification types exist
+        notifs = self._data.setdefault("notifications", {})
+        for key, default_cfg in defaults["notifications"].items():
+            if key not in notifs:
+                notifs[key] = default_cfg
+                _LOGGER.info("Migrated missing notification config: %s", key)
+        # Ensure top-level keys exist
+        for key, value in defaults.items():
+            if key not in self._data:
+                self._data[key] = value
+                _LOGGER.info("Migrated missing storage key: %s", key)
 
     async def async_save(self) -> None:
         await self._store.async_save(self._data)
