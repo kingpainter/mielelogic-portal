@@ -32,9 +32,17 @@ Home Assistant integration til MieleLogic vaskehus-systemer. Book vasketider, ov
 
 ## Screenshots
 
-| Panel — Oversigt | Panel — Notifikationer |
+| Panel — Booking | Panel — Notifikationer |
 |---|---|
-| ![Panel Booking](screenshots/booking-panel.png) | ![Notification Tab](screenshots/notification-tab.png) |
+| ![Panel Booking](screenshots/panel-booking.png) | ![Notifikationer](screenshots/panel-notifications.png) |
+
+| Panel — Historik | Panel — Admin |
+|---|---|
+| ![Historik](screenshots/panel-history.png) | ![Admin](screenshots/panel-admin.png) |
+
+| Mobil kort |
+|---|
+| ![Mobil kort](screenshots/card-mobile.png) |
 
 ---
 
