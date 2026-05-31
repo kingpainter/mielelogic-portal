@@ -418,8 +418,13 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 return
             except Exception as err:
                 _LOGGER.warning("Refresh token grant failed: %s, falling back to password grant", err)
-        await self._token_request_password_grant()
-        _LOGGER.info("Token refreshed using password grant")
+        try:
+            await self._token_request_password_grant()
+            _LOGGER.info("Token refreshed using password grant")
+        except Exception as err:
+            _LOGGER.error("Password grant failed — triggering re-authentication: %s", err)
+            self.config_entry.async_start_reauth(self.hass)
+            raise
 
     async def _token_request_refresh_grant(self):
         data = {"grant_type": "refresh_token", "refresh_token": self.refresh_token, "client_id": self.client_id}

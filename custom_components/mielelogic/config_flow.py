@@ -257,6 +257,70 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler."""
         return MieleLogicOptionsFlowHandler()
 
+    async def async_step_reauth(self, entry_data):
+        """Handle re-authentication when credentials are no longer valid.
+
+        Triggered automatically by coordinator when password grant fails.
+        HA shows a persistent notification banner until resolved.
+        """
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None):
+        """Show re-auth form and validate new credentials."""
+        errors = {}
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+
+        if user_input is not None:
+            try:
+                await self._test_credentials(
+                    user_input[CONF_USERNAME],
+                    user_input[CONF_PASSWORD],
+                    user_input[CONF_CLIENT_ID],
+                    user_input.get(CONF_CLIENT_SECRET),
+                )
+
+                new_data = dict(entry.data)
+                new_data[CONF_USERNAME] = user_input[CONF_USERNAME]
+                new_data[CONF_PASSWORD] = user_input[CONF_PASSWORD]
+                new_data[CONF_CLIENT_ID] = user_input[CONF_CLIENT_ID]
+                if user_input.get(CONF_CLIENT_SECRET):
+                    new_data[CONF_CLIENT_SECRET] = user_input[CONF_CLIENT_SECRET]
+
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data=new_data,
+                    reason="reauth_successful",
+                )
+
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except BadRequest:
+                errors["base"] = "bad_request"
+            except ServerError:
+                errors["base"] = "server_error"
+            except Exception as err:
+                _LOGGER.exception("Unexpected error during re-auth: %s", err)
+                errors["base"] = "unknown"
+
+        current = entry.data if entry else {}
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_USERNAME, default=current.get(CONF_USERNAME, "")): str,
+                    vol.Required(CONF_PASSWORD): str,
+                    vol.Required(CONF_CLIENT_ID, default=current.get(CONF_CLIENT_ID, "")): str,
+                    vol.Optional(CONF_CLIENT_SECRET, default=current.get(CONF_CLIENT_SECRET, "")): str,
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "username": current.get(CONF_USERNAME, "unknown"),
+            },
+        )
+
 
 class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for MieleLogic - FIVE OPTIONS."""

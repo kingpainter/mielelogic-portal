@@ -25,6 +25,16 @@
           "laundry_id": "Laundry ID",
           "client_secret": "Client Secret (optional)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate MieleLogic",
+        "description": "Your MieleLogic credentials for {username} are no longer valid. Please enter your credentials again.",
+        "data": {
+          "username": "Username (email)",
+          "password": "Password",
+          "client_id": "Client ID",
+          "client_secret": "Client Secret (optional)"
+        }
       }
     },
     "error": {
@@ -36,6 +46,7 @@
     },
     "abort": {
       "already_configured": "MieleLogic is already configured",
+      "reauth_successful": "Re-authentication successful",
       "reconfigure_successful": "Reconfiguration successful"
     }
   },

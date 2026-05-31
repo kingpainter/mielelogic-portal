@@ -25,6 +25,16 @@
           "laundry_id": "Vaskeri-ID",
           "client_secret": "Klient-hemmelighed (valgfri)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Gentilslut MieleLogic",
+        "description": "Dine MieleLogic legitimationsoplysninger for {username} er ikke l\u00e6ngere gyldige. Indtast venligst dine oplysninger igen.",
+        "data": {
+          "username": "Brugernavn (e-mail)",
+          "password": "Adgangskode",
+          "client_id": "Klient-ID",
+          "client_secret": "Klient-hemmelighed (valgfri)"
+        }
       }
     },
     "error": {
@@ -36,6 +46,7 @@
     },
     "abort": {
       "already_configured": "MieleLogic er allerede konfigureret",
+      "reauth_successful": "Gentilslutning lykkedes",
       "reconfigure_successful": "Genkonfiguration lykkedes"
     }
   },

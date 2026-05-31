@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.3] - 2026-05-31
+
+### Tilføjet — Re-authentication flow
+- **`async_step_reauth`** — HA viser nu et "Integration kræver gentilslutning"-banner når credentials er udløbet eller ugyldige
+- **`coordinator._refresh_token`** — kalder nu `entry.async_start_reauth()` når både refresh grant og password grant fejler, i stedet for blot at logge en fejl
+- **`strings.json` + `translations/da.json`** — `reauth_confirm`-trin og `reauth_successful`-abort tilføjet til begge filer
+- Gold tier `reauthentication_flow`-krav er nu fuldt implementeret
+
+---
+
 ## [2.5.2] - 2026-05-31
 
 ### Rettet — CI-fejl
