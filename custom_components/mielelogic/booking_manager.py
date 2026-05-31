@@ -1,4 +1,4 @@
-# VERSION = "2.5.1"
+# VERSION = "2.5.4"
 """Manage booking and cancellation operations."""
 import logging
 from typing import Dict, List
@@ -97,6 +97,9 @@ class BookingManager:
                             "_cancel_action": cancel_action,  # stripped before display
                         },
                     )
+                    # Schedule voice reminder 15 min before start
+                    booking_key = f"machine_{machine_number}_{start_datetime.replace(' ', 'T')}"
+                    self.notification_manager.schedule_voice_reminder(booking_key, dt)
                 except Exception as err:
                     _LOGGER.warning("Could not send booking notification: %s", err)
 
@@ -147,6 +150,9 @@ class BookingManager:
                     if time_manager:
                         vaskehus = time_manager.get_vaskehus_for_machine(machine_number) or "Vaskehus"
                     await self.notification_manager.send_notification("booking_canceled", {"vaskehus": vaskehus})
+                    # Cancel any pending voice reminder for this booking
+                    booking_key = f"machine_{machine_number}_{start_time.replace(' ', 'T')}"
+                    self.notification_manager.cancel_voice_reminder(booking_key)
                 except Exception as err:
                     _LOGGER.warning("Could not send cancellation notification: %s", err)
 

@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.4] - 2026-05-31
+
+### Tilføjet — House Voice tale-påmindelse
+- **`voice_reminder`** — ny notifikationstype der kalder `house_voice.say` med `event_id: "Vaske tid"` 15 min før booking starter
+- Til/fra-toggle i notifikationspanelet som alle andre notifikationer
+- Test-knap kalder `house_voice.say` direkte med det konfigurerede event-id
+- `schedule_voice_reminder()` i `notification_manager.py` bruger `async_call_later` med in-memory cancel-handle
+- `cancel_voice_reminder()` køres automatisk når en booking aflyses
+- Graceful fallback: gør ingenting hvis `house_voice.say` ikke er tilgængelig
+- Reminder skippes automatisk hvis tidspunktet er i fortiden (f.eks. booking om 5 min)
+
+---
+
 ## [2.5.3] - 2026-05-31
 
 ### Tilføjet — Re-authentication flow

@@ -1,4 +1,4 @@
-# VERSION = "2.5.1"
+# VERSION = "2.5.4"
 """Data storage for MieleLogic panel configuration."""
 
 import logging
@@ -23,6 +23,9 @@ class MieleLogicStore:
         self.hass = hass
         self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._data: dict[str, Any] = {}
+        # In-memory handles for scheduled voice reminders — not persisted
+        # Key: booking_key (str) → cancel handle from async_call_later
+        self._voice_reminder_handles: dict[str, Any] = {}
 
     async def async_load(self) -> None:
         stored = await self._store.async_load()
@@ -71,6 +74,10 @@ class MieleLogicStore:
                     "enabled": False,
                     "title": "❌ Booking annulleret",
                     "message": "{vaskehus} booking slettet",
+                },
+                "voice_reminder": {
+                    "enabled": False,
+                    "event_id": "Vaske tid",
                 },
             },
         }

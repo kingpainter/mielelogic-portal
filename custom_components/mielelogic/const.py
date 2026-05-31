@@ -1,7 +1,7 @@
-# VERSION = "2.5.3"
+# VERSION = "2.5.4"
 """Constants for MieleLogic integration."""
 DOMAIN = "mielelogic"
-VERSION = "2.5.3"
+VERSION = "2.5.4"
 
 # API credentials
 CONF_USERNAME = "username"

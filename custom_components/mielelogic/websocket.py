@@ -600,6 +600,17 @@ async def ws_test_notification(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "not_ready", "Notification manager not ready")
         return
     try:
+        if msg["notification_id"] == "voice_reminder":
+            store = _get_store(hass)
+            config = store.get_notification("voice_reminder") if store else {}
+            event_id = config.get("event_id", "Vaske tid") if config else "Vaske tid"
+            if not hass.services.has_service("house_voice", "say"):
+                connection.send_error(msg["id"], "unavailable", "house_voice.say is not available")
+                return
+            await hass.services.async_call("house_voice", "say", {"event": event_id}, blocking=False)
+            _LOGGER.info("🔊 Test voice reminder fired: event=%s", event_id)
+            connection.send_result(msg["id"], {"success": True})
+            return
         from datetime import datetime, timedelta
         test_time = datetime.now() + timedelta(minutes=15)
         await notification_manager.send_notification(msg["notification_id"], {

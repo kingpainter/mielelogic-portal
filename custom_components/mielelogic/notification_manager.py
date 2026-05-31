@@ -1,11 +1,12 @@
-# VERSION = "2.5.1"
+# VERSION = "2.5.4"
 """Notification manager for MieleLogic."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_call_later
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -181,3 +182,70 @@ class NotificationManager:
                 "vaskehus": vaskehus,
             },
         )
+
+    def schedule_voice_reminder(
+        self,
+        booking_key: str,
+        start_dt: datetime,
+    ) -> None:
+        """Schedule a House Voice reminder 15 min before start_dt.
+
+        Cancels any existing reminder for the same booking_key first.
+        Does nothing if voice_reminder is disabled or house_voice.say is unavailable.
+        """
+        config = self.store.get_notification("voice_reminder")
+        if not config or not config.get("enabled", False):
+            _LOGGER.debug("Voice reminder disabled — skipping schedule")
+            return
+
+        if not self.hass.services.has_service("house_voice", "say"):
+            _LOGGER.warning("house_voice.say not available — skipping voice reminder")
+            return
+
+        # Cancel any existing handle for this booking
+        self.cancel_voice_reminder(booking_key)
+
+        now = datetime.now(timezone.utc)
+        remind_at = start_dt.astimezone(timezone.utc).replace(tzinfo=timezone.utc)
+        # Ensure start_dt is timezone-aware
+        if start_dt.tzinfo is None:
+            from zoneinfo import ZoneInfo
+            remind_at = start_dt.replace(tzinfo=ZoneInfo("Europe/Copenhagen")).astimezone(timezone.utc)
+
+        from datetime import timedelta
+        remind_at = remind_at - timedelta(minutes=15)
+        delay = (remind_at - now).total_seconds()
+
+        if delay <= 0:
+            _LOGGER.debug("Voice reminder for %s is in the past — skipping", booking_key)
+            return
+
+        event_id = config.get("event_id", "Vaske tid")
+
+        async def _fire(_now):
+            """Fire the house_voice.say call."""
+            try:
+                await self.hass.services.async_call(
+                    "house_voice", "say",
+                    {"event": event_id},
+                    blocking=False,
+                )
+                _LOGGER.info("🔊 Voice reminder fired: house_voice.say event=%s", event_id)
+            except Exception as err:
+                _LOGGER.warning("Voice reminder failed: %s", err)
+            finally:
+                self.store._voice_reminder_handles.pop(booking_key, None)
+
+        cancel = async_call_later(self.hass, delay, _fire)
+        self.store._voice_reminder_handles[booking_key] = cancel
+        _LOGGER.info(
+            "🔔 Voice reminder scheduled for %s in %.0f seconds (event=%s)",
+            booking_key, delay, event_id,
+        )
+
+    def cancel_voice_reminder(self, booking_key: str) -> None:
+        """Cancel a previously scheduled voice reminder."""
+        handle = self.store._voice_reminder_handles.pop(booking_key, None)
+        if handle:
+            handle()
+            _LOGGER.debug("Voice reminder cancelled for %s", booking_key)
