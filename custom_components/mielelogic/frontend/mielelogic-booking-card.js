@@ -338,8 +338,8 @@ class MieleLogicBookingCard extends HTMLElement {
     for (const b of this._bookings) {
       const num = String(b.MachineNumber ?? "");
       try {
-        const start = new Date(b.Start).getTime();
-        const end   = new Date(b.End).getTime();
+        const start = new Date(b.Start.replace(" ", "T")).getTime();
+        const end   = new Date(b.End.replace(" ", "T")).getTime();
         ourBookings[num] = { start, end, active: start <= now && now < end };
       } catch(e) {}
     }
