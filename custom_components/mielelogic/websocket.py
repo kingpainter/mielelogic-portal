@@ -185,7 +185,7 @@ def ws_get_slots(hass: HomeAssistant, connection, msg):
 
     except Exception as err:
         _LOGGER.exception("Error getting slots: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "service_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -210,7 +210,7 @@ async def ws_make_booking(hass: HomeAssistant, connection, msg):
         slot = next((s for s in slots if s["start"] == msg["slot_start"]), None)
         
         if not slot:
-            connection.send_error(msg["id"], "invalid_slot", "Invalid time slot")
+            connection.send_error(msg["id"], "invalid_input", f"Invalid time slot: {msg['slot_start']}")
             return
         
         machine = time_manager.get_machine_for_vaskehus(msg["vaskehus"])
@@ -234,7 +234,7 @@ async def ws_make_booking(hass: HomeAssistant, connection, msg):
     
     except Exception as err:
         _LOGGER.exception("Error making booking: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "service_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -266,7 +266,7 @@ async def ws_cancel_booking(hass: HomeAssistant, connection, msg):
     
     except Exception as err:
         _LOGGER.exception("Error canceling booking: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "service_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -309,7 +309,7 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
     
     except Exception as err:
         _LOGGER.exception("Error getting bookings: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -360,7 +360,7 @@ def ws_get_status(hass: HomeAssistant, connection, msg):
     
     except Exception as err:
         _LOGGER.exception("Error getting status: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "service_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -424,7 +424,7 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
 
     except Exception as err:
         _LOGGER.exception("Error getting machines: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "service_error", str(err))
 
 
 #
@@ -444,7 +444,7 @@ def ws_get_admin(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], store.get_admin_settings())
     except Exception as err:
         _LOGGER.exception("Error getting admin settings: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -469,7 +469,7 @@ async def ws_save_admin(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"success": True})
     except Exception as err:
         _LOGGER.exception("Error saving admin settings: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 #
@@ -490,7 +490,7 @@ def ws_get_history(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"history": history, "count": len(history)})
     except Exception as err:
         _LOGGER.exception("Error getting history: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -508,7 +508,7 @@ async def ws_cleanup_history(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"cleaned": cleaned})
     except Exception as err:
         _LOGGER.exception("Error cleaning history: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 #
@@ -531,7 +531,7 @@ def ws_get_devices(hass: HomeAssistant, connection, msg):
         })
     except Exception as err:
         _LOGGER.exception("Error getting devices: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -550,7 +550,7 @@ async def ws_save_devices(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"success": True})
     except Exception as err:
         _LOGGER.exception("Error saving devices: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -566,7 +566,7 @@ def ws_get_notifications(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"notifications": store.get_notifications()})
     except Exception as err:
         _LOGGER.exception("Error getting notifications: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -586,7 +586,7 @@ async def ws_save_notification(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"success": True})
     except Exception as err:
         _LOGGER.exception("Error saving notification: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -621,7 +621,7 @@ async def ws_test_notification(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"success": True})
     except Exception as err:
         _LOGGER.exception("Error sending test notification: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "service_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -682,7 +682,7 @@ def ws_get_week_availability(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"days": days})
     except Exception as err:
         _LOGGER.exception("Error getting week availability: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "service_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -704,7 +704,7 @@ async def ws_reset_notification(hass: HomeAssistant, connection, msg):
         connection.send_result(msg["id"], {"success": True, "config": default_config})
     except Exception as err:
         _LOGGER.exception("Error resetting notification: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "storage_error", str(err))
 
 
 @websocket_api.websocket_command({
@@ -750,4 +750,4 @@ def ws_get_calendars(hass: HomeAssistant, connection, msg):
         })
     except Exception as err:
         _LOGGER.exception("Error getting calendars: %s", err)
-        connection.send_error(msg["id"], "unknown_error", str(err))
+        connection.send_error(msg["id"], "service_error", str(err))

@@ -8,6 +8,8 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_call_later
 
+from .notification_spam_filter import NotificationSpamFilter
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -18,6 +20,7 @@ class NotificationManager:
         """Initialize notification manager."""
         self.hass = hass
         self.store = store
+        self._spam_filter = NotificationSpamFilter()
 
     async def send_notification(
         self,
@@ -30,6 +33,18 @@ class NotificationManager:
             notification_type: Type of notification (reminder_15min, etc)
             variables: Variables to replace in message template
         """
+        # Spam filter — skip if same notification was sent within 60s
+        # Build a key from type + key variables to allow legitimate re-sends
+        _machine = variables.get("machine", "")
+        _time = variables.get("time", "")
+        spam_key = f"{notification_type}:{_machine}_{_time}" if (_machine or _time) else f"test:{notification_type}"
+        if not self._spam_filter.should_send(spam_key):
+            _LOGGER.info(
+                "Spam filter skipped notification '%s' (key=%s)",
+                notification_type, spam_key,
+            )
+            return
+
         # Get notification config
         notification = self.store.get_notification(notification_type)
         

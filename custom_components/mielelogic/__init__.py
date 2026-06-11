@@ -1,6 +1,7 @@
 # VERSION = "2.5.4"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
+import asyncio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import (
@@ -65,17 +66,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Initialize store (global, shared)
     from .storage import MieleLogicStore
-    if "store" not in hass.data.get(DOMAIN, {}):
+    store_is_new = "store" not in hass.data.get(DOMAIN, {})
+    if store_is_new:
         store = MieleLogicStore(hass)
-        await store.async_load()
         hass.data.setdefault(DOMAIN, {})
         hass.data[DOMAIN]["store"] = store
     else:
         store = hass.data[DOMAIN]["store"]
-    
+
     # Setup coordinator
     coordinator = MieleLogicDataUpdateCoordinator(hass, entry)
-    await coordinator.async_config_entry_first_refresh()
+
+    # Parallel load: store (if new) + coordinator first refresh run concurrently
+    await asyncio.gather(
+        store.async_load() if store_is_new else asyncio.sleep(0),
+        coordinator.async_config_entry_first_refresh(),
+    )
     
     # Setup managers
     time_manager = TimeSlotManager(entry)
