@@ -1,4 +1,4 @@
-# VERSION = "2.5.4"
+# VERSION = "2.5.5"
 """WebSocket API for MieleLogic panel."""
 import logging
 import voluptuous as vol

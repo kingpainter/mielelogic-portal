@@ -6,6 +6,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.5] - 2026-06-13
+
+### Ændret — Ensartet WebSocket fejlklassificering
+- Alle 18 WS-handlere returnerer nu specifikke fejlkoder i stedet for generisk `"unknown_error"`:
+  - `service_error` — API/coordinator/slot-fejl
+  - `storage_error` — store read/write-fejl
+  - `invalid_input` — ugyldigt slot i `make_booking` (tidligere `invalid_slot`)
+- Giver mulighed for mere præcise fejlbeskeder i panelet
+
+### Tilføjet — Notifikations spam-filter
+- Ny fil `notification_spam_filter.py` med `NotificationSpamFilter`-klasse
+- Forhindrer at samme notifikation (type + maskine + tid) sendes mere end én gang per 60 sekunder
+- Forebygger dobbelt-notifikationer ved hurtige kalender-sync triggers
+- Automatisk cleanup af gamle entries efter 1 time
+
+### Ændret — Parallel load ved integration-setup
+- `store.async_load()` og `coordinator.async_config_entry_first_refresh()` køres nu parallelt via `asyncio.gather()` ved opstart af nye config entries
+- Reducerer opstartstid marginalt
+
+---
+
 ## [2.5.4] - 2026-05-31
 
 ### Tilføjet — House Voice tale-påmindelse
