@@ -1,11 +1,16 @@
 /**
  * MieleLogic Booking Card
- * VERSION = "2.7.0"
+ * VERSION = "2.7.1"
  *
  * Custom Lovelace card — same visual language as Heat Manager / Indeklima.
  * Dark background, uppercase section labels, clean metric rows.
  *
  * v1.9.2: Date-aware slot availability — booked slots shown as disabled grey chips
+ * v2.7.1: Panel-view scaling fix — :host/#root/.card-root now fill 100% height
+ *         via flex column, with a dedicated .card-scroll region (flex:1;
+ *         min-height:0; overflow-y:auto) for correct display in a HA
+ *         `type: panel` Lovelace view (e.g. 7" tablet). Mirrors the pattern
+ *         already used in secure_me_alarm_tab_card.js.
  */
 
 class MieleLogicBookingCard extends HTMLElement {
@@ -251,6 +256,8 @@ class MieleLogicBookingCard extends HTMLElement {
           </div>
         </div>
 
+        <div class="card-scroll">
+
         ${this._error ? `<div class="error-bar">⚠ ${this._error}</div>` : ""}
         ${infoMsg     ? `<div class="info-bar"><span class="info-dot"></span>${infoMsg}</div>` : ""}
 
@@ -322,6 +329,8 @@ class MieleLogicBookingCard extends HTMLElement {
                   <button class="del-btn" data-start="${b.Start}" data-machine="${b.MachineNumber}" data-end="${b.End}" ${this._loading ? "disabled" : ""} title="Slet booking">✕</button>
                 </div>
               `).join("")}
+        </div>
+
         </div>
 
       </div>
@@ -458,14 +467,17 @@ class MieleLogicBookingCard extends HTMLElement {
 
   _css() {
     return `
-      :host { display: block; }
-      #root { display: block; width: 100%; }
+      :host { display: block; height: 100%; }
+      #root { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
 
       /* ── CARD SHELL ──────────────────────── */
       .card-root {
         position: relative;
-        display: block;
+        display: flex;
+        flex-direction: column;
         width: 100%;
+        height: 100%;
+        min-height: 0;
         background: #111;
         border: 1px solid #1e1e1e;
         border-radius: 14px;
@@ -473,6 +485,15 @@ class MieleLogicBookingCard extends HTMLElement {
         overflow: hidden;
         font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
         color: #e8e8e8;
+      }
+
+      .card-header { flex-shrink: 0; }
+
+      .card-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
       }
 
       /* ── TOAST ───────────────────────────── */
