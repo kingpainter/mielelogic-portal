@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.6] - 2026-07-20
+
+### Rettet — Panel-view skalering på booking-kortet
+- `mielelogic-booking-card.js` (v2.7.0 → v2.7.1) fyldte kun sin naturlige indholdshøjde, uanset forældre-container — brugbart i normal grid-view, men forkert skaleret i et HA `type: panel`-view (fx en 7" tablet i landscape)
+- `:host` sætter nu `height: 100%`, og `#root` / `.card-root` er omdannet til en flex-kolonne med `height: 100%; min-height: 0;` så kortet arver panelets fulde højde
+- `.card-header` er `flex-shrink: 0` (fast), og alt indhold derunder (fejl/info-bars, maskiner, ny booking, aktive bookinger) er flyttet ind i et nyt `.card-scroll`-lag med `flex: 1; min-height: 0; overflow-y: auto` — indholdet scroller internt i stedet for at overflowe eller blive presset sammen
+- Samme mønster som allerede bruges i `secure_me_alarm_tab_card.js`
+- `getCardSize()` uændret; ingen `max-width`/`margin: auto` at fjerne
+
+---
+
 ## [2.5.5] - 2026-06-13
 
 ### Ændret — Ensartet WebSocket fejlklassificering
