@@ -6,6 +6,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [Unreleased] — Gold Tier unit tests
+
+### Tilføjet — Test-suite for coordinator, booking_manager, websocket
+- Ny `tests/`-mappe: `conftest.py` (delte fixtures + `MockConfigEntry`/`MockCoordinator`), `test_coordinator.py`, `test_booking_manager.py`, `test_websocket.py`
+- `pytest.ini` og `requirements.txt` (pinned `pytest-homeassistant-custom-component==0.13.316`, kræver Python 3.13+)
+- Ny CI-workflow `.github/workflows/pytest.yml` — kører test-suiten på hvert push/PR mod `main`/`dev`
+- Dækker: token-refresh/retry-logik, caching, datetime-parsing og `_get_store` fallback i coordinator; booking/cancel happy-path + fejlhåndtering, primær/sekundær kalender-sync og -sletning i booking_manager; `_get_from_runtime` fallback-kæde, timetable-parsing og fejlkoder (`not_ready`/`invalid_input`/`service_error`/`storage_error`/`not_found`) i websocket
+
+---
+
+## [2.5.7] - 2026-08-21
+
+### Rettet — Notifikations-tab reload efter gem
+- `panel.js` (v2.5.0 → v2.5.7) — `_doSaveEdit()` (skabelon-editor for titel/besked) opdaterede kun lokal state efter gem og reloadede aldrig fra serveren, i modsætning til `_doSaveNotification()`/`_doToggleNotification()` som allerede gjorde det korrekt
+- Tilføjet `await this._loadNotifications()` efter vellykket `save_notification`-kald i `_doSaveEdit()`, så panelet altid viser server-bekræftet state efter en skabelon-redigering
+
+---
+
 ## [2.5.6] - 2026-07-20
 
 ### Rettet — Panel-view skalering på booking-kortet

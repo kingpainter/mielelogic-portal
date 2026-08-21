@@ -1,0 +1,16 @@
+# MieleLogic Portal - Home Assistant Custom Integration
+# Runtime dependencies: none beyond Home Assistant core
+
+# Development / testing dependencies
+# Install with: pip install -r requirements.txt
+pytest
+# Pinned: this package bundles a specific Home Assistant core version for tests.
+# Left unpinned, pip's resolver can land on an old release whose bundled HA core
+# is missing modern calendar/service-response APIs this integration relies on.
+# IMPORTANT: HA Core has required Python 3.13 since release 2025.2, so any
+# version of this package bundling a post-2024.11 HA core also requires
+# Python 3.13+ -- the CI matrix (pytest.yml) must use Python 3.13+.
+# 0.13.316 bundles HA Core 2026.2.3, requires Python >=3.13 (confirmed working
+# for the sibling secure_me project — same HA core version needed here).
+pytest-homeassistant-custom-component==0.13.316
+pytest-asyncio

@@ -1,5 +1,5 @@
 // MieleLogic Panel — Main UI Component
-// VERSION = "2.5.0"
+// VERSION = "2.5.7"
 // Architecture: vanilla HTMLElement + shadow DOM
 // Design: Indeklima Designer (blue/cyan accent)
 // element name: mielelogic-panel-v2
@@ -273,7 +273,7 @@ class MieleLogicPanel extends HTMLElement {
     const n = this._notifications[this._editingId];
     try {
       await this._hass.callWS({ type: "mielelogic/save_notification", notification_id: this._editingId, config: { ...n, title: this._editTitle, message: this._editMessage } });
-      this._notifications[this._editingId] = { ...n, title: this._editTitle, message: this._editMessage };
+      await this._loadNotifications();
       this._showToast("Skabelon gemt!", "ok"); this._closeModal();
     } catch (e) { this._showToast("Kunne ikke gemme", "err"); }
   }
