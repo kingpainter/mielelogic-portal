@@ -16,6 +16,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.8] - 2026-08-21
+
+### Tilføjet — Lokale brand-ikoner (HA 2026.3+)
+- Ny `custom_components/mielelogic/brand/`-mappe med `icon.png` (256x256) og `icon@2x.png` (512x512), genereret fra det eksisterende `mielelogic_logo.png` (center-croppet til kvadrat, PNG-optimeret)
+- Siden HA 2026.3 kan custom integrations levere deres eget brand-ikon direkte i integrationsmappen — `home-assistant/brands`-repoet tager ikke længere imod PRs for custom integrations. Ingen ekstern indsendelse nødvendig længere.
+- `hacs.json` — minimum HA-version bumpet fra `2026.1.0` til `2026.3.0` (krævet for at lokale brand-ikoner vises)
+- HACS-validering ignorerer stadig `brands`-checket i CI (`ignore: brands` i `.github/workflows/validate.yml`), da det tjekker det gamle eksterne repo som ikke længere er den relevante mekanisme
+
+---
+
 ## [2.5.7] - 2026-08-21
 
 ### Rettet — Notifikations-tab reload efter gem
