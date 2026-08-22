@@ -16,6 +16,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.6.2] - 2026-08-22
+
+### Rettet — Backend/UI-gennemgang: kvote-bug, fejlbeskeder, oprydning, toast-UX
+- **services.py**: `_check_max_reservations` blokerede al booking hvis MieleLogic-API'et momentant returnerede `MaxUserReservations: 0` (set under test 2026-08-22, formentlig en race/kvirk i deres backend). Behandles nu som en ugyldig værdi — logges som advarsel, blokerer ikke længere bookingen.
+- **services.py**: alle bruger-synlige valideringsfejl (maskinnummer, åbningstider, varighed, kvote, "booking ikke fundet") oversat fra engelsk til kort, dansk tekst — de gik før uoversat og delvist flerlinjet/teknisk direkte igennem til panelets toast-beskeder
+- **coordinator.py**: automatisk oprydning af gammel booking-metadata (én gang i døgnet, via eksisterende `store.async_cleanup_old_bookings(days=7)`) — tidligere skete oprydning kun manuelt via admin-fanens "Ryd historik"-knap
+- **panel.js** (v2.6.2): toast-beskeder skalerer nu varighed med længde (3,5–12 sek. i stedet for altid fast 3,5 sek.), understøtter flerlinjede beskeder (`white-space: pre-line` i stedet for `nowrap`) og kan lukkes med et tryk (`pointer-events: auto`) — relevant nu hvor længere fejlbeskeder (fx kvote-fejlen med bookingliste) rent faktisk kan læses
+
+### Kendte resterende punkter (ikke lavet i denne omgang)
+- `services.py` mangler stadig egen pytest-dækning (coordinator/booking_manager/websocket har det, services.py ikke)
+- v1.4.7-planen (emoji-fix, calendar sync wrapper, overlap detection, retry-logik) står stadig åben
+
+---
+
 ## [2.6.1] - 2026-08-22
 
 ### Tilføjet — Debug-logging af reservations-API-svar

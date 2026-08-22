@@ -1,7 +1,7 @@
 # MieleLogic Integration Quality Scale
-# Version: 1.7.0
-# Target Tier: Silver
-# Status: In Progress
+# Version: 2.6.2
+# Target Tier: Gold
+# Status: Gold tier substantially complete — integration_test_coverage partial (services.py untested)
 
 rules:
   # ===== BRONZE TIER RULES =====
@@ -12,7 +12,7 @@ rules:
   
   config_flow_test:
     status: todo
-    comment: Config flow tests not yet implemented - planned for Gold tier
+    comment: Config flow tests not yet implemented
   
   dependency_transparency:
     status: done
@@ -47,8 +47,8 @@ rules:
     comment: Uses DataUpdateCoordinator with proper async handling
   
   test_before_setup:
-    status: todo
-    comment: Tests not yet implemented - planned for Gold tier
+    status: done
+    comment: Covered by tests/test_coordinator.py, test_booking_manager.py, test_websocket.py (v2.5.8, pytest-homeassistant-custom-component, runs via GitHub CI)
   
   unique_config_entry:
     status: done
@@ -107,8 +107,8 @@ rules:
   # ===== GOLD TIER RULES (Future) =====
   
   brands:
-    status: todo
-    comment: Not yet implemented - planned for Gold tier
+    status: done
+    comment: Local brand icons in custom_components/mielelogic/brand/ (HA 2026.3+ feature, no external home-assistant/brands PR needed — v2.5.8)
   
   common_modules:
     status: done
@@ -135,8 +135,8 @@ rules:
     comment: All sensors and binary sensors refactored to use EntityDescription dataclasses (v2.0.0)
   
   integration_test_coverage:
-    status: todo
-    comment: Comprehensive tests not yet implemented - planned for Gold tier
+    status: partial
+    comment: coordinator.py, booking_manager.py and websocket.py covered (tests/). services.py (validation logic, incl. the reservation-quota check) not yet covered.
   
   reconfiguration_flow:
     status: partial
@@ -165,17 +165,18 @@ rules:
 # ===== SUMMARY =====
 # Bronze tier: ✅ DONE (all required rules met or exempted)
 # Silver tier: ✅ DONE (all required rules met or exempted)
-# Gold tier: 🟡 IN PROGRESS
+# Gold tier: 🟡 SUBSTANTIALLY COMPLETE
 #
-# Gold tier completed (v2.0.0):
+# Gold tier completed:
 #   ✅ entity_translations - state values translated (da + en)
 #   ✅ has_entity_description - EntityDescription dataclasses
 #   ✅ translations - full coverage da + en
+#   ✅ test_before_setup - tests/test_coordinator.py, test_booking_manager.py, test_websocket.py (v2.5.8)
+#   ✅ brands - local brand icons (v2.5.8)
 #
 # Gold tier remaining:
-#   🔲 brands - logo + brand submission to HA brands repo
 #   🔲 reconfiguration_flow - laundry_id change support
 #   🔲 config_flow_test - pytest tests for config flow
-#   🔲 integration_test_coverage - comprehensive test suite
+#   🔲 integration_test_coverage - services.py still untested (partial)
 #
-# Current status: SILVER TIER ✅ | GOLD IN PROGRESS 🟡
+# Current status: SILVER TIER ✅ | GOLD SUBSTANTIALLY COMPLETE 🟡 (v2.6.2, 2026-08-22)

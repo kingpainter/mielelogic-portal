@@ -1,4 +1,4 @@
-# VERSION = "2.6.1"
+# VERSION = "2.6.2"
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -56,6 +56,9 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
         # Track last sync time to prevent rapid duplicate syncs
         self._last_sync_time = None
         self._min_sync_interval = 5
+
+        # v2.6.2: throttle for automatic storage housekeeping (once/24h)
+        self._last_cleanup_time = None
 
         # In-memory duplicate guard (populated from persistent store on first sync)
         self._created_events: set = set()
@@ -197,6 +200,12 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 except Exception as err:
                     _LOGGER.error("❌ Calendar sync to %s failed, continuing anyway: %s", self.sync_to_calendar, err, exc_info=True)
 
+            # v2.6.2: automatic storage housekeeping (throttled to once/24h)
+            try:
+                await self._maybe_cleanup_old_bookings()
+            except Exception as err:
+                _LOGGER.warning("Automatic booking cleanup failed, continuing anyway: %s", err)
+
             return data
 
         except Exception as err:
@@ -223,6 +232,25 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                 return entry.runtime_data.get("store")
         # Legacy fallback
         return self.hass.data.get(DOMAIN, {}).get("store")
+
+    async def _maybe_cleanup_old_bookings(self) -> None:
+        """Run store housekeeping at most once every 24h.
+
+        Booking metadata (storage.py's ``bookings`` dict) otherwise only
+        gets cleaned via the manual admin-tab action (`ws_cleanup_history`),
+        so entries accumulate indefinitely otherwise.
+        """
+        now = datetime.now(ZoneInfo("UTC"))
+        if self._last_cleanup_time and (now - self._last_cleanup_time) < timedelta(hours=24):
+            return
+        self._last_cleanup_time = now
+
+        store = self._get_store()
+        if not store:
+            return
+        count = await store.async_cleanup_old_bookings(days=7)
+        if count:
+            _LOGGER.info("🧹 Auto cleanup: removed %d old booking metadata entries", count)
 
     async def _do_sync_to_external_calendar(self, data):
         """Internal sync implementation."""

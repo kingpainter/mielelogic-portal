@@ -1,4 +1,4 @@
-# VERSION = "2.5.4"
+# VERSION = "2.6.2"
 """
 MieleLogic Services
 
@@ -316,7 +316,7 @@ def _validate_machine_number(machine_number: int) -> None:
     """Validate machine number is in valid range."""
     if not 1 <= machine_number <= 5:
         raise ServiceValidationError(
-            f"Invalid machine number: {machine_number}. Must be 1-5."
+            f"Ugyldigt maskinnummer: {machine_number}. Skal være 1-5."
         )
 
 
@@ -340,8 +340,8 @@ def _validate_start_time(start_time: datetime, coordinator) -> None:
         )
         
         raise ServiceValidationError(
-            f"Booking failed: Start time ({start_time.strftime('%H:%M')}) is in the past. "
-            f"Try booking for tomorrow at {tomorrow_same_time.strftime('%H:%M')} instead."
+            f"Starttidspunkt ({start_time.strftime('%H:%M')}) er allerede overstået. "
+            f"Prøv i morgen kl. {tomorrow_same_time.strftime('%H:%M')} i stedet."
         )
     
     # Check laundry hours
@@ -364,8 +364,8 @@ def _validate_start_time(start_time: datetime, coordinator) -> None:
             next_valid = next_valid + timedelta(days=1)
         
         raise ServiceValidationError(
-            f"Laundry opens at {opening_time}. "
-            f"Try booking from {next_valid.strftime('%d/%m/%Y %H:%M')} instead."
+            f"Vaskeriet åbner kl. {opening_time}. "
+            f"Prøv fra {next_valid.strftime('%d/%m/%Y %H:%M')} i stedet."
         )
     
     if start_time.hour >= closing_hour:
@@ -378,8 +378,8 @@ def _validate_start_time(start_time: datetime, coordinator) -> None:
         )
         
         raise ServiceValidationError(
-            f"Laundry closes at {closing_time}. "
-            f"Try booking from {next_valid.strftime('%d/%m/%Y %H:%M')} instead."
+            f"Vaskeriet lukker kl. {closing_time}. "
+            f"Prøv fra {next_valid.strftime('%d/%m/%Y %H:%M')} i stedet."
         )
 
 
@@ -394,7 +394,7 @@ def _validate_end_time(end_time: datetime, start_time: datetime, coordinator) ->
     
     if end_time <= start_time:
         raise ServiceValidationError(
-            "End time must be after start time"
+            "Sluttidspunkt skal være efter starttidspunkt"
         )
     
     # Check laundry hours
@@ -403,7 +403,7 @@ def _validate_end_time(end_time: datetime, start_time: datetime, coordinator) ->
     
     if end_time.hour > closing_hour:
         raise ServiceValidationError(
-            f"End time is after laundry closes ({closing_time})"
+            f"Sluttidspunkt er efter vaskeriet lukker ({closing_time})"
         )
 
 
@@ -419,12 +419,12 @@ def _validate_duration(start_time: datetime, end_time: datetime) -> None:
     
     if duration_minutes < 30:
         raise ServiceValidationError(
-            f"Duration too short: {duration_minutes:.0f} minutes. Minimum is 30 minutes."
+            f"Varighed for kort: {duration_minutes:.0f} minutter. Minimum er 30 minutter."
         )
     
     if duration_minutes > 180:
         raise ServiceValidationError(
-            f"Duration too long: {duration_minutes:.0f} minutes. Maximum is 180 minutes (3 hours)."
+            f"Varighed for lang: {duration_minutes:.0f} minutter. Maksimum er 180 minutter (3 timer)."
         )
 
 
@@ -432,21 +432,33 @@ async def _check_max_reservations(coordinator) -> None:
     """Check if user has reached max reservations."""
     reservations = coordinator.data.get("reservations", {}).get("Reservations", [])
     max_reservations = coordinator.data.get("reservations", {}).get("MaxUserReservations", 2)
-    
+
+    # v2.6.2: MaxUserReservations <= 0 is not a legitimate account state (no
+    # user should ever have a permanent quota of zero) — seen in testing as
+    # a transient value from the MieleLogic API. Treat it as a bad/stale read
+    # rather than blocking every booking attempt until the next refresh.
+    if max_reservations <= 0:
+        _LOGGER.warning(
+            "⚠️ MaxUserReservations=%s looks invalid (expected >=1) — "
+            "skipping the reservation-limit check for this booking. "
+            "Reservations currently on account: %d",
+            max_reservations, len(reservations),
+        )
+        return
+
     if len(reservations) >= max_reservations:
         # Build list of existing reservations for user to see
         existing = []
         for r in reservations[:3]:  # Show first 3
             machine = r.get("MachineNumber", "?")
             start = r.get("Start", "")[:16]  # Just date and time (2026-01-30T19:00)
-            existing.append(f"  • Machine {machine} at {start}")
-        
+            existing.append(f"  • Maskine {machine} kl. {start}")
+
         existing_list = "\n".join(existing)
-        
+
         raise ServiceValidationError(
-            f"Maximum reservations reached ({len(reservations)}/{max_reservations}). "
-            f"Cancel one of these first:\n{existing_list}\n\n"
-            f"Use service: mielelogic.cancel_reservation"
+            f"Maks. antal bookinger nået ({len(reservations)}/{max_reservations}). "
+            f"Annullér en af disse først:\n{existing_list}"
         )
 
 
@@ -536,9 +548,8 @@ async def _verify_reservation_exists(
             for r in reservations
         ])
         raise ServiceValidationError(
-            f"No reservation found for machine {machine_number} "
-            f"from {start_time.strftime('%Y-%m-%d %H:%M')} to {end_time.strftime('%Y-%m-%d %H:%M')}. "
-            f"Please check Developer Tools → States → sensor.mielelogic_reservations for available reservations."
+            f"Ingen booking fundet til maskine {machine_number} "
+            f"fra {start_time.strftime('%Y-%m-%d %H:%M')} til {end_time.strftime('%Y-%m-%d %H:%M')}."
         )
 
 

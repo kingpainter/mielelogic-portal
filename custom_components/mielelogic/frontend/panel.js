@@ -1,5 +1,5 @@
 // MieleLogic Panel — Main UI Component
-// VERSION = "2.5.7"
+// VERSION = "2.6.2"
 // Architecture: vanilla HTMLElement + shadow DOM
 // Design: Indeklima Designer (blue/cyan accent)
 // element name: mielelogic-panel-v2
@@ -309,14 +309,23 @@ class MieleLogicPanel extends HTMLElement {
     clearTimeout(this._toastTimer);
     this._toast = { msg, type };
     this._renderToast();
-    this._toastTimer = setTimeout(() => { this._toast = null; this._renderToast(); }, 3500);
+    // v2.6.2: scale dismiss time with message length — long multi-line
+    // messages (e.g. "maks. bookinger nået" with a list) need more than 3.5s
+    const duration = Math.min(12000, Math.max(3500, msg.length * 60));
+    this._toastTimer = setTimeout(() => { this._toast = null; this._renderToast(); }, duration);
   }
 
   _renderToast() {
     const root = this.shadowRoot;
     let el = root.querySelector(".toast-wrap");
     if (!this._toast) { if (el) el.remove(); return; }
-    if (!el) { el = document.createElement("div"); el.className = "toast-wrap"; root.appendChild(el); }
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "toast-wrap";
+      // v2.6.2: tap-to-dismiss, since longer messages now stay up to 12s
+      el.addEventListener("click", () => { clearTimeout(this._toastTimer); this._toast = null; this._renderToast(); });
+      root.appendChild(el);
+    }
     el.className = `toast-wrap toast-${this._toast.type}`;
     el.textContent = this._toast.msg;
   }
@@ -665,7 +674,7 @@ class MieleLogicPanel extends HTMLElement {
 .loading-wrap{text-align:center;padding:60px 20px;color:var(--sub);font-size:15px}
 .spin{display:inline-block;animation:sp 0.7s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-.toast-wrap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;font-size:14px;font-weight:500;z-index:2000;pointer-events:none;animation:toast-in 0.2s ease;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3)}
+.toast-wrap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;font-size:14px;font-weight:500;z-index:2000;pointer-events:auto;cursor:pointer;animation:toast-in 0.2s ease;white-space:pre-line;max-width:min(90vw,380px);text-align:left;box-shadow:0 4px 16px rgba(0,0,0,0.3)}
 .toast-ok{background:rgba(16,185,129,0.92);color:#fff}
 .toast-warn{background:rgba(245,158,11,0.92);color:#fff}
 .toast-err{background:rgba(239,68,68,0.92);color:#fff}
