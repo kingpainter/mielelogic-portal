@@ -16,6 +16,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.6.1] - 2026-08-22
+
+### Tilføjet — Debug-logging af reservations-API-svar
+- Under test af CalDAV-fixet stødte vi på en separat, endnu uforklaret fejl: `Booking failed: Maximum reservations reached (0/0)` — API'et returnerede tilsyneladende `MaxUserReservations: 0` under hurtige book/annullér-testcyklusser, hvilket blokerer al booking indtil næste opdatering.
+- `coordinator.py`: tilføjet debug-log af antal aktive reservationer og `MaxUserReservations` hver gang `/reservations`-endepunktet hentes, så vi kan se det rå API-svar næste gang det sker og finde den reelle årsag (MieleLogic-API-kvirk vs. cache-timing).
+- Ingen adfærdsændring endnu — kun observabilitet. Selve blokerings-logikken i `services.py` rørt ikke i denne omgang.
+
+---
+
+## [2.6.0] - 2026-08-22
+
+### Rettet — Kalenderevents slettes nu korrekt ved annullering (CalDAV)
+- Root cause fundet: Home Assistants indbyggede CalDAV-integration understøtter `calendar.create_event`/`get_events`, men **ikke** `calendar.delete_event` (åbent HA core-issue #159784). Da både primær (`calendar.kun_flemming`) og sekundær (`calendar.lukas`) kalender er CalDAV-baserede (iCloud), fejlede al kalender-sletning hidtil stille i baggrunden når en booking blev annulleret — selve bookingen blev annulleret korrekt, men eventet blev stående i kalenderen.
+- Ny `caldav_client.py`: minimal direkte CalDAV-klient (via `caldav`-pakken) der finder og sletter det matchende event direkte på CalDAV-serveren, uden om HA's kalender-entity. Oprettelse af events bruger stadig `calendar.create_event` som før — kun sletning er ændret.
+- `booking_manager.py`: `_delete_calendar_event()` og `_delete_secondary_calendar_events()` forsøger nu direkte CalDAV-sletning først (hvis konfigureret), og falder tilbage til den gamle `calendar.delete_event`-service-vej for ikke-CalDAV-kalendere (f.eks. Local Calendar, Google Calendar)
+- Nyt options-flow-trin under “Konfigurer Kalender Synkronisering”: valgfrie felter til CalDAV server-URL, brugernavn og app-specifik adgangskode — kun nødvendige hvis primær/sekundær kalender er CalDAV-baseret
+- Ny afhængighed: `caldav>=1.0.1` i `manifest.json`
+- Bonus-fix: rettede en eksisterende mismatch i `strings.json`/`da.json` hvor kalender-trinnets beskrivelse refererede ikke-eksisterende placeholders (`{primary}`/`{secondaries}`/`{hint}`) og feltnavnet `secondary_calendars` i stedet for det faktisk brugte `secondary_calendars_text`
+
+---
+
 ## [2.5.8] - 2026-08-21
 
 ### Tilføjet — Lokale brand-ikoner (HA 2026.3+)

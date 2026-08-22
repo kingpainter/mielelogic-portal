@@ -1,4 +1,4 @@
-# VERSION = "2.5.4"
+# VERSION = "2.6.1"
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -132,6 +132,11 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
                             headers,
                         )
                 data["reservations"] = await self._fetch_with_retry(fetch_reservations, "Fetch reservations")
+                _LOGGER.debug(
+                    "📋 Reservations API response: %d active, MaxUserReservations=%s",
+                    len(data["reservations"].get("Reservations", [])),
+                    data["reservations"].get("MaxUserReservations"),
+                )
             except Exception as err:
                 _LOGGER.error("❌ Reservations unavailable: %s", err)
                 data["reservations"] = {"Reservations": [], "MaxUserReservations": 2, "error": str(err)}

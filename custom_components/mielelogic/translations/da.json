@@ -80,14 +80,20 @@
       },
       "calendar": {
         "title": "Konfigurer Kalender Synkronisering",
-        "description": "Prim\u00e6r kalender: synkroniseres automatisk til alle bookinger. Sekund\u00e6re kalendere: valgfri per-booking valg i panelet.\n\nAktuelt prim\u00e6r: {primary}\nSekund\u00e6re: {secondaries}\n\nHint: {hint}",
+        "description": "Prim\u00e6r kalender: synkroniseres automatisk til alle bookinger. Sekund\u00e6re kalendere: valgfri per-booking valg i panelet.\n\nAktuelt prim\u00e6r: {current_primary}\nSekund\u00e6re: {current_secondary}\n\nCalDAV-sletning: {caldav_status}. Udfyld CalDAV-felterne nedenfor hvis din primære/sekundære kalender er en iCloud/Nextcloud/CalDAV-kalender — Home Assistants CalDAV-integration kan oprette events, men kan ikke slette dem, så MieleLogic har brug for sit eget CalDAV-login for at fjerne events når en booking annulleres. Lad stå tomt hvis dine kalendere allerede understøtter sletning via Home Assistant (f.eks. Local Calendar, Google Calendar).",
         "data": {
           "primary_calendar": "Prim\u00e6r kalender",
-          "secondary_calendars": "Sekund\u00e6re kalendere (komma-separerede entity IDs)"
+          "secondary_calendars_text": "Sekund\u00e6re kalendere (komma-separerede entity IDs)",
+          "caldav_url": "CalDAV server-URL (kun sletning)",
+          "caldav_username": "CalDAV brugernavn",
+          "caldav_password": "CalDAV adgangskode (app-specifik)"
         },
         "data_description": {
           "primary_calendar": "Synkroniseres altid automatisk \u2014 alle bookinger tilf\u00f8jes her",
-          "secondary_calendars": "Valgfrie kalendere til per-booking valg i panelet (f.eks. calendar.lukas)"
+          "secondary_calendars_text": "Valgfrie kalendere til per-booking valg i panelet (f.eks. calendar.lukas)",
+          "caldav_url": "F.eks. https://caldav.icloud.com/",
+          "caldav_username": "CalDAV-kontoens brugernavn (typisk din e-mail)",
+          "caldav_password": "Brug en app-specifik adgangskode, ikke din hovedkontos adgangskode"
         }
       },
       "laundry_hours": {

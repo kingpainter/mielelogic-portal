@@ -1,4 +1,4 @@
-# VERSION = "2.5.4"
+# VERSION = "2.6.1"
 import logging
 import aiohttp
 import voluptuous as vol
@@ -26,6 +26,9 @@ from .const import (
     DEFAULT_REQUIRE_ADMIN,
     CONF_PRIMARY_CALENDAR,
     CONF_SECONDARY_CALENDARS,
+    CONF_CALDAV_URL,
+    CONF_CALDAV_USERNAME,
+    CONF_CALDAV_PASSWORD,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -440,6 +443,15 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
 
                 new_data[CONF_SECONDARY_CALENDARS] = secondary
 
+                # v2.6.0: direct CalDAV credentials (used only for deletion —
+                # HA's CalDAV integration doesn't support calendar.delete_event)
+                new_data[CONF_CALDAV_URL] = user_input.get("caldav_url") or None
+                new_data[CONF_CALDAV_USERNAME] = user_input.get("caldav_username") or None
+                # Only overwrite the stored password if a new one was entered —
+                # the field is always shown blank, so an empty submit means "keep existing".
+                if user_input.get("caldav_password"):
+                    new_data[CONF_CALDAV_PASSWORD] = user_input["caldav_password"]
+
                 if not errors:
                     self.hass.config_entries.async_update_entry(
                         self.config_entry, data=new_data
@@ -458,6 +470,9 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
         )
         current_secondary = self.config_entry.data.get(CONF_SECONDARY_CALENDARS, [])
         current_secondary_text = ", ".join(current_secondary)
+        current_caldav_url = self.config_entry.data.get(CONF_CALDAV_URL, "")
+        current_caldav_username = self.config_entry.data.get(CONF_CALDAV_USERNAME, "")
+        has_caldav_password = bool(self.config_entry.data.get(CONF_CALDAV_PASSWORD))
 
         schema_dict = {}
 
@@ -468,6 +483,10 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             schema_dict[vol.Optional("primary_calendar", default=current_primary)] = str
 
         schema_dict[vol.Optional("secondary_calendars_text", default=current_secondary_text)] = str
+        # v2.6.0: direct CalDAV credentials (deletion only) — password never pre-filled
+        schema_dict[vol.Optional("caldav_url", default=current_caldav_url)] = str
+        schema_dict[vol.Optional("caldav_username", default=current_caldav_username)] = str
+        schema_dict[vol.Optional("caldav_password", default="")] = str
 
         return self.async_show_form(
             step_id="calendar",
@@ -477,6 +496,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
                 "current_primary": current_primary or "Ingen",
                 "current_secondary": current_secondary_text or "Ingen",
                 "available_calendars": ", ".join(all_calendars) if all_calendars else "Ingen fundet",
+                "caldav_status": "gemt" if has_caldav_password else "ikke sat",
             },
         )
 

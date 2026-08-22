@@ -80,14 +80,20 @@
       },
       "calendar": {
         "title": "Configure Calendar Sync",
-        "description": "Primary calendar: auto-synced to all bookings. Secondary calendars: optional per-booking selection in the panel.\n\nCurrent primary: {primary}\nSecondary: {secondaries}\n\nHint: {hint}",
+        "description": "Primary calendar: auto-synced to all bookings. Secondary calendars: optional per-booking selection in the panel.\n\nCurrent primary: {current_primary}\nSecondary: {current_secondary}\n\nCalDAV deletion: {caldav_status}. Fill in the CalDAV fields below if your primary/secondary calendars are iCloud/Nextcloud/CalDAV calendars — Home Assistant's CalDAV integration can create events but cannot delete them, so MieleLogic needs its own CalDAV login to remove events when a booking is cancelled. Leave blank if your calendars support deletion through Home Assistant already (e.g. Local Calendar, Google Calendar).",
         "data": {
           "primary_calendar": "Primary calendar",
-          "secondary_calendars": "Secondary calendars (comma-separated entity IDs)"
+          "secondary_calendars_text": "Secondary calendars (comma-separated entity IDs)",
+          "caldav_url": "CalDAV server URL (deletion only)",
+          "caldav_username": "CalDAV username",
+          "caldav_password": "CalDAV password (app-specific password) — leave blank to keep current"
         },
         "data_description": {
           "primary_calendar": "Always synced automatically — all bookings go here",
-          "secondary_calendars": "Optional calendars for per-booking selection in the panel (e.g. calendar.lukas)"
+          "secondary_calendars_text": "Optional calendars for per-booking selection in the panel (e.g. calendar.lukas)",
+          "caldav_url": "E.g. https://caldav.icloud.com/ — only needed to enable deleting events on cancellation",
+          "caldav_username": "CalDAV account username (usually your email)",
+          "caldav_password": "Use an app-specific password, not your main account password"
         }
       },
       "laundry_hours": {

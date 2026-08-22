@@ -1,7 +1,7 @@
-# VERSION = "2.5.8"
+# VERSION = "2.6.1"
 """Constants for MieleLogic integration."""
 DOMAIN = "mielelogic"
-VERSION = "2.5.8"
+VERSION = "2.6.1"
 
 # API credentials
 CONF_USERNAME = "username"
@@ -33,3 +33,11 @@ DEFAULT_REQUIRE_ADMIN = False
 # Secondary: optional per-booking chips in panel, never auto-synced
 CONF_PRIMARY_CALENDAR = "primary_calendar"       # replaces sync_to_calendar
 CONF_SECONDARY_CALENDARS = "secondary_calendars"  # list[str] of entity_ids
+
+# Direct CalDAV credentials (v2.6.0)
+# HA's CalDAV integration doesn't support calendar.delete_event
+# (home-assistant/core#159784), so we talk to the CalDAV server directly
+# for deletion only. Creation still uses calendar.create_event as before.
+CONF_CALDAV_URL = "caldav_url"
+CONF_CALDAV_USERNAME = "caldav_username"
+CONF_CALDAV_PASSWORD = "caldav_password"

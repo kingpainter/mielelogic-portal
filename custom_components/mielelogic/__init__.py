@@ -1,4 +1,4 @@
-# VERSION = "2.5.5"
+# VERSION = "2.6.1"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 import asyncio
@@ -88,8 +88,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     from .notification_manager import NotificationManager
     notification_manager = NotificationManager(hass, store)
-    
-    booking_manager = BookingManager(coordinator, store, notification_manager)
+
+    # v2.6.0: optional direct CalDAV client, used only for deleting calendar
+    # events (HA's CalDAV integration doesn't support calendar.delete_event).
+    from .const import CONF_CALDAV_URL, CONF_CALDAV_USERNAME, CONF_CALDAV_PASSWORD
+    caldav_client = None
+    caldav_url = entry.data.get(CONF_CALDAV_URL)
+    caldav_username = entry.data.get(CONF_CALDAV_USERNAME)
+    caldav_password = entry.data.get(CONF_CALDAV_PASSWORD)
+    if caldav_url and caldav_username and caldav_password:
+        from .caldav_client import CalDAVDeleteClient
+        caldav_client = CalDAVDeleteClient(hass, caldav_url, caldav_username, caldav_password)
+        _LOGGER.debug("MieleLogic: direct CalDAV delete client configured")
+
+    booking_manager = BookingManager(coordinator, store, notification_manager, caldav_client)
     
     # runtime_data (v2.5.0 — replaces hass.data[DOMAIN][entry_id])
     entry.runtime_data = {
@@ -98,6 +110,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "booking_manager": booking_manager,
         "notification_manager": notification_manager,
         "store": store,
+        "caldav_client": caldav_client,
     }
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry.runtime_data

@@ -1,4 +1,4 @@
-# VERSION = "2.5.4"
+# VERSION = "2.6.1"
 """Manage booking and cancellation operations."""
 import logging
 from typing import Dict, List
@@ -13,11 +13,23 @@ _LOGGER = logging.getLogger(__name__)
 class BookingManager:
     """Handle booking and cancellation logic."""
 
-    def __init__(self, coordinator, store=None, notification_manager=None):
+    def __init__(self, coordinator, store=None, notification_manager=None, caldav_client=None):
         self.coordinator = coordinator
         self.hass = coordinator.hass
         self.store = store
         self.notification_manager = notification_manager
+        # v2.6.0: optional direct CalDAV client, used only for deletion since
+        # HA's CalDAV integration doesn't support calendar.delete_event.
+        self.caldav_client = caldav_client
+
+    def _caldav_calendar_name(self, entity_id: str | None) -> str | None:
+        """Best-effort mapping from a HA calendar entity_id to its CalDAV display name."""
+        if not entity_id:
+            return None
+        state = self.hass.states.get(entity_id)
+        if state and state.attributes.get("friendly_name"):
+            return state.attributes["friendly_name"]
+        return None
 
     def _get_time_manager(self):
         """Get time_manager — prefer runtime_data."""
@@ -178,10 +190,6 @@ class BookingManager:
             if not target_calendar:
                 return
 
-            if not self.hass.services.has_service("calendar", "get_events"):
-                _LOGGER.debug("calendar.get_events not available — skipping calendar delete")
-                return
-
             time_manager = self._get_time_manager()
             vaskehus = time_manager.get_vaskehus_for_machine(machine_number) if time_manager else None
             if not vaskehus:
@@ -198,6 +206,30 @@ class BookingManager:
 
             window_start = (start_dt - timedelta(hours=1)).astimezone(ZoneInfo("UTC"))
             window_end   = (start_dt + timedelta(hours=1)).astimezone(ZoneInfo("UTC"))
+
+            # v2.6.0: try direct CalDAV deletion first — HA's CalDAV integration
+            # doesn't support calendar.delete_event (home-assistant/core#159784),
+            # so the service-based path below always fails silently for it.
+            if self.caldav_client:
+                calendar_name = self._caldav_calendar_name(target_calendar)
+                if calendar_name:
+                    deleted = await self.caldav_client.delete_event(
+                        calendar_name, summary, window_start, window_end
+                    )
+                    if deleted:
+                        if self.store:
+                            await self.store.async_remove_calendar_synced_event(machine_number, start_time)
+                        self.coordinator._created_events.discard((machine_number, start_time))
+                        _LOGGER.info("Deleted calendar event via CalDAV: %s at %s", summary, start_time)
+                        return
+                    _LOGGER.debug(
+                        "CalDAV direct delete found nothing for '%s' — falling back to HA calendar service",
+                        summary,
+                    )
+
+            if not self.hass.services.has_service("calendar", "get_events"):
+                _LOGGER.debug("calendar.get_events not available — skipping calendar delete")
+                return
 
             response = await self.hass.services.async_call(
                 "calendar", "get_events",
@@ -353,6 +385,21 @@ class BookingManager:
         window_end   = (start_dt + timedelta(hours=1)).astimezone(ZoneInfo("UTC"))
 
         for calendar_entity_id in secondary_calendars:
+            # v2.6.0: try direct CalDAV deletion first (see _delete_calendar_event)
+            if self.caldav_client:
+                calendar_name = self._caldav_calendar_name(calendar_entity_id)
+                if calendar_name:
+                    deleted = await self.caldav_client.delete_event(
+                        calendar_name, summary, window_start, window_end
+                    )
+                    if deleted:
+                        _LOGGER.info("Deleted secondary calendar event via CalDAV in %s", calendar_entity_id)
+                        continue
+                    _LOGGER.debug(
+                        "CalDAV direct delete found nothing on secondary '%s' — falling back to HA calendar service",
+                        calendar_entity_id,
+                    )
+
             try:
                 response = await self.hass.services.async_call(
                     "calendar", "get_events",
