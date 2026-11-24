@@ -111,7 +111,7 @@ async def async_register_panel(
 
             card_url = f"{CARD_URL}?v={VERSION}&m={card_mtime}"
             add_extra_js_url(hass, card_url)
-            _LOGGER.warning(
+            _LOGGER.info(
                 "MieleLogic: booking card registered at %s (size=%d bytes)",
                 card_url,
                 os.path.getsize(card_file),
