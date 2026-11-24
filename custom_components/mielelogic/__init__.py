@@ -1,4 +1,4 @@
-# VERSION = "2.6.4"
+# VERSION = "2.6.5"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 import asyncio

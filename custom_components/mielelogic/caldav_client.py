@@ -1,4 +1,4 @@
-# VERSION = "2.6.4"
+# VERSION = "2.6.5"
 """Direct CalDAV client used only for deleting calendar events.
 
 Home Assistant's built-in CalDAV integration does not implement the

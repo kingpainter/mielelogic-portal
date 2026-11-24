@@ -1,4 +1,4 @@
-# VERSION = "2.6.4"
+# VERSION = "2.6.5"
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DOMAIN,
@@ -130,8 +131,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             # Fetch reservations (own bookings)
             try:
                 async def fetch_reservations():
-                    async with aiohttp.ClientSession() as session:
-                        return await self._fetch_with_cache(
+                    session = async_get_clientsession(self.hass)
+                    return await self._fetch_with_cache(
                             session,
                             f"{API_BASE_URL}/reservations?laundry={self.laundry_id}",
                             f"reservations_{self.laundry_id}",
@@ -150,8 +151,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             # Fetch machine states (real-time status)
             try:
                 async def fetch_machine_states():
-                    async with aiohttp.ClientSession() as session:
-                        return await self._fetch_with_cache(
+                    session = async_get_clientsession(self.hass)
+                    return await self._fetch_with_cache(
                             session,
                             f"{API_BASE_URL}/Country/DA/Laundry/{self.laundry_id}/laundrystates?language=da",
                             f"machine_states_{self.laundry_id}",
@@ -167,8 +168,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             # Endpoint: GET /v7/country/DA/laundry/{laundry_id}/timetable
             try:
                 async def fetch_timetable():
-                    async with aiohttp.ClientSession() as session:
-                        return await self._fetch_with_cache(
+                    session = async_get_clientsession(self.hass)
+                    return await self._fetch_with_cache(
                             session,
                             f"{API_BASE_URL}/country/DA/laundry/{self.laundry_id}/timetable",
                             f"timetable_{self.laundry_id}",
@@ -183,8 +184,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             # Fetch account details (non-critical)
             try:
                 async def fetch_account_details():
-                    async with aiohttp.ClientSession() as session:
-                        return await self._fetch_with_cache(
+                    session = async_get_clientsession(self.hass)
+                    return await self._fetch_with_cache(
                             session,
                             f"{API_BASE_URL}/accounts/Details",
                             "account_details",
@@ -476,8 +477,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _make_token_request(self, data: dict):
         headers = {"Content-Type": "application/x-www-form-urlencoded", "Origin": "https://mielelogic.com", "Referer": "https://mielelogic.com/"}
-        async with aiohttp.ClientSession() as session:
-            async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
+        session = async_get_clientsession(self.hass)
+        async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
                 response.raise_for_status()
                 result = await response.json()
                 self.access_token = result["access_token"]

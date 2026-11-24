@@ -1,4 +1,4 @@
-# VERSION = "2.6.4"
+# VERSION = "2.6.5"
 """
 MieleLogic Services
 
@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import aiohttp
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
@@ -128,8 +129,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         )
         
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.put(url, json=body, headers=headers, timeout=10) as response:
+            session = async_get_clientsession(hass)
+            async with session.put(url, json=body, headers=headers, timeout=10) as response:
                     response_text = await response.text()
                     _LOGGER.debug("API Response Status: %s", response.status)
                     _LOGGER.debug("API Response Body: %s", response_text)
@@ -249,8 +250,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         _LOGGER.debug("Cancel URL: %s", url)
         
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.delete(url, params=params, headers=headers, timeout=10) as response:
+            session = async_get_clientsession(hass)
+            async with session.delete(url, params=params, headers=headers, timeout=10) as response:
                     response_text = await response.text()
                     _LOGGER.debug("Cancel API Response Status: %s", response.status)
                     _LOGGER.debug("Cancel API Response Body: %s", response_text)

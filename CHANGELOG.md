@@ -6,6 +6,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.6.5] — Quality scale: Bronze fixes, websession, tests grønne
+
+### Ændret
+- Services registreres i `async_setup` (action-setup). Handlers henter koordinator ved kald.
+- Maskinnummer-validering accepterer 1–7 (nye maskiner).
+- Alle HTTP-kald bruger HA's delte session via `async_get_clientsession` (inject-websession, delvist: caldav-klient er stadig synkron).
+- `hassfest`: URL fjernet fra caldav-beskrivelse; `CONFIG_SCHEMA` tilføjet.
+- Koordinator sender `config_entry` videre til `DataUpdateCoordinator` (fast ved `self.config_entry = None`).
+- `AbortFlow` propagerer i config flow (dublet-laundry giver nu afvisning, ikke "unknown"-fejl).
+- `async_unload_entry` tåler manglende `hass.data[DOMAIN]`.
+
+### Tilføjet
+- `async_remove_config_entry_device`: stale enheder kan slettes i UI.
+- `tests/test_config_flow.py` (succes, invalid_auth, cannot_connect, dublet).
+- Maskine-inventar-sensor, der noterer ændringer i maskinsættet.
+
+### Tests
+- CI: 84 tests grønne, hassfest grøn.
+
+---
+
 ## [Unreleased] — Gold Tier unit tests
 
 ### Tilføjet — Test-suite for coordinator, booking_manager, websocket

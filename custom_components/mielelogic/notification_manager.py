@@ -1,4 +1,4 @@
-# VERSION = "2.6.4"
+# VERSION = "2.6.5"
 """Notification manager for MieleLogic."""
 
 import logging

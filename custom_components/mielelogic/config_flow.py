@@ -1,10 +1,11 @@
-# VERSION = "2.6.4"
+# VERSION = "2.6.5"
 import logging
 import aiohttp
 import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.exceptions import HomeAssistantError
 
@@ -158,8 +159,8 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         }
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            session = async_get_clientsession(self.hass)
+            async with session.post(
                     AUTH_URL, data=data, headers=headers, timeout=10
                 ) as response:
                     if response.status == 400:
@@ -237,6 +238,8 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "bad_request"
             except ServerError:
                 errors["base"] = "server_error"
+            except AbortFlow:
+                raise
             except Exception as err:
                 _LOGGER.exception("Unexpected exception during reconfigure: %s", err)
                 errors["base"] = "unknown"
@@ -928,8 +931,8 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
         }
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            session = async_get_clientsession(self.hass)
+            async with session.post(
                     AUTH_URL, data=data, headers=headers, timeout=10
                 ) as response:
                     if response.status == 400:
