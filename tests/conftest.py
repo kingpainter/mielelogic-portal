@@ -7,6 +7,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntryState
+
 
 class MockConfigEntry:
     """Mock HA config entry with MieleLogic-shaped data."""
@@ -32,6 +34,8 @@ class MockConfigEntry:
         self.async_start_reauth = MagicMock()
         # HA's DataUpdateCoordinator registers shutdown via this method
         self.async_on_unload = MagicMock()
+        # Read by pytest-homeassistant-custom-component's hass teardown
+        self.state = ConfigEntryState.NOT_LOADED
 
 
 class MockCoordinator:
