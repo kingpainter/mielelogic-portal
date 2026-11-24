@@ -51,7 +51,8 @@ def _get_coordinator(hass: HomeAssistant) -> MieleLogicDataUpdateCoordinator:
             coordinator: MieleLogicDataUpdateCoordinator = runtime["coordinator"]
             return coordinator
     raise ServiceValidationError(
-        "MieleLogic er ikke sat op. Tilføj integrationen først."
+        translation_domain=DOMAIN,
+        translation_key="not_configured",
     )
 
 
@@ -157,7 +158,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         except Exception as json_err:
                             _LOGGER.error("Failed to parse JSON response: %s", json_err)
                             _LOGGER.error("Response was: %s", response_text)
-                            raise HomeAssistantError(f"Invalid API response: {response_text[:200]}")
+                            raise HomeAssistantError(
+                                translation_domain=DOMAIN,
+                                translation_key="invalid_api_response",
+                                translation_placeholders={"response": response_text[:200]},
+                            )
             
             # Check API response
             _LOGGER.debug("API Result: %s", result)
@@ -165,7 +170,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 error_msg = result.get("ResultText", "Unknown error")
                 _LOGGER.error("❌ Reservation failed: %s", error_msg)
                 _LOGGER.error("Full API response: %s", result)
-                raise HomeAssistantError(f"Reservation failed: {error_msg}")
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="reservation_failed",
+                    translation_placeholders={"error": error_msg},
+                )
             
             _LOGGER.info("✅ Reservation successful!")
             
@@ -184,12 +193,22 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 "message": f"Machine {machine_number} booked from {start_str} to {end_str}",
             }
             
+        except HomeAssistantError:
+            raise
         except aiohttp.ClientError as err:
             _LOGGER.error("Network error during reservation: %s", err)
-            raise HomeAssistantError(f"Network error: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="network_error",
+                translation_placeholders={"error": str(err)},
+            ) from err
         except Exception as err:
             _LOGGER.error("Unexpected error during reservation: %s", err)
-            raise HomeAssistantError(f"Unexpected error: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unexpected_error",
+                translation_placeholders={"error": str(err)},
+            ) from err
     
     async def handle_cancel_reservation(call: ServiceCall) -> dict[str, Any]:
         """Handle cancel_reservation service call.
@@ -278,7 +297,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         except Exception as json_err:
                             _LOGGER.error("Failed to parse cancel JSON response: %s", json_err)
                             _LOGGER.error("Response was: %s", response_text)
-                            raise HomeAssistantError(f"Invalid cancel API response: {response_text[:200]}")
+                            raise HomeAssistantError(
+                                translation_domain=DOMAIN,
+                                translation_key="invalid_cancel_api_response",
+                                translation_placeholders={"response": response_text[:200]},
+                            )
             
             # Check API response
             _LOGGER.debug("Cancel API Result: %s", result)
@@ -286,7 +309,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 error_msg = result.get("ResultText", "Unknown error")
                 _LOGGER.error("❌ Cancellation failed: %s", error_msg)
                 _LOGGER.error("Full cancel API response: %s", result)
-                raise HomeAssistantError(f"Cancellation failed: {error_msg}")
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="cancellation_failed",
+                    translation_placeholders={"error": error_msg},
+                )
             
             _LOGGER.info("✅ Cancellation successful!")
             
@@ -304,12 +331,22 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 "message": f"Machine {machine_number} reservation canceled",
             }
             
+        except HomeAssistantError:
+            raise
         except aiohttp.ClientError as err:
             _LOGGER.error("Network error during cancellation: %s", err)
-            raise HomeAssistantError(f"Network error: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="network_error",
+                translation_placeholders={"error": str(err)},
+            ) from err
         except Exception as err:
             _LOGGER.error("Unexpected error during cancellation: %s", err)
-            raise HomeAssistantError(f"Unexpected error: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unexpected_error",
+                translation_placeholders={"error": str(err)},
+            ) from err
     
     # Register services with response support
     hass.services.async_register(
@@ -337,7 +374,9 @@ def _validate_machine_number(machine_number: int) -> None:
     """Validate machine number is in valid range."""
     if not 1 <= machine_number <= 7:
         raise ServiceValidationError(
-            f"Ugyldigt maskinnummer: {machine_number}. Skal være 1-7."
+            translation_domain=DOMAIN,
+            translation_key="invalid_machine_number",
+            translation_placeholders={"machine_number": str(machine_number)},
         )
 
 
@@ -361,14 +400,18 @@ def _validate_start_time(start_time: datetime, coordinator: MieleLogicDataUpdate
         )
         
         raise ServiceValidationError(
-            f"Starttidspunkt ({start_time.strftime('%H:%M')}) er allerede overstået. "
-            f"Prøv i morgen kl. {tomorrow_same_time.strftime('%H:%M')} i stedet."
+            translation_domain=DOMAIN,
+            translation_key="start_time_passed",
+            translation_placeholders={
+                "start_time": start_time.strftime("%H:%M"),
+                "suggested_time": tomorrow_same_time.strftime("%H:%M"),
+            },
         )
     
     # Check laundry hours
     entry = coordinator.config_entry
     if entry is None:
-        raise ServiceValidationError("MieleLogic er ikke sat op. Tilføj integrationen først.")
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="not_configured")
     opening_time: str = entry.data.get("opening_time", "07:00")
     closing_time: str = entry.data.get("closing_time", "21:00")
     
@@ -388,8 +431,12 @@ def _validate_start_time(start_time: datetime, coordinator: MieleLogicDataUpdate
             next_valid = next_valid + timedelta(days=1)
         
         raise ServiceValidationError(
-            f"Vaskeriet åbner kl. {opening_time}. "
-            f"Prøv fra {next_valid.strftime('%d/%m/%Y %H:%M')} i stedet."
+            translation_domain=DOMAIN,
+            translation_key="laundry_opens_later",
+            translation_placeholders={
+                "opening_time": opening_time,
+                "suggested_time": next_valid.strftime("%d/%m/%Y %H:%M"),
+            },
         )
     
     if start_time.hour >= closing_hour:
@@ -402,8 +449,12 @@ def _validate_start_time(start_time: datetime, coordinator: MieleLogicDataUpdate
         )
         
         raise ServiceValidationError(
-            f"Vaskeriet lukker kl. {closing_time}. "
-            f"Prøv fra {next_valid.strftime('%d/%m/%Y %H:%M')} i stedet."
+            translation_domain=DOMAIN,
+            translation_key="laundry_closed",
+            translation_placeholders={
+                "closing_time": closing_time,
+                "suggested_time": next_valid.strftime("%d/%m/%Y %H:%M"),
+            },
         )
 
 
@@ -417,20 +468,20 @@ def _validate_end_time(end_time: datetime, start_time: datetime, coordinator: Mi
         start_time = start_time.replace(tzinfo=ZoneInfo("Europe/Copenhagen"))
     
     if end_time <= start_time:
-        raise ServiceValidationError(
-            "Sluttidspunkt skal være efter starttidspunkt"
-        )
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="end_before_start")
     
     # Check laundry hours
     entry = coordinator.config_entry
     if entry is None:
-        raise ServiceValidationError("MieleLogic er ikke sat op. Tilføj integrationen først.")
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="not_configured")
     closing_time: str = entry.data.get("closing_time", "21:00")
     closing_hour = int(closing_time.split(":")[0])
     
     if end_time.hour > closing_hour:
         raise ServiceValidationError(
-            f"Sluttidspunkt er efter vaskeriet lukker ({closing_time})"
+            translation_domain=DOMAIN,
+            translation_key="end_after_closing",
+            translation_placeholders={"closing_time": closing_time},
         )
 
 
@@ -446,12 +497,16 @@ def _validate_duration(start_time: datetime, end_time: datetime) -> None:
     
     if duration_minutes < 30:
         raise ServiceValidationError(
-            f"Varighed for kort: {duration_minutes:.0f} minutter. Minimum er 30 minutter."
+            translation_domain=DOMAIN,
+            translation_key="duration_too_short",
+            translation_placeholders={"minutes": f"{duration_minutes:.0f}"},
         )
     
     if duration_minutes > 180:
         raise ServiceValidationError(
-            f"Varighed for lang: {duration_minutes:.0f} minutter. Maksimum er 180 minutter (3 timer)."
+            translation_domain=DOMAIN,
+            translation_key="duration_too_long",
+            translation_placeholders={"minutes": f"{duration_minutes:.0f}"},
         )
 
 
@@ -484,8 +539,13 @@ async def _check_max_reservations(coordinator: MieleLogicDataUpdateCoordinator) 
         existing_list = "\n".join(existing)
 
         raise ServiceValidationError(
-            f"Maks. antal bookinger nået ({len(reservations)}/{max_reservations}). "
-            f"Annullér en af disse først:\n{existing_list}"
+            translation_domain=DOMAIN,
+            translation_key="max_reservations_reached",
+            translation_placeholders={
+                "count": str(len(reservations)),
+                "max_count": str(max_reservations),
+                "existing": existing_list,
+            },
         )
 
 
@@ -575,8 +635,13 @@ async def _verify_reservation_exists(
             for r in reservations
         ])
         raise ServiceValidationError(
-            f"Ingen booking fundet til maskine {machine_number} "
-            f"fra {start_time.strftime('%Y-%m-%d %H:%M')} til {end_time.strftime('%Y-%m-%d %H:%M')}."
+            translation_domain=DOMAIN,
+            translation_key="reservation_not_found",
+            translation_placeholders={
+                "machine_number": str(machine_number),
+                "start": start_time.strftime("%Y-%m-%d %H:%M"),
+                "end": end_time.strftime("%Y-%m-%d %H:%M"),
+            },
         )
 
 

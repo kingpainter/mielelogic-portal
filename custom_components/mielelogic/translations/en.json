@@ -231,5 +231,58 @@
         "name": "Reservations"
       }
     }
+  },
+  "exceptions": {
+    "not_configured": {
+      "message": "MieleLogic is not set up. Add the integration first."
+    },
+    "invalid_machine_number": {
+      "message": "Invalid machine number: {machine_number}. Must be 1-7."
+    },
+    "start_time_passed": {
+      "message": "Start time ({start_time}) has already passed. Try tomorrow at {suggested_time} instead."
+    },
+    "laundry_opens_later": {
+      "message": "The laundry opens at {opening_time}. Try from {suggested_time} instead."
+    },
+    "laundry_closed": {
+      "message": "The laundry closes at {closing_time}. Try from {suggested_time} instead."
+    },
+    "end_before_start": {
+      "message": "End time must be after start time."
+    },
+    "end_after_closing": {
+      "message": "End time is after the laundry closes ({closing_time})."
+    },
+    "duration_too_short": {
+      "message": "Duration too short: {minutes} minutes. Minimum is 30 minutes."
+    },
+    "duration_too_long": {
+      "message": "Duration too long: {minutes} minutes. Maximum is 180 minutes (3 hours)."
+    },
+    "max_reservations_reached": {
+      "message": "Maximum number of bookings reached ({count}/{max_count}). Cancel one of these first:\n{existing}"
+    },
+    "reservation_not_found": {
+      "message": "No booking found for machine {machine_number} from {start} to {end}."
+    },
+    "invalid_api_response": {
+      "message": "Invalid API response: {response}"
+    },
+    "invalid_cancel_api_response": {
+      "message": "Invalid cancel API response: {response}"
+    },
+    "reservation_failed": {
+      "message": "Reservation failed: {error}"
+    },
+    "cancellation_failed": {
+      "message": "Cancellation failed: {error}"
+    },
+    "network_error": {
+      "message": "Network error: {error}"
+    },
+    "unexpected_error": {
+      "message": "Unexpected error: {error}"
+    }
   }
 }

@@ -19,6 +19,7 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntityDescription,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
@@ -52,6 +53,8 @@ SENSOR_DESCRIPTIONS: tuple[MieleLogicSensorEntityDescription, ...] = (
     MieleLogicSensorEntityDescription(
         key="vaskehus_config",
         translation_key="vaskehus_config",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     MieleLogicSensorEntityDescription(
         key="washer_status",

@@ -101,12 +101,12 @@ rules:
     comment: Uses coordinator stored in hass.data[DOMAIN][entry.entry_id]
   
   inject_websession:
-    status: partial
-    comment: 2.6.5 uses async_get_clientsession(hass) in coordinator, services and config_flow. Remaining: caldav package in the old client (dead code) - see async_dependency.
+    status: done
+    comment: All HTTP calls use HA's shared session (async_get_clientsession / shared_session). The caldav package and caldav_client.py are removed.
 
   async_dependency:
     status: done
-    comment: 2.6.5 caldav_async.py uses aiohttp. caldav removed from manifest. Old caldav_client.py is dead code. Not tested against a real CalDAV server yet.
+    comment: caldav_async.py uses aiohttp. caldav is removed from manifest and caldav_client.py is deleted. Tested with mocks in CI and against a real Radicale server (manual check).
 
   strict_typing:
     status: done
@@ -148,7 +148,7 @@ rules:
   
   dynamic_devices:
     status: done
-    comment: 2.6.5 machine status sensors are added via a coordinator listener when a new machine number appears (no reload). Not tested on HA yet.
+    comment: Machine status sensors are added via a coordinator listener when a new machine number appears (no reload). Covered by tests/test_sensor_dynamic.py.
 
   icon_translations:
     status: done
@@ -159,12 +159,20 @@ rules:
     comment: 2.6.5 machine inventory change creates a repair issue (issues.machine_inventory_changed, da + en) instead of a persistent notification. Not tested on HA yet.
 
   integration_test_coverage:
-    status: partial
-    comment: coordinator.py, booking_manager.py and websocket.py covered (tests/). services.py (validation logic, incl. the reservation-quota check) not yet covered.
+    status: done
+    comment: Covered in tests/: config flow (incl. reconfigure), coordinator, booking_manager, websocket, services (validation and error keys), caldav_async (mocks in CI and a real Radicale server), dynamic machine sensors.
   
   reconfiguration_flow:
-    status: partial
-    comment: Options flow allows changing credentials, calendar, and hours. Laundry ID change planned.
+    status: done
+    comment: Reconfigure changes credentials and laundry ID (tests/test_config_flow.py). The options flow changes calendar and hours.
+
+  exception_translations:
+    status: done
+    comment: Every ServiceValidationError and HomeAssistantError in services.py uses a translation_key. Texts are in strings.json (exceptions), en.json and da.json.
+
+  entity_disabled_by_default:
+    status: done
+    comment: vaskehus_config is DIAGNOSTIC and disabled by default. The other entities are enabled, because the booking dashboard needs them.
   
   setup_entry_retry:
     status: done

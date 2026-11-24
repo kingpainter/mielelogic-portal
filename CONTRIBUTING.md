@@ -1,105 +1,106 @@
 # Contributing to MieleLogic
 
-Tak for din interesse i at bidrage! 🧺
+Thank you for your interest in contributing! 🧺
 
-MieleLogic er et community-projekt og alle bidrag er velkomne — fra bugreports til nye features.
+MieleLogic is a community project and all contributions are welcome — from bug reports to new features.
 
 ---
 
-## 🐛 Rapporter en fejl
+## 🐛 Report a bug
 
-Brug [GitHub Issues](https://github.com/kingpainter/mielelogic/issues) med **Bug Report** templaten.
+Use [GitHub Issues](https://github.com/kingpainter/mielelogic/issues) with the **Bug Report** template.
 
-**Før du opretter en issue:**
-- Tjek at du kører Home Assistant 2026.1.0+
-- Tjek at fejlen ikke allerede er rapporteret
-- Genstart Home Assistant og se om fejlen gentager sig
+**Before you open an issue:**
+- Check that you are running Home Assistant 2026.1.0+
+- Check that the bug has not already been reported
+- Restart Home Assistant and see whether the bug happens again
 
-**En god bugreport indeholder:**
+**A good bug report includes:**
 - HA version + MieleLogic version
-- Hvad du forventede vs. hvad der skete
-- Relevante log-linjer fra `Settings → System → Logs`
-- Screenshot hvis relevant
+- What you expected vs. what happened
+- Relevant log lines from `Settings → System → Logs`
+- A screenshot if relevant
 
 ---
 
-## 💡 Foreslå en feature
+## 💡 Suggest a feature
 
-Brug [GitHub Issues](https://github.com/kingpainter/mielelogic/issues) med **Feature Request** templaten.
+Use [GitHub Issues](https://github.com/kingpainter/mielelogic/issues) with the **Feature Request** template.
 
-Beskriv gerne:
-- Hvad du vil opnå (use case)
-- Hvordan du forestiller dig det skal fungere
-- Hvorfor det ville gavne andre brugere
+Please describe:
+- What you want to achieve (use case)
+- How you imagine it should work
+- Why it would benefit other users
 
 ---
 
-## 🔧 Bidrag med kode
+## 🔧 Contributing code
 
-### Krav
+### Requirements
 - Python 3.11+
 - Home Assistant 2026.1.0+
-- MieleLogic konto med aktiv vasketøjsadgang
-- Grundlæggende kendskab til Home Assistant custom integrations
+- A MieleLogic account with active laundry access
+- Basic knowledge of Home Assistant custom integrations
 
 ### Workflow
 
-1. **Fork** repositoriet
-2. **Opret en branch** med et beskrivende navn:
+1. **Fork** the repository
+2. **Create a branch** with a descriptive name:
    ```
    git checkout -b fix/card-border-rendering
    git checkout -b feat/multi-laundry-support
    ```
-3. **Lav dine ændringer** — se kodestandarder nedenfor
-4. **Test grundigt** — brug testing checklist i `PROJECT_INSTRUCTIONS.md`
-5. **Commit** med en beskrivende besked:
+3. **Make your changes** — see the code standards below
+4. **Test thoroughly** — use the testing checklist in `PROJECT_INSTRUCTIONS.md`
+5. **Commit** with a descriptive message:
    ```
    fix: card border no longer bleeds on hover
    feat: add multi-laundry support
    ```
-6. **Åbn en Pull Request** mod `main` branchen
+6. **Open a Pull Request** against the `main` branch
 
-### Kodestandarder
+### Code standards
 
 **Python:**
-- Følg eksisterende mønster med `dict`-baseret data access
-- `VERSION = "x.x.x"` øverst i alle `.py` filer
-- Brug `_LOGGER` til logging — ikke `print()`
-- Graceful fallback hvis HA services ikke er tilgængelige
+- Follow the existing pattern with `dict`-based data access
+- `VERSION = "x.x.x"` at the top of every `.py` file
+- Use `_LOGGER` for logging — not `print()`
+- Graceful fallback if HA services are not available
 
 **JavaScript:**
-- Alle state-variabler skal være i LitElement `static get properties()`
-- Brug `lit@2` — ikke `lit-element@2.4.0`
-- Brug `inset box-shadow` til hover-effekter — aldrig `border` eller `outline` på elementer inde i `overflow: hidden`
-- Brug `div.card-root` som wrapper — aldrig `ha-card`
+- All state variables must be in LitElement `static get properties()`
+- Use `lit@2` — not `lit-element@2.4.0`
+- Use `inset box-shadow` for hover effects — never `border` or `outline` on elements inside `overflow: hidden`
+- Use `div.card-root` as the wrapper — never `ha-card`
 
-**Versioner:**
-- Bump version i `const.py`, `manifest.json` og `__init__.py`
-- Tilføj entry i `CHANGELOG.md`
-
----
-
-## 📋 Pull Request Guidelines
-
-- Én PR per feature/fix
-- Beskriv hvad der er ændret og hvorfor
-- Reference evt. relaterede issues med `Fixes #123`
-- Sørg for at alle eksisterende features stadig virker
+**Versions:**
+- Bump the version in `const.py`, `manifest.json` and `__init__.py`
+- Add an entry to `CHANGELOG.md`
 
 ---
 
-## 🌍 Sprog
+## 📋 Pull Request guidelines
 
-- Kode og kommentarer: Engelsk
-- UI-tekster (da.json/en.json): Dansk + Engelsk
-- Issues og PRs: Dansk eller Engelsk — begge er velkomne
-
----
-
-## ❓ Spørgsmål
-
-Har du spørgsmål der ikke er dækket her? Åbn en [Discussion](https://github.com/kingpainter/mielelogic/discussions) eller opret en issue med label `question`.
+- One PR per feature/fix
+- Describe what changed and why
+- Reference related issues with `Fixes #123`
+- Make sure all existing features still work
 
 ---
 
-**Tak for dit bidrag! 🙏**
+## 🌍 Language
+
+- Code and comments: English
+- UI texts (da.json/en.json): Danish + English
+- Documentation (README, CHANGELOG, contributing guides): English
+- Issues and PRs: Danish or English — both are welcome
+
+---
+
+## ❓ Questions
+
+Do you have a question that is not covered here? Open a [Discussion](https://github.com/kingpainter/mielelogic/discussions) or open an issue with the `question` label.
+
+---
+
+**Thank you for your contribution! 🙏**

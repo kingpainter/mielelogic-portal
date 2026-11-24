@@ -1,429 +1,429 @@
 # Changelog
 
-Alle bemærkelsesværdige ændringer dokumenteres her.
+All notable changes are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
-## [2.6.6] — Quality scale: strict typing, ikoner, reconfigure-fix
+## [2.6.6] — Quality scale: strict typing, icons, reconfigure fix
 
-### Ændret
-- Strikt typning: `mypy.ini` i repo-roden (`strict = True`). Hele `custom_components/mielelogic` er nu mypy-ren. Typecheck kører i CI (`.github/workflows/pytest.yml`).
-- Koordinator, services, websocket, booking manager og config flow er typede (`DataUpdateCoordinator[dict[str, Any]]`, typede handlers og service-responses).
-- HTTP-timeouts bruger `aiohttp.ClientTimeout(total=10)` (`CLIENT_TIMEOUT`) i stedet for heltal.
-- Service-kald med svar bruger `SupportsResponse.OPTIONAL`.
-- Ikoner flyttet fra kode til `icons.json` (icon translations). Dynamiske ikoner for vaskemaskine/tørretumbler styres af state-mapping.
-- Maskineliste-ændringer vises som repair issue (`machine_inventory_changed`) i stedet for persistent notification. Oversat til dansk og engelsk.
+### Changed
+- Strict typing: `mypy.ini` in the repo root (`strict = True`). The whole `custom_components/mielelogic` package is now mypy-clean. The type check runs in CI (`.github/workflows/pytest.yml`).
+- Coordinator, services, websocket, booking manager and config flow are typed (`DataUpdateCoordinator[dict[str, Any]]`, typed handlers and service responses).
+- HTTP timeouts use `aiohttp.ClientTimeout(total=10)` (`CLIENT_TIMEOUT`) instead of integers.
+- Service calls that return data use `SupportsResponse.OPTIONAL`.
+- Icons moved from code to `icons.json` (icon translations). Dynamic icons for washer/dryer availability are driven by state mapping.
+- Machine list changes are shown as a repair issue (`machine_inventory_changed`) instead of a persistent notification. Translated to Danish and English.
 
-### Rettet
-- Reconfigure-flowet kaldte `self.config_entry`, som ikke findes på `ConfigFlow`. Rettet med `_get_reconfigure_entry()`, så ændring af brugernavn, adgangskode og vaskeri virker.
-- Panelets versionsheader viste hardkodet v2.5.0. Viser nu korrekt version.
+### Fixed
+- The reconfigure flow called `self.config_entry`, which does not exist on `ConfigFlow`. Fixed with `_get_reconfigure_entry()`, so changing username, password and laundry room works.
+- The panel version header showed a hardcoded v2.5.0. It now shows the correct version.
 
-### Tilføjet
-- Tests for reconfigure: opdatering af entry og fejl ved ugyldig login (`tests/test_config_flow.py`).
-- `mypy==2.4.1` i `requirements.txt`.
+### Added
+- Tests for reconfigure: entry update and invalid-login error (`tests/test_config_flow.py`).
+- `mypy==2.4.1` in `requirements.txt`.
 
 ---
 
-## [2.6.5] — Quality scale: Bronze fixes, websession, tests grønne
+## [2.6.5] — Quality scale: Bronze fixes, websession, tests green
 
-### Ændret
-- Services registreres i `async_setup` (action-setup). Handlers henter koordinator ved kald.
-- Maskinnummer-validering accepterer 1–7 (nye maskiner).
-- Alle HTTP-kald bruger HA's delte session via `async_get_clientsession` (inject-websession).
-- CalDAV-sletning bruger nu en async-klient (`caldav_async.py`) i stedet for den synkrone `caldav`-pakke. `caldav` er fjernet fra `manifest.json` (async-dependency). `caldav_client.py` er ikke længere i brug og kan slettes.
-- `hassfest`: URL fjernet fra caldav-beskrivelse; `CONFIG_SCHEMA` tilføjet.
-- Koordinator sender `config_entry` videre til `DataUpdateCoordinator` (fast ved `self.config_entry = None`).
-- `AbortFlow` propagerer i config flow (dublet-laundry giver nu afvisning, ikke "unknown"-fejl).
-- `async_unload_entry` tåler manglende `hass.data[DOMAIN]`.
+### Changed
+- Services are registered in `async_setup` (action setup). Handlers look up the coordinator at call time.
+- Machine number validation accepts 1–7 (new machines).
+- All HTTP calls use HA's shared session via `async_get_clientsession` (inject-websession).
+- CalDAV deletion uses an async client (`caldav_async.py`) instead of the synchronous `caldav` package. `caldav` is removed from `manifest.json` (async dependency). `caldav_client.py` is no longer used and can be deleted.
+- `hassfest`: URL removed from the caldav description; `CONFIG_SCHEMA` added.
+- The coordinator passes `config_entry` on to `DataUpdateCoordinator` (fixed by `self.config_entry = None`).
+- `AbortFlow` propagates in the config flow (a duplicate laundry now aborts, instead of an "unknown" error).
+- `async_unload_entry` handles a missing `hass.data[DOMAIN]`.
 
-### Tilføjet
-- `async_remove_config_entry_device`: stale enheder kan slettes i UI.
-- `tests/test_config_flow.py` (succes, invalid_auth, cannot_connect, dublet).
-- Maskine-inventar-sensor, der noterer ændringer i maskinsættet.
+### Added
+- `async_remove_config_entry_device`: stale devices can be deleted in the UI.
+- `tests/test_config_flow.py` (success, invalid_auth, cannot_connect, duplicate).
+- Machine inventory sensor that records changes to the set of machines.
 
 ### Tests
-- CI: 84 tests grønne, hassfest grøn.
+- CI: 84 tests green, hassfest green.
 
 ---
 
-## [Unreleased] — Gold Tier unit tests
+## [Unreleased] — Gold tier unit tests
 
-### Tilføjet — Test-suite for coordinator, booking_manager, websocket
-- Ny `tests/`-mappe: `conftest.py` (delte fixtures + `MockConfigEntry`/`MockCoordinator`), `test_coordinator.py`, `test_booking_manager.py`, `test_websocket.py`
-- `pytest.ini` og `requirements.txt` (pinned `pytest-homeassistant-custom-component==0.13.316`, kræver Python 3.13+)
-- Ny CI-workflow `.github/workflows/pytest.yml` — kører test-suiten på hvert push/PR mod `main`/`dev`
-- Dækker: token-refresh/retry-logik, caching, datetime-parsing og `_get_store` fallback i coordinator; booking/cancel happy-path + fejlhåndtering, primær/sekundær kalender-sync og -sletning i booking_manager; `_get_from_runtime` fallback-kæde, timetable-parsing og fejlkoder (`not_ready`/`invalid_input`/`service_error`/`storage_error`/`not_found`) i websocket
+### Added — Test suite for coordinator, booking_manager, websocket
+- New `tests/` folder: `conftest.py` (shared fixtures + `MockConfigEntry`/`MockCoordinator`), `test_coordinator.py`, `test_booking_manager.py`, `test_websocket.py`
+- `pytest.ini` and `requirements.txt` (pinned `pytest-homeassistant-custom-component==0.13.316`, requires Python 3.13+)
+- New CI workflow `.github/workflows/pytest.yml` — runs the test suite on every push/PR to `main`/`dev`
+- Covers: token refresh/retry logic, caching, datetime parsing and the `_get_store` fallback in the coordinator; booking/cancel happy path and error handling, primary/secondary calendar sync and deletion in booking_manager; the `_get_from_runtime` fallback chain, timetable parsing and error codes (`not_ready`/`invalid_input`/`service_error`/`storage_error`/`not_found`) in websocket
 
 ---
 
 ## [2.6.4] - 2026-11-24
 
-### Tilføjet — Maskine inventar-sensor
-- Ny sensor `sensor.mielelogic_maskine_inventar`. State er antal maskiner. Attributterne `machine_numbers`, `by_laundry` (fx `Klatvask: [1, 2]`) og `changed_at` viser det aktuelle billede.
-- Sensoren gemmer den sidst kendte maskineliste og sender en persistent notifikation i HA, når maskinnumre tilføjes eller forsvinder. Listen overlever HA-genstart via `RestoreEntity`.
-- Tomme svar fra API'et ignoreres, så en mislykket hentning ikke udløser falsk alarm.
+### Added — Machine inventory sensor
+- New sensor `sensor.mielelogic_maskine_inventar`. The state is the number of machines. The attributes `machine_numbers`, `by_laundry` (e.g. `Klatvask: [1, 2]`) and `changed_at` show the current picture.
+- The sensor stores the last known machine list and sends a persistent notification in HA when machine numbers are added or disappear. The list survives an HA restart via `RestoreEntity`.
+- Empty responses from the API are ignored, so a failed fetch does not trigger a false alarm.
 
 ---
 
 ## [2.6.3] - 2026-11-24
 
-### Ændret — Restid for det booked vaskeri i booking-kortet
-- `websocket.py` (`ws_get_machines`): grupperer maskiner på `UnitName` (Klatvask / Stor vask) i stedet for hardkodede numre. Klatvask = 1, 2; Stor vask = 3, 4, 5.
-- Restid parses fra `Text1` ("Resttid: N min.") og sendes som `remaining_minutes`. Tidspunkt for reserverede maskiner læses fra `Text2` (fx "kl. 17:00").
-- Aktiv booking findes ud fra `coordinator.data["reservations"]` (`Start <= nu < End`). Svaret får nyt `booking`-felt med `unit_name`, `start`, `end`, og hver maskine får `in_booked_laundry` og `booked_by_us`.
-- `mielelogic-booking-card.js`: viser kun maskinerne i det vaskeri, der er booket i det aktive slot, med restid (fx "33 min"). Uden aktiv booking vises ingen maskinsektion.
+### Changed — Remaining time for the booked laundry room in the booking card
+- `websocket.py` (`ws_get_machines`): groups machines by `UnitName` (Klatvask / Stor vask) instead of hardcoded numbers. Klatvask = 1, 2; Stor vask = 3, 4, 5.
+- Remaining time is parsed from `Text1` ("Resttid: N min.") and sent as `remaining_minutes`. The time for reserved machines is read from `Text2` (e.g. "kl. 17:00").
+- The active booking is found from `coordinator.data["reservations"]` (`Start <= now < End`). The response gets a new `booking` field with `unit_name`, `start`, `end`, and each machine gets `in_booked_laundry` and `booked_by_us`.
+- `mielelogic-booking-card.js`: shows only the machines in the laundry room booked in the active slot, with remaining time (e.g. "33 min"). With no active booking, no machine section is shown.
 
-### Rettet
-- `websocket.py` og `sensor.py` læste `ReservationInfo`, som ikke findes i `laundrystates`-svaret. Tidspunktet ligger i `Text2`.
-- Versionsnumre var ikke konsistente. Alle `.py`-headere i integrationen, `tests/`, `panel.js`, `const.py`, `manifest.json` og README-badge'en er nu 2.6.3. `mielelogic-booking-card.js` stod på 2.7.1 og er også 2.6.3. `frontend/entrypoint.js` har sin egen version (2.1.0) og er uændret.
+### Fixed
+- `websocket.py` and `sensor.py` read `ReservationInfo`, which does not exist in the `laundrystates` response. The time is in `Text2`.
+- Version numbers were inconsistent. All `.py` headers in the integration, `tests/`, `panel.js`, `const.py`, `manifest.json` and the README badge are now 2.6.3. `mielelogic-booking-card.js` was on 2.7.1 and is now 2.6.3 as well. `frontend/entrypoint.js` has its own version (2.1.0) and is unchanged.
 
 ---
 
 ## [2.6.2] - 2026-08-22
 
-### Rettet — Backend/UI-gennemgang: kvote-bug, fejlbeskeder, oprydning, toast-UX
-- **services.py**: `_check_max_reservations` blokerede al booking hvis MieleLogic-API'et momentant returnerede `MaxUserReservations: 0` (set under test 2026-08-22, formentlig en race/kvirk i deres backend). Behandles nu som en ugyldig værdi — logges som advarsel, blokerer ikke længere bookingen.
-- **services.py**: alle bruger-synlige valideringsfejl (maskinnummer, åbningstider, varighed, kvote, "booking ikke fundet") oversat fra engelsk til kort, dansk tekst — de gik før uoversat og delvist flerlinjet/teknisk direkte igennem til panelets toast-beskeder
-- **coordinator.py**: automatisk oprydning af gammel booking-metadata (én gang i døgnet, via eksisterende `store.async_cleanup_old_bookings(days=7)`) — tidligere skete oprydning kun manuelt via admin-fanens "Ryd historik"-knap
-- **panel.js** (v2.6.2): toast-beskeder skalerer nu varighed med længde (3,5–12 sek. i stedet for altid fast 3,5 sek.), understøtter flerlinjede beskeder (`white-space: pre-line` i stedet for `nowrap`) og kan lukkes med et tryk (`pointer-events: auto`) — relevant nu hvor længere fejlbeskeder (fx kvote-fejlen med bookingliste) rent faktisk kan læses
+### Fixed — Backend/UI review: quota bug, error messages, cleanup, toast UX
+- **services.py**: `_check_max_reservations` blocked all bookings when the MieleLogic API briefly returned `MaxUserReservations: 0` (seen in testing on 2026-08-22, probably a race or glitch in their backend). This value is now treated as invalid — it is logged as a warning and no longer blocks the booking.
+- **services.py**: all user-facing validation errors (machine number, opening hours, duration, quota, "booking not found") were translated from English to short, Danish text — they previously passed through untranslated and partly multi-line/technical into the panel toast messages.
+- **coordinator.py**: automatic cleanup of old booking metadata (once a day, via the existing `store.async_cleanup_old_bookings(days=7)`). Before, cleanup only happened manually through the admin tab's "Clear history" button.
+- **panel.js** (v2.6.2): toast messages now scale their duration with length (3.5–12 s instead of always 3.5 s), support multi-line messages (`white-space: pre-line` instead of `nowrap`), and can be dismissed with a tap (`pointer-events: auto`) — relevant now that longer error messages (e.g. the quota error with the booking list) can actually be read.
 
-### Kendte resterende punkter (ikke lavet i denne omgang)
-- `services.py` mangler stadig egen pytest-dækning (coordinator/booking_manager/websocket har det, services.py ikke)
-- v1.4.7-planen (emoji-fix, calendar sync wrapper, overlap detection, retry-logik) står stadig åben
+### Known remaining items (not done this time)
+- `services.py` still lacks its own pytest coverage (coordinator/booking_manager/websocket have it, services.py does not)
+- The v1.4.7 plan (emoji fix, calendar sync wrapper, overlap detection, retry logic) is still open
 
 ---
 
 ## [2.6.1] - 2026-08-22
 
-### Tilføjet — Debug-logging af reservations-API-svar
-- Under test af CalDAV-fixet stødte vi på en separat, endnu uforklaret fejl: `Booking failed: Maximum reservations reached (0/0)` — API'et returnerede tilsyneladende `MaxUserReservations: 0` under hurtige book/annullér-testcyklusser, hvilket blokerer al booking indtil næste opdatering.
-- `coordinator.py`: tilføjet debug-log af antal aktive reservationer og `MaxUserReservations` hver gang `/reservations`-endepunktet hentes, så vi kan se det rå API-svar næste gang det sker og finde den reelle årsag (MieleLogic-API-kvirk vs. cache-timing).
-- Ingen adfærdsændring endnu — kun observabilitet. Selve blokerings-logikken i `services.py` rørt ikke i denne omgang.
+### Added — Debug logging of reservation API responses
+- While testing the CalDAV fix we ran into a separate, not yet explained error: `Booking failed: Maximum reservations reached (0/0)`. The API apparently returned `MaxUserReservations: 0` during quick book/cancel test cycles, which blocks all bookings until the next refresh.
+- `coordinator.py`: added debug logging of the number of active reservations and `MaxUserReservations` every time the `/reservations` endpoint is fetched, so we can see the raw API response the next time it happens and find the real cause (a MieleLogic API glitch vs. cache timing).
+- No behaviour change yet — observability only. The blocking logic in `services.py` was not touched in this round.
 
 ---
 
 ## [2.6.0] - 2026-08-22
 
-### Rettet — Kalenderevents slettes nu korrekt ved annullering (CalDAV)
-- Root cause fundet: Home Assistants indbyggede CalDAV-integration understøtter `calendar.create_event`/`get_events`, men **ikke** `calendar.delete_event` (åbent HA core-issue #159784). Da både primær (`calendar.kun_flemming`) og sekundær (`calendar.lukas`) kalender er CalDAV-baserede (iCloud), fejlede al kalender-sletning hidtil stille i baggrunden når en booking blev annulleret — selve bookingen blev annulleret korrekt, men eventet blev stående i kalenderen.
-- Ny `caldav_client.py`: minimal direkte CalDAV-klient (via `caldav`-pakken) der finder og sletter det matchende event direkte på CalDAV-serveren, uden om HA's kalender-entity. Oprettelse af events bruger stadig `calendar.create_event` som før — kun sletning er ændret.
-- `booking_manager.py`: `_delete_calendar_event()` og `_delete_secondary_calendar_events()` forsøger nu direkte CalDAV-sletning først (hvis konfigureret), og falder tilbage til den gamle `calendar.delete_event`-service-vej for ikke-CalDAV-kalendere (f.eks. Local Calendar, Google Calendar)
-- Nyt options-flow-trin under “Konfigurer Kalender Synkronisering”: valgfrie felter til CalDAV server-URL, brugernavn og app-specifik adgangskode — kun nødvendige hvis primær/sekundær kalender er CalDAV-baseret
-- Ny afhængighed: `caldav>=1.0.1` i `manifest.json`
-- Bonus-fix: rettede en eksisterende mismatch i `strings.json`/`da.json` hvor kalender-trinnets beskrivelse refererede ikke-eksisterende placeholders (`{primary}`/`{secondaries}`/`{hint}`) og feltnavnet `secondary_calendars` i stedet for det faktisk brugte `secondary_calendars_text`
+### Fixed — Calendar events are now deleted correctly on cancellation (CalDAV)
+- Root cause: Home Assistant's built-in CalDAV integration supports `calendar.create_event`/`get_events`, but **not** `calendar.delete_event` (open HA core issue #159784). Because both the primary (`calendar.kun_flemming`) and secondary (`calendar.lukas`) calendars are CalDAV-based (iCloud), calendar deletion had been failing silently in the background whenever a booking was cancelled — the booking itself was cancelled correctly, but the event stayed in the calendar.
+- New `caldav_client.py`: a minimal direct CalDAV client (via the `caldav` package) that finds and deletes the matching event directly on the CalDAV server, bypassing HA's calendar entity. Creating events still uses `calendar.create_event` as before — only deletion has changed.
+- `booking_manager.py`: `_delete_calendar_event()` and `_delete_secondary_calendar_events()` now try direct CalDAV deletion first (if configured) and fall back to the old `calendar.delete_event` service path for non-CalDAV calendars (e.g. Local Calendar, Google Calendar).
+- New options flow step under "Configure calendar sync": optional fields for CalDAV server URL, username and app-specific password — only needed if the primary/secondary calendar is CalDAV-based.
+- New dependency: `caldav>=1.0.1` in `manifest.json`.
+- Bonus fix: corrected an existing mismatch in `strings.json`/`da.json` where the calendar step's description referred to non-existent placeholders (`{primary}`/`{secondaries}`/`{hint}`) and the field name `secondary_calendars` instead of the one actually used, `secondary_calendars_text`.
 
 ---
 
 ## [2.5.8] - 2026-08-21
 
-### Tilføjet — Lokale brand-ikoner (HA 2026.3+)
-- Ny `custom_components/mielelogic/brand/`-mappe med `icon.png` (256x256) og `icon@2x.png` (512x512), genereret fra det eksisterende `mielelogic_logo.png` (center-croppet til kvadrat, PNG-optimeret)
-- Siden HA 2026.3 kan custom integrations levere deres eget brand-ikon direkte i integrationsmappen — `home-assistant/brands`-repoet tager ikke længere imod PRs for custom integrations. Ingen ekstern indsendelse nødvendig længere.
-- `hacs.json` — minimum HA-version bumpet fra `2026.1.0` til `2026.3.0` (krævet for at lokale brand-ikoner vises)
-- HACS-validering ignorerer stadig `brands`-checket i CI (`ignore: brands` i `.github/workflows/validate.yml`), da det tjekker det gamle eksterne repo som ikke længere er den relevante mekanisme
+### Added — Local brand icons (HA 2026.3+)
+- New `custom_components/mielelogic/brand/` folder with `icon.png` (256x256) and `icon@2x.png` (512x512), generated from the existing `mielelogic_logo.png` (center-cropped to a square, PNG-optimised).
+- Since HA 2026.3, custom integrations can ship their own brand icon directly in the integration folder — the `home-assistant/brands` repo no longer accepts PRs for custom integrations. No external submission is needed anymore.
+- `hacs.json` — minimum HA version bumped from `2026.1.0` to `2026.3.0` (required for local brand icons to display).
+- HACS validation still ignores the `brands` check in CI (`ignore: brands` in `.github/workflows/validate.yml`), since it checks the old external repo, which is no longer the relevant mechanism.
 
 ---
 
 ## [2.5.7] - 2026-08-21
 
-### Rettet — Notifikations-tab reload efter gem
-- `panel.js` (v2.5.0 → v2.5.7) — `_doSaveEdit()` (skabelon-editor for titel/besked) opdaterede kun lokal state efter gem og reloadede aldrig fra serveren, i modsætning til `_doSaveNotification()`/`_doToggleNotification()` som allerede gjorde det korrekt
-- Tilføjet `await this._loadNotifications()` efter vellykket `save_notification`-kald i `_doSaveEdit()`, så panelet altid viser server-bekræftet state efter en skabelon-redigering
+### Fixed — Notification tab reload after save
+- `panel.js` (v2.5.0 → v2.5.7) — `_doSaveEdit()` (the template editor for title/message) only updated local state after saving and never reloaded from the server, unlike `_doSaveNotification()`/`_doToggleNotification()`, which already did so correctly.
+- Added `await this._loadNotifications()` after a successful `save_notification` call in `_doSaveEdit()`, so the panel always shows the server-confirmed state after a template edit.
 
 ---
 
 ## [2.5.6] - 2026-07-20
 
-### Rettet — Panel-view skalering på booking-kortet
-- `mielelogic-booking-card.js` (v2.7.0 → v2.7.1) fyldte kun sin naturlige indholdshøjde, uanset forældre-container — brugbart i normal grid-view, men forkert skaleret i et HA `type: panel`-view (fx en 7" tablet i landscape)
-- `:host` sætter nu `height: 100%`, og `#root` / `.card-root` er omdannet til en flex-kolonne med `height: 100%; min-height: 0;` så kortet arver panelets fulde højde
-- `.card-header` er `flex-shrink: 0` (fast), og alt indhold derunder (fejl/info-bars, maskiner, ny booking, aktive bookinger) er flyttet ind i et nyt `.card-scroll`-lag med `flex: 1; min-height: 0; overflow-y: auto` — indholdet scroller internt i stedet for at overflowe eller blive presset sammen
-- Samme mønster som allerede bruges i `secure_me_alarm_tab_card.js`
-- `getCardSize()` uændret; ingen `max-width`/`margin: auto` at fjerne
+### Fixed — Panel view scaling on the booking card
+- `mielelogic-booking-card.js` (v2.7.0 → v2.7.1) filled only its natural content height regardless of the parent container — fine in a normal grid view, but wrongly scaled in an HA `type: panel` view (e.g. a 7" tablet in landscape).
+- `:host` now sets `height: 100%`, and `#root` / `.card-root` are turned into a flex column with `height: 100%; min-height: 0;` so the card inherits the full height of the panel.
+- `.card-header` is `flex-shrink: 0` (fixed), and all content below it (error/info bars, machines, new booking, active bookings) is moved into a new `.card-scroll` layer with `flex: 1; min-height: 0; overflow-y: auto`, so the content scrolls internally instead of overflowing or being squeezed.
+- Same pattern as already used in `secure_me_alarm_tab_card.js`.
+- `getCardSize()` unchanged; no `max-width`/`margin: auto` to remove.
 
 ---
 
 ## [2.5.5] - 2026-06-13
 
-### Ændret — Ensartet WebSocket fejlklassificering
-- Alle 18 WS-handlere returnerer nu specifikke fejlkoder i stedet for generisk `"unknown_error"`:
-  - `service_error` — API/coordinator/slot-fejl
-  - `storage_error` — store read/write-fejl
-  - `invalid_input` — ugyldigt slot i `make_booking` (tidligere `invalid_slot`)
-- Giver mulighed for mere præcise fejlbeskeder i panelet
+### Changed — Consistent WebSocket error classification
+- All 18 WS handlers now return specific error codes instead of the generic `"unknown_error"`:
+  - `service_error` — API/coordinator/slot errors
+  - `storage_error` — store read/write errors
+  - `invalid_input` — invalid slot in `make_booking` (previously `invalid_slot`)
+- Enables more precise error messages in the panel.
 
-### Tilføjet — Notifikations spam-filter
-- Ny fil `notification_spam_filter.py` med `NotificationSpamFilter`-klasse
-- Forhindrer at samme notifikation (type + maskine + tid) sendes mere end én gang per 60 sekunder
-- Forebygger dobbelt-notifikationer ved hurtige kalender-sync triggers
-- Automatisk cleanup af gamle entries efter 1 time
+### Added — Notification spam filter
+- New file `notification_spam_filter.py` with the `NotificationSpamFilter` class
+- Prevents the same notification (type + machine + time) from being sent more than once per 60 seconds
+- Prevents duplicate notifications from rapid calendar sync triggers
+- Automatic cleanup of old entries after 1 hour
 
-### Ændret — Parallel load ved integration-setup
-- `store.async_load()` og `coordinator.async_config_entry_first_refresh()` køres nu parallelt via `asyncio.gather()` ved opstart af nye config entries
-- Reducerer opstartstid marginalt
+### Changed — Parallel load at integration setup
+- `store.async_load()` and `coordinator.async_config_entry_first_refresh()` now run in parallel via `asyncio.gather()` when a new config entry starts up.
+- Reduces startup time slightly.
 
 ---
 
 ## [2.5.4] - 2026-05-31
 
-### Tilføjet — House Voice tale-påmindelse
-- **`voice_reminder`** — ny notifikationstype der kalder `house_voice.say` med `event_id: "Vaske tid"` 15 min før booking starter
-- Til/fra-toggle i notifikationspanelet som alle andre notifikationer
-- Test-knap kalder `house_voice.say` direkte med det konfigurerede event-id
-- `schedule_voice_reminder()` i `notification_manager.py` bruger `async_call_later` med in-memory cancel-handle
-- `cancel_voice_reminder()` køres automatisk når en booking aflyses
-- Graceful fallback: gør ingenting hvis `house_voice.say` ikke er tilgængelig
-- Reminder skippes automatisk hvis tidspunktet er i fortiden (f.eks. booking om 5 min)
+### Added — House Voice spoken reminder
+- **`voice_reminder`** — new notification type that calls `house_voice.say` with `event_id: "Vaske tid"` 15 min before a booking starts
+- On/off toggle in the notification panel like all other notifications
+- Test button calls `house_voice.say` directly with the configured event ID
+- `schedule_voice_reminder()` in `notification_manager.py` uses `async_call_later` with an in-memory cancel handle
+- `cancel_voice_reminder()` runs automatically when a booking is cancelled
+- Graceful fallback: does nothing if `house_voice.say` is not available
+- The reminder is skipped automatically if the time is in the past (e.g. a booking in 5 min)
 
 ---
 
 ## [2.5.3] - 2026-05-31
 
-### Tilføjet — Re-authentication flow
-- **`async_step_reauth`** — HA viser nu et "Integration kræver gentilslutning"-banner når credentials er udløbet eller ugyldige
-- **`coordinator._refresh_token`** — kalder nu `entry.async_start_reauth()` når både refresh grant og password grant fejler, i stedet for blot at logge en fejl
-- **`strings.json` + `translations/da.json`** — `reauth_confirm`-trin og `reauth_successful`-abort tilføjet til begge filer
-- Gold tier `reauthentication_flow`-krav er nu fuldt implementeret
+### Added — Re-authentication flow
+- **`async_step_reauth`** — HA now shows a "Integration requires re-authentication" banner when the credentials have expired or are invalid
+- **`coordinator._refresh_token`** — now calls `entry.async_start_reauth()` when both the refresh grant and the password grant fail, instead of only logging an error
+- **`strings.json` + `translations/da.json`** — `reauth_confirm` step and `reauth_successful` abort added to both files
+- The Gold tier `reauthentication_flow` requirement is now fully implemented
 
 ---
 
 ## [2.5.2] - 2026-05-31
 
-### Rettet — CI-fejl
-- **`manifest.json`** — fjernet ugyldige felter `icon` og `frontend` som hassfest ikke accepterer
-- **`hacs.json`** — fjernet ugyldige felter `domains` og `iot_class`; bumped `homeassistant` til `2026.1.0`
-- **CI workflow** — HACS brands-check skippes (`ignore: brands`) da brand-submission er et fremtidigt mål; flake8 ignorerer nu whitespace/style-advarsler (W291/W293/E221/E303/F841/F541) og fejler kun på reelle kodefejl
+### Fixed — CI errors
+- **`manifest.json`** — removed invalid fields `icon` and `frontend` that hassfest does not accept
+- **`hacs.json`** — removed invalid fields `domains` and `iot_class`; bumped `homeassistant` to `2026.1.0`
+- **CI workflow** — HACS brands check is skipped (`ignore: brands`) because brand submission is a future goal; flake8 now ignores whitespace/style warnings (W291/W293/E221/E303/F841/F541) and only fails on real code errors
 
 ---
 
 ## [2.5.1] - 2026-05-31
 
-### Rettet
-- **`_renderWeekStrip` manglede** — metoden blev kaldt i `_update()` men eksisterede ikke i klassen, hvilket fik booking-kortet til at crashe med `TypeError: this._renderWeekStrip is not a function` på alle mobile og desktop enheder
-- Feltnavne justeret til at matche `get_week_availability` WS-response (`has_free`, `label`, `day_num` fremfor `free`, `weekday`, `day`)
-- **CI/CD workflow** — `.github/workflows/validate.yml` tilføjet med 6 jobs: hassfest, HACS-validering, Python lint (flake8), JS syntakstjek, translations-paritet og versions-konsistens
+### Fixed
+- **`_renderWeekStrip` was missing** — the method was called in `_update()` but did not exist in the class, which made the booking card crash with `TypeError: this._renderWeekStrip is not a function` on all mobile and desktop devices
+- Field names aligned to match the `get_week_availability` WS response (`has_free`, `label`, `day_num` instead of `free`, `weekday`, `day`)
+- **CI/CD workflow** — `.github/workflows/validate.yml` added with 6 jobs: hassfest, HACS validation, Python lint (flake8), JS syntax check, translation parity and version consistency
 
 ---
 
 ## [2.5.0] - 2026-05-30
 
-### Tilføjet — Multi-kalender + runtime_data migration
-- **Primær kalender** — auto-sync som før (koordinator) + per-booking via panel. Konfigureres i Options Flow under Kalender
-- **Sekundære kalendere** — valgfrie chips i booking-formularen (“TILFØJ TIL KALENDER”). Ikke-default, brugeren aktiverer aktivt. Cyan chips, toggle ved klik
-- **Sletning ved cancel** — sekundære kalenderevents slettes automatisk ved cancel; hvilke kalendere der var valgt gemmes persistent i storage
-- **`runtime_data`-migration** — `hass.data[DOMAIN][entry_id]` erstattet af `entry.runtime_data` i `__init__.py`. Alle managers tilgængelige via `_get_from_runtime()` helper i websocket.py med `hass.data`-fallback
-- **`get_calendars` WS-kommando** — 18 kommandoer i alt. Returnerer primær + sekundære med venlige navne fra HA state
-- **`make_booking` WS** — modtager nu `extra_calendars: list` parameter
-- **`storage.py`** — ny `secondary_calendar_synced` datastruktur, `async_save_booking_metadata` udvidet med `secondary_calendars`, duplikatsektion ryddet op
-- **Options Flow kalender-trin** — primær dropdown + sekundær komma-separeret tekstfelt
+### Added — Multi-calendar + runtime_data migration
+- **Primary calendar** — auto-sync as before (coordinator) + per booking via the panel. Configured in the options flow under Calendar
+- **Secondary calendars** — optional chips in the booking form ("ADD TO CALENDAR"). Not default, the user activates them actively. Cyan chips, toggled on click
+- **Deletion on cancel** — secondary calendar events are deleted automatically on cancel; which calendars were selected is stored persistently in storage
+- **`runtime_data` migration** — `hass.data[DOMAIN][entry_id]` replaced by `entry.runtime_data` in `__init__.py`. All managers are available via the `_get_from_runtime()` helper in websocket.py with a `hass.data` fallback
+- **`get_calendars` WS command** — 18 commands in total. Returns primary + secondary calendars with friendly names from the HA state
+- **`make_booking` WS** — now accepts an `extra_calendars: list` parameter
+- **`storage.py`** — new `secondary_calendar_synced` data structure, `async_save_booking_metadata` extended with `secondary_calendars`, duplicate section cleaned up
+- **Options flow calendar step** — primary dropdown + comma-separated secondary text field
 
 ---
 
 ## [2.4.0] - 2026-05-30
 
-### Tilføjet — Backend/stabilitet & UX
-- **Cancel fra push-notifikation** — `booking_created`-notifikation får nu en “Aflys booking” action-knap (destructive, iOS + Android). Event listener på `mobile_app_notification_action` i `__init__.py` parser action-ID og kalder `cancel_booking()` direkte
-- **Countdown-chip på aktive bookinger** — Grøn chip med MM:SS når booking er aktiv nu, blå chip med “om Xm” når fremtidig, grå “Færdig” når udløbet. Ticker på 1s interval opdaterer kun `[data-countdown]` elementer — ingen fuld re-render
-- **Robust kalender-sletning** — `_delete_calendar_event` matcher nu på summary + præcis starttid først, derefter summary-only fallback. `delete_event`-tjek rykket før event-access
-- **Rige notifikationer** — Alle notifikationer får nu `data.url = "/mielelogic"` (tap åbner panel) og `data.push.sound = "default"`. Åbn Panel-knap på alle typer
-- **Versioner:** `__init__.py`, `booking_manager.py`, `notification_manager.py` — alle bumped til 2.3.0. `panel.js` → v2.4.0
+### Added — Backend/stability & UX
+- **Cancel from push notification** — the `booking_created` notification now gets a "Cancel booking" action button (destructive, iOS + Android). An event listener for `mobile_app_notification_action` in `__init__.py` parses the action ID and calls `cancel_booking()` directly
+- **Countdown chip on active bookings** — green chip with MM:SS when the booking is active now, blue chip with "in Xm" when upcoming, grey "Done" when expired. A 1-second ticker only updates `[data-countdown]` elements — no full re-render
+- **Robust calendar deletion** — `_delete_calendar_event` now matches on summary + exact start time first, then summary-only as a fallback. The `delete_event` check moved before event access
+- **Rich notifications** — all notifications now get `data.url = "/mielelogic"` (tap opens the panel) and `data.push.sound = "default"`. Open Panel button on all types
+- **Versions:** `__init__.py`, `booking_manager.py`, `notification_manager.py` — all bumped to 2.3.0. `panel.js` → v2.4.0
 
 ---
 
 ## [2.3.0] - 2026-05-30
 
-### Tilføjet — 7-dages dag-strip
-- **Dag-strip** — Vandret strip over dato-input viser de næste 7 dage med grøn dot (ledige tider) eller rød dot (fuldt booket)
-- **Klikbare dage** — Klik på en dag sætter datoen og henter slots automatisk
-- **I dag-markering** — Dags dato fremhæves med accent-farvet label
-- **Valgt dato** — Highlightes med blå border i strippen
-- **Skeleton loading** — Shimmer-animerede dag-knapper mens ugen loades
-- **Auto-reload** — Strippen genindlæses når vaskehus skiftes
-- **Backend** — Nyt `mielelogic/get_week_availability` WebSocket-kommando (17 i alt); bruger eksisterende timetable-data fra koordinatoren, ingen ekstra API-kald
+### Added — 7-day day strip
+- **Day strip** — a horizontal strip above the date input shows the next 7 days with a green dot (free slots) or red dot (fully booked)
+- **Clickable days** — clicking a day sets the date and fetches slots automatically
+- **Today marking** — today's date is highlighted with an accent-coloured label
+- **Selected date** — highlighted with a blue border in the strip
+- **Skeleton loading** — shimmer-animated day buttons while the week loads
+- **Auto-reload** — the strip reloads when the laundry room is switched
+- **Backend** — new `mielelogic/get_week_availability` WebSocket command (17 in total); uses the existing timetable data from the coordinator, no extra API calls
 
 ---
 
 ## [2.2.0] - 2026-05-30
 
-### Tilføjet — UX polish
-- **Inline booking-bekræftelse** — "Book nu" viser centeret overlay med vaskehus, dato og tidsblok; to knapper: Annuller / Book nu ✓. Ingen native `confirm()` dialog.
-- **Inline cancel-bekræftelse** — ✕-knap på booking-rækker åbner rød overlay-variant med "Behold" / "Slet ✕"
-- **Skeleton loading** — Booking-tab viser shimmer-animerede placeholder-cards ved initial load (`_initialLoaded` flag); forsvinder automatisk når data ankommer
-- **Bekræftelsesoverlay** — backdrop-blur baggrund, fade-in animation, mobilvenlig centrering
+### Added — UX polish
+- **Inline booking confirmation** — "Book now" shows a centred overlay with laundry room, date and time block; two buttons: Cancel / Book now ✓. No native `confirm()` dialog.
+- **Inline cancel confirmation** — ✕ button on booking rows opens a red overlay variant with "Keep" / "Delete ✕"
+- **Skeleton loading** — the booking tab shows shimmer-animated placeholder cards on initial load (`_initialLoaded` flag); they disappear automatically when data arrives
+- **Confirmation overlay** — backdrop-blur background, fade-in animation, mobile-friendly centring
 
 ---
 
 ## [2.1.0] - 2026-05-30
 
-### Tilføjet — Performance & UX forbedringer
-- **Font preload** — DM Sans/DM Mono injiceres nu én gang fra `entrypoint.js` i stedet for `@import` inde i `_css()` der kørte ved hvert `_render()`-kald
-- **Split load-loop** — `_loadCore()` (slots + bookings + status, 30s interval) adskilt fra notifikationer som nu kun loades lazy ved tab-skift
-- **In-panel toast** — Grøn/orange/rød slide-in toast erstatter `persistent_notification` for al triviel feedback (3.5s auto-dismiss)
-- **Klikbare slot-chips** — Fri chips kan nu klikkes direkte og synkroniserer med select-feltet; valgt chip fremhæves med `chip-selected` styling
-- **`_historyLoaded` flag** — Rettet bug hvor tom historik blev cachet som "allerede loaded"; henter korrekt igen ved næste tab-skift
-- **Exponential backoff** — Polling stopper efter 4 fejl og venter 5→10→20→60s; genoptager automatisk via `visibilitychange`-event når siden bliver aktiv
-- **Cached state ved fejl** — `_loadBookings()` / `_loadStatus()` beholder nu forrige data ved WS-fejl i stedet for at overskrive med tomt objekt
-- **`data-bindex`** — Erstatter JSON-streng i `data-cancel` attribut på slet-knapper; sikrere og fri for escaping-problemer
+### Added — Performance & UX improvements
+- **Font preload** — DM Sans/DM Mono is now injected once from `entrypoint.js` instead of an `@import` inside `_css()`, which ran on every `_render()` call
+- **Split load loop** — `_loadCore()` (slots + bookings + status, 30 s interval) separated from notifications, which are now loaded lazily only when switching tabs
+- **In-panel toast** — green/orange/red slide-in toast replaces `persistent_notification` for all trivial feedback (3.5 s auto-dismiss)
+- **Clickable slot chips** — free chips can now be clicked directly and sync with the select field; the selected chip is highlighted with `chip-selected` styling
+- **`_historyLoaded` flag** — fixed a bug where an empty history was cached as "already loaded"; it now fetches correctly on the next tab switch
+- **Exponential backoff** — polling stops after 4 errors and waits 5→10→20→60 s; resumes automatically via the `visibilitychange` event when the page becomes active again
+- **Cached state on error** — `_loadBookings()` / `_loadStatus()` now keep the previous data on a WS error instead of overwriting it with an empty object
+- **`data-bindex`** — replaces a JSON string in the `data-cancel` attribute on delete buttons; safer and free of escaping problems
 
 ---
 
 ## [2.0.0] - 2026-04-04
 
-### Tilføjet — Panel-registrering (Energy Hub-metoden) 🔧
-- **Parameteriseret panel** — Sidebar titel, ikon, og require_admin kan nu ændres via Options Flow
-- **Panel til/fra toggle** — Panel kan deaktiveres helt fra Indstillinger → Integrationer → Konfigurer
-- **Live reload** — Ændringer træder i kraft med det samme uden HA-genstart (`_async_update_listener`)
-- **Proper unregister** — `async_unregister_panel()` rydder `_panel_registered` flag korrekt
-- **Dependencies** — `manifest.json` deklarerer nu `http`, `frontend`, `panel_custom`
-- **strings.json** — Ny fil tilføjet (Gold tier krav)
-- **6 menupunkter** — Options Flow har nu Credentials, Calendar, Opening Hours, Machines, Time Slots, Panel
+### Added — Panel registration (Energy Hub method) 🔧
+- **Parameterised panel** — sidebar title, icon and require_admin can now be changed via the options flow
+- **Panel on/off toggle** — the panel can be disabled completely from Settings → Integrations → Configure
+- **Live reload** — changes take effect immediately without an HA restart (`_async_update_listener`)
+- **Proper unregister** — `async_unregister_panel()` clears the `_panel_registered` flag correctly
+- **Dependencies** — `manifest.json` now declares `http`, `frontend`, `panel_custom`
+- **strings.json** — new file added (Gold tier requirement)
+- **6 menu items** — the options flow now has Credentials, Calendar, Opening Hours, Machines, Time Slots, Panel
 
-### Tilføjet — Frontend redesign (Indeklima Designer) 🎨
-- **Design tokens** — Blå `#3b82f6` / cyan `#06b6d4` accent-farver fra `indeklima_designer_reference.md`
-- **Typografi** — DM Sans + DM Mono (Google Fonts)
-- **Layout** — `.panel-topbar` (fast) + `.panel-scroll` (flex) — samme pattern som Indeklima og Heat Manager
-- **Header** — Gradient-ikon (blå→cyan) + h1 titel + meta-info
-- **Tab-bar** — Pill-tabs med ikon + label (kun ikon på mobil)
-- **Cards** — `border-radius: 18px`, `var(--bg2)` baggrund, subtle hover
-- **Book-knap** — Gradient `--accent` → `--accent2`
-- **Slot chips** — DM Mono font, accent-glow baggrund
-- **Semantiske farver** — `--green` / `--orange` / `--red` fra Designer-specifikationen
-- **Responsivt** — Tab-labels skjules på mobil, padding reduceres
+### Added — Frontend redesign (Indeklima Designer) 🎨
+- **Design tokens** — blue `#3b82f6` / cyan `#06b6d4` accent colours from `indeklima_designer_reference.md`
+- **Typography** — DM Sans + DM Mono (Google Fonts)
+- **Layout** — `.panel-topbar` (fixed) + `.panel-scroll` (flex) — the same pattern as Indeklima and Heat Manager
+- **Header** — gradient icon (blue→cyan) + h1 title + meta info
+- **Tab bar** — pill tabs with icon + label (icon only on mobile)
+- **Cards** — `border-radius: 18px`, `var(--bg2)` background, subtle hover
+- **Book button** — gradient `--accent` → `--accent2`
+- **Slot chips** — DM Mono font, accent-glow background
+- **Semantic colours** — `--green` / `--orange` / `--red` from the Designer specification
+- **Responsive** — tab labels hidden on mobile, reduced padding
 
-### Ændret
-- Alle .py-filer bumped til VERSION = "2.0.0"
-- Options Flow udvides fra 5 til 6 menupunkter (+ Panel)
-- Panel-indstillinger gemmes i `entry.options` (ikke `entry.data`)
+### Changed
+- All .py files bumped to VERSION = "2.0.0"
+- Options flow expanded from 5 to 6 menu items (+ Panel)
+- Panel settings are stored in `entry.options` (not `entry.data`)
 
 ---
 
 ## [1.9.1] - 2026-03-28
 
-### Tilføjet — Slots tilgængelighed 🟢🔴
-- **Live tilgængelighed** — Tidsblok-dropdown viser hvilke tider der er optaget/ledige for den valgte dato
-- **Farvedede chips** — Under dropdown: grønne `✓` for ledige tider, røde `✕` for optagne
-- **Disabled slots** — Optagne tider markeres som `"07:00-09:00 (2t) — Optaget"` og kan ikke vælges
-- **Auto-opdatering** — Slots genindlæses automatisk når dato eller vaskehus skiftes
-- **Auto-valg** — Første ledige slot vælges automatisk ved indlæsning
-- **Backend** — `get_slots` WebSocket-kommando accepterer nu valgfrit `date` parameter og returnerer `booked: bool` per slot
+### Added — Slot availability 🟢🔴
+- **Live availability** — the time-slot dropdown shows which times are booked/free for the selected date
+- **Coloured chips** — below the dropdown: green `✓` for free times, red `✕` for booked times
+- **Disabled slots** — booked times are marked as `"07:00-09:00 (2h) — Booked"` and cannot be selected
+- **Auto-update** — slots reload automatically when the date or laundry room changes
+- **Auto-select** — the first free slot is selected automatically on load
+- **Backend** — the `get_slots` WebSocket command now accepts an optional `date` parameter and returns `booked: bool` per slot
 
-### Tilføjet — Kalender-fixes 📅
-- **Forkerte tider rettet** — Kalenderbegivenheder sendes nu som UTC til `calendar.create_event` — HA konverterer selv til lokal tid
-- **Persistent duplikat-tracking** — `_created_events` gemmes nu i `storage.py` og overlever HA-genstart (ingen duplikater efter restart)
-- **Sletning ved aflysning** — `cancel_booking()` kalder nu `calendar.delete_event` via ±1 time søgevindue
-- **`_times_match()` helper** — UTC-baseret datetime-sammenligning for korrekt event-matching
-- **`_get_store()` helper** — Tilføjet i coordinator til at hente store fra hass.data
+### Added — Calendar fixes 📅
+- **Wrong times fixed** — calendar events are now sent as UTC to `calendar.create_event` — HA converts to local time itself
+- **Persistent duplicate tracking** — `_created_events` is now stored in `storage.py` and survives an HA restart (no duplicates after restart)
+- **Deletion on cancel** — `cancel_booking()` now calls `calendar.delete_event` with a ±1 hour search window
+- **`_times_match()` helper** — UTC-based datetime comparison for correct event matching
+- **`_get_store()` helper** — added in the coordinator to fetch the store from hass.data
 
-### Tilføjet — Panel omskrevet til vanilla JS 🔧
-- **Ingen LitElement** — Pure `HTMLElement` med shadow DOM — ingen CDN-afhængighed
-- **Samme arkitektur som Heat Manager og Indeklima**
-- **Rigtigt app-ikon** — Originalt guldfarvet vaskemaskine-ikon embedded som base64 PNG
+### Added — Panel rewritten in vanilla JS 🔧
+- **No LitElement** — pure `HTMLElement` with shadow DOM — no CDN dependency
+- **Same architecture as Heat Manager and Indeklima**
+- **Real app icon** — the original gold washing-machine icon embedded as a base64 PNG
 
-### Tilføjet — UI Redesign 🎨
-- **Nyt mørkt design** — `#0d0d0d` baggrund, thin borders, UPPERCASE section labels
-- **Horizontal tab-navigation** — Oversigt / Notifikationer / Historik / Konfiguration
-- **Vaskehus-toggle** — To knapper med SVG-ikoner
-- **Kompakte booking-rækker** — Med farvet venstre accent-streg
+### Added — UI redesign 🎨
+- **New dark design** — `#0d0d0d` background, thin borders, UPPERCASE section labels
+- **Horizontal tab navigation** — Overview / Notifications / History / Configuration
+- **Laundry room toggle** — two buttons with SVG icons
+- **Compact booking rows** — with a coloured left accent line
 
-### Rettet
-- Booking card border konsistens (div.card-root i stedet for ha-card)
-- Notifikationsfane viste altid "not ready" — `_get_store()` i websocket.py rettet
-- `_get_store()` i websocket.py brugte forkert `.get("store")` — rettet til at iterere korrekt
-- Panel tab-skift virkede ikke pålideligt (LitElement-problem — løst ved vanilla JS)
+### Fixed
+- Booking card border consistency (div.card-root instead of ha-card)
+- The notifications tab always showed "not ready" — `_get_store()` in websocket.py fixed
+- `_get_store()` in websocket.py used `.get("store")` incorrectly — fixed to iterate correctly
+- Panel tab switching did not work reliably (LitElement problem — solved with vanilla JS)
 
 ---
 
 ## [1.8.0] - 2026-02-28
 
-### Tilføjet — Admin-fane ⚙️
-- Driftsbesked der vises øverst i booking-oversigten
-- Toggle til midlertidig booking-spærring med tilpasset besked
-- Persistent lagring der overlever HA-genstart
+### Added — Admin tab ⚙️
+- Operational message shown at the top of the booking overview
+- Toggle for temporarily blocking bookings with a custom message
+- Persistent storage that survives an HA restart
 
-### Tilføjet — Statistik-fane 📊
-- Lister afsluttede bookinger de seneste 30 dage
-- Viser vaskehus, dato, tid, varighed og brugernavn
-- Oprydningsknap til gammel metadata
+### Added — Statistics tab 📊
+- Lists completed bookings from the last 30 days
+- Shows laundry room, date, time, duration and user name
+- Cleanup button for old metadata
 
-### Tilføjet — Rige notifikationer 🔔
-- Deep links: tryk på notifikation åbner MieleLogic-panel direkte
-- "Åbn Panel"-knap på alle notifikationer
-- Tilpassede skabeloner med live preview
-- Variabelsystem: `{vaskehus}`, `{time}`, `{date}`, `{duration}`, `{machine}`
-- iOS: lyd, badge, subtitle / Android: kanal, vigtighed
+### Added — Rich notifications 🔔
+- Deep links: tapping a notification opens the MieleLogic panel directly
+- "Open panel" button on all notifications
+- Custom templates with live preview
+- Variable system: `{vaskehus}`, `{time}`, `{date}`, `{duration}`, `{machine}`
+- iOS: sound, badge, subtitle / Android: channel, importance
 
-### Rettet — Brugertracking
-- Viser nu korrekt Home Assistant-brugernavn fremfor altid "Via Panel"
+### Fixed — User tracking
+- Now shows the correct Home Assistant username instead of always "Via Panel"
 
-### Gold Tier
-- `EntityDescription` dataklasser for alle sensorer og binary sensorer
-- Genkonfigurationsflow (`async_step_reconfigure`) implementeret
+### Gold tier
+- `EntityDescription` dataclasses for all sensors and binary sensors
+- Reconfigure flow (`async_step_reconfigure`) implemented
 
 ---
 
 ## [1.7.0] - 2026-02-27
 
-### Ændret
-- Fjernet verbose debug-logs — renere logfiler til produktionsbrug
+### Changed
+- Removed verbose debug logs — cleaner log files for production use
 
 ---
 
 ## [1.6.0] - 2026-02-27
 
-### Rettet
-- Brugertracking viser nu "Via Panel" korrekt under alle bookinger
+### Fixed
+- User tracking now shows "Via Panel" correctly for all bookings
 
 ---
 
 ## [1.5.0] - 2026-02-22
 
-### Tilføjet — Integreret sidebarpanel 🚀
-- Custom sidebarpanel uden pakke-filer
-- WebSocket API med 13 kommandoer
-- Auto-refresh hvert 30. sekund
-- Responsivt design (mobil, tablet, desktop)
+### Added — Integrated sidebar panel 🚀
+- Custom sidebar panel without package files
+- WebSocket API with 13 commands
+- Auto-refresh every 30 seconds
+- Responsive design (mobile, tablet, desktop)
 
-### Tilføjet — Notifikationer
-- 4 standard-notifikationer: 15-min påmindelse, 5-min advarsel, booking oprettet/aflyst
-- Enhedsvælger til valg af hvilke mobilapps modtager notifikationer
-- Test-notifikationer direkte fra panel
+### Added — Notifications
+- 4 standard notifications: 15-min reminder, 5-min warning, booking created/cancelled
+- Device selector to choose which mobile apps receive notifications
+- Test notifications directly from the panel
 
 ---
 
 ## [1.4.6] - 2026-01-30
 
-### Tilføjet — Vaskehus-abstraktion
-- Kalender og UI viser "Klatvask"/"Storvask" fremfor "Maskine 1"/"Maskine 3"
-- 5-punkts Options-menu
+### Added — Laundry room abstraction
+- Calendar and UI show "Klatvask"/"Storvask" instead of "Machine 1"/"Machine 3"
+- 5-point options menu
 
 ---
 
 ## [1.3.0] - 2026-01-21
 
-### Tilføjet
-- Kalenderintegration (`calendar.mielelogic_reservations`)
-- Ekstern kalender-sync (CalDAV / Google Calendar)
+### Added
+- Calendar integration (`calendar.mielelogic_reservations`)
+- External calendar sync (CalDAV / Google Calendar)
 
 ---
 
 ## [1.1.0] - 2026-01-20
 
-### Tilføjet — Silver Tier fundament
-- DeviceInfo og enhedsorganisering
-- `has_entity_name = True` på alle platforme
-- Options Flow til konfiguration
+### Added — Silver tier foundation
+- DeviceInfo and device organisation
+- `has_entity_name = True` on all platforms
+- Options flow for configuration
 
 ---
 
 ## [1.0.5] - 2026-01-13
 
-### Første release
-- Grundlæggende autentificering og datahentning
+### First release
+- Basic authentication and data fetching
 - OAuth2 password grant flow
 
 ---
 
-**Vedligeholder:** KingPainter  
+**Maintainer:** KingPainter  
 **Repository:** https://github.com/kingpainter/mielelogic

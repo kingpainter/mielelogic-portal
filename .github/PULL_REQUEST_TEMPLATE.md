@@ -1,42 +1,42 @@
-## Beskrivelse
+## Description
 
-<!-- Beskriv hvad denne PR ændrer og hvorfor -->
+<!-- Describe what this PR changes and why -->
 
-## Type af ændring
+## Type of change
 
 - [ ] 🐛 Bug fix
-- [ ] ✨ Ny feature
-- [ ] 🎨 UI/styling ændring
+- [ ] ✨ New feature
+- [ ] 🎨 UI/styling change
 - [ ] 🧹 Code cleanup / refactoring
-- [ ] 📝 Dokumentation
-- [ ] ⚡ Performance forbedring
+- [ ] 📝 Documentation
+- [ ] ⚡ Performance improvement
 
-## Relaterede issues
+## Related issues
 
 <!-- Fixes #123 / Closes #456 -->
 
-## Ændrede filer
+## Changed files
 
-<!-- Hvilke filer er ændret og hvorfor? -->
+<!-- Which files changed and why? -->
 
-| Fil | Ændring |
-|-----|---------|
+| File | Change |
+|------|--------|
 | `websocket.py` | ... |
 | `frontend/panel.js` | ... |
 
-## Test
+## Testing
 
-- [ ] Testet på Home Assistant 2026.1.0+
-- [ ] Booking flow virker (opret + slet)
-- [ ] Panel åbner uden fejl
-- [ ] Ingen nye console-fejl i browseren
-- [ ] Versionsnummer bumped i `const.py`, `manifest.json`, `__init__.py`
-- [ ] `CHANGELOG.md` opdateret
+- [ ] Tested on Home Assistant 2026.1.0+
+- [ ] Booking flow works (create + delete)
+- [ ] Panel opens without errors
+- [ ] No new console errors in the browser
+- [ ] Version number bumped in `const.py`, `manifest.json`, `__init__.py`
+- [ ] `CHANGELOG.md` updated
 
 ## Screenshots
 
-<!-- Hvis UI er ændret, vedhæft screenshots (før/efter) -->
+<!-- If the UI changed, attach screenshots (before/after) -->
 
-## Noter til reviewer
+## Notes for the reviewer
 
-<!-- Noget specifikt du gerne vil have feedback på? -->
+<!-- Anything specific you would like feedback on? -->

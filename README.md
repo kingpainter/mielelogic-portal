@@ -6,154 +6,156 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.1%2B-blue.svg)](https://www.home-assistant.io/)
 
-Home Assistant integration til MieleLogic vaskehus-systemer. Book vasketider, overvåg maskiner i realtid og modtag notifikationer direkte på mobilen — alt fra Home Assistant.
+Home Assistant integration for MieleLogic laundry room systems. Book washing slots, monitor machines in real time and receive notifications directly on your phone — all from Home Assistant.
 
-> **Krav:** Home Assistant Core 2026.1.0 eller nyere.
+> **Requirement:** Home Assistant Core 2026.1.0 or newer.
 
 ---
 
-## Hvad kan det?
+## What can it do?
 
-**Booking** — Book Klatvask eller Storvask direkte fra et panel i sidebaren. Vælg dato fra en 7-dages strip der viser hvilke dage der har ledige tider. Tidsblok-chips viser ledig/optaget i realtid. Bekræftelse sker via et elegant in-panel overlay — ingen native browser-dialoger.
+**Booking** — Book Klatvask (wash) or Storvask (large wash) directly from a panel in the sidebar. Pick a date from a 7-day strip that shows which days have free slots. Time-slot chips show free/booked status in real time. Confirmation happens in an in-panel overlay — no native browser dialogs.
 
-**Kalender-sync** — Bookinger synkroniseres automatisk til din primære kalender. Ved booking via panelet kan du vælge at tilføje bookingen til én eller flere sekundære kalendere (f.eks. et familiemedlems kalender) via klikbare chips i booking-formularen.
+**Calendar sync** — Bookings are synced automatically to your primary calendar. When booking from the panel you can add the booking to one or more secondary calendars (e.g. a family member's calendar) via clickable chips in the booking form.
 
-**Maskinestatus** — Se i realtid om maskinerne er ledige, i gang, reserverede eller lukkede. Aktive bookinger viser en live countdown-timer.
+**Machine status** — See in real time whether machines are free, running, reserved or closed. Active bookings show a live countdown timer.
 
-**Notifikationer** — Push-beskeder på mobilen ved booking og som påmindelser. Booking-notifikationen indeholder en "Aflys booking"-knap — du kan aflyse direkte fra notifikationen uden at åbne appen. Beskedskabeloner kan tilpasses med variabler.
+**Notifications** — Push messages on your phone when booking and as reminders. The booking notification contains a "Cancel booking" button — you can cancel directly from the notification without opening the app. Notification templates can be customised with variables.
 
-**Admin** — Driftsbesked til alle brugere og mulighed for at spærre for nye bookinger midlertidigt.
+**Admin** — Operational messages to all users and the option to temporarily block new bookings.
 
-**Statistik** — Se de seneste 30 dages afsluttede bookinger med brugernavn og varighed.
+**Statistics** — View the last 30 days of completed bookings with user name and duration.
 
-**Panel-indstillinger** — Sidebar-titel, ikon, admin-only adgang og panel til/fra kan ændres via Options Flow — uden genstart.
+**Panel settings** — Sidebar title, icon, admin-only access and panel on/off can be changed via the Options Flow — without a restart.
 
 ---
 
 ## Screenshots
 
-| Panel — Booking | Panel — Notifikationer |
+| Panel — Booking | Panel — Notifications |
 |---|---|
-| ![Panel Booking](screenshots/panel-booking.png) | ![Notifikationer](screenshots/panel-notifications.png) |
+| ![Panel Booking](screenshots/panel-booking.png) | ![Notifications](screenshots/panel-notifications.png) |
 
-| Panel — Historik | Panel — Admin |
+| Panel — History | Panel — Admin |
 |---|---|
-| ![Historik](screenshots/panel-history.png) | ![Admin](screenshots/panel-admin.png) |
+| ![History](screenshots/panel-history.png) | ![Admin](screenshots/panel-admin.png) |
 
-| Mobil kort |
+| Mobile card |
 |---|
-| ![Mobil kort](screenshots/card-mobile.png) |
+| ![Mobile card](screenshots/card-mobile.png) |
 
 ---
 
 ## Installation
 
-### Via HACS (anbefalet)
+### Via HACS (recommended)
 
-1. Åbn HACS → Integrationer → Tilpassede repositories
-2. Tilføj: `https://github.com/kingpainter/mielelogic`
-3. Søg efter "MieleLogic" og installer
-4. Genstart Home Assistant
+1. Open HACS → Integrations → Custom repositories
+2. Add: `https://github.com/kingpainter/mielelogic`
+3. Search for "MieleLogic" and install it
+4. Restart Home Assistant
 
-### Manuel installation
+### Manual installation
 
-1. Download seneste release fra GitHub
-2. Kopier mappen `custom_components/mielelogic/` til din HA `config/custom_components/`
-3. Genstart Home Assistant
+1. Download the latest release from GitHub
+2. Copy the folder `custom_components/mielelogic/` to your HA `config/custom_components/`
+3. Restart Home Assistant
 
-### Opsætning
+### Setup
 
-1. Indstillinger → Enheder og tjenester → Tilføj integration → søg "MieleLogic"
-2. Indtast dine MieleLogic loginoplysninger
-3. Konfigurer maskiner, tidslots og kalender
-4. Panelet vises automatisk i sidebaren
+1. Settings → Devices & services → Add integration → search for "MieleLogic"
+2. Enter your MieleLogic login details
+3. Configure machines, time slots and calendar
+4. The panel appears automatically in the sidebar
 
 ---
 
-## Konfiguration (Options Flow)
+## Configuration (Options Flow)
 
-Indstillinger → Integrationer → MieleLogic → Konfigurer:
+Settings → Devices & services → MieleLogic → Configure:
 
-| Menupunkt | Beskrivelse |
+| Menu item | Description |
 |---|---|
-| **Credentials** | Opdater login-oplysninger |
-| **Calendar** | Primær kalender (auto-sync) + sekundære kalendere (valgfrie per booking) |
-| **Opening Hours** | Åbnings- og lukketider for vaskehuset |
-| **Machines** | Primær maskine for Klatvask og Storvask |
-| **Time Slots** | Tilføj/slet tidsblokke per vaskehus |
-| **Panel** | Sidebar-titel, ikon, til/fra, admin-only adgang |
+| **Credentials** | Update login details |
+| **Calendar** | Primary calendar (auto-sync) + secondary calendars (optional per booking) |
+| **Opening Hours** | Opening and closing times for the laundry room |
+| **Machines** | Primary machine for Klatvask and Storvask |
+| **Time Slots** | Add/delete time slots per laundry room |
+| **Panel** | Sidebar title, icon, on/off, admin-only access |
 
-Alle ændringer træder i kraft med det samme — ingen genstart nødvendig (undtagen Python-filer).
-
----
-
-## Kalender-integration
-
-**Primær kalender** konfigureres i Options Flow og synkroniseres automatisk — både ved bookinger oprettet på MieleLogic-portalen og ved bookinger via panelet.
-
-**Sekundære kalendere** vises som chips i booking-formularen under "TILFØJ TIL KALENDER". De er ikke valgt som standard — brugeren aktiverer dem aktivt per booking. Sekundære events slettes automatisk ved aflysning.
+All changes take effect immediately — no restart needed (except for Python files).
 
 ---
 
-## Notifikationer
+## Calendar integration
 
-Booking-notifikationen indeholder:
-- **"Aflys booking"** — destructive action-knap. Aflys direkte fra notifikationen på iOS og Android.
-- **"Åbn panel"** — åbner MieleLogic-panelet direkte.
-- Lyd og deep link på alle notifikationstyper.
+The **primary calendar** is configured in the Options Flow and synced automatically — both for bookings made on the MieleLogic portal and for bookings made through the panel.
 
-Beskedskabeloner understøtter variablerne: `{vaskehus}`, `{time}`, `{date}`, `{duration}`, `{machine}`.
+**Secondary calendars** appear as chips in the booking form under "ADD TO CALENDAR". They are not selected by default — the user activates them per booking. Secondary events are deleted automatically when a booking is cancelled.
+
+---
+
+## Notifications
+
+The booking notification contains:
+- **"Cancel booking"** — destructive action button. Cancel directly from the notification on iOS and Android.
+- **"Open panel"** — opens the MieleLogic panel directly.
+- Sound and deep link on all notification types.
+
+Notification templates support these variables: `{vaskehus}`, `{time}`, `{date}`, `{duration}`, `{machine}`.
 
 ---
 
 ## Design
 
-Panelet følger **Indeklima Designer** design-sproget:
+The panel follows the **Indeklima Designer** design language:
 
-- **Accent-farver:** Blå `#3b82f6` / Cyan `#06b6d4`
-- **Typografi:** DM Sans (tekst) + DM Mono (tal/kode)
-- **Layout:** Fast topbar + scrollbart indhold
-- **Cards:** 18px border-radius, subtle borders og hover-effekter
-- **Responsivt:** Tab-labels skjules på mobil, reduceret padding
-- **Skeleton loading:** Shimmer-animerede placeholder-cards ved initial load
-- **In-panel toast:** Feedback vises som slide-in toast (ikke forstyrrende HA persistent notifications)
+- **Accent colours:** Blue `#3b82f6` / Cyan `#06b6d4`
+- **Typography:** DM Sans (text) + DM Mono (numbers/code)
+- **Layout:** Fixed top bar + scrollable content
+- **Cards:** 18px border radius, subtle borders and hover effects
+- **Responsive:** Tab labels hidden on mobile, reduced padding
+- **Skeleton loading:** Shimmer-animated placeholder cards on initial load
+- **In-panel toast:** Feedback shown as a slide-in toast (not disruptive HA persistent notifications)
 
 ---
 
-## Versionskrav
+## Version requirements
 
-| Komponent | Minimumversion |
+| Component | Minimum version |
 |---|---|
 | Home Assistant Core | **2026.1.0** |
-| HA Companion App (notifikationer + cancel action) | Seneste |
+| HA Companion App (notifications + cancel action) | Latest |
 | Python | 3.11+ |
 
 ---
 
-## Filstruktur
+## File structure
 
 ```
 custom_components/mielelogic/
-├── __init__.py                    # v2.5.0 — runtime_data, notification action listener
+├── __init__.py                    # Setup, runtime_data, notification action listener
 ├── manifest.json                  # dependencies: http, frontend, panel_custom
 ├── const.py                       # CONF_PRIMARY_CALENDAR, CONF_SECONDARY_CALENDARS
-├── config_flow.py                 # 6 options trin inkl. primær/sekundær kalender
-├── coordinator.py                 # API polling + primær kalender auto-sync
+├── config_flow.py                 # Setup and options flow (6 options steps incl. primary/secondary calendar)
+├── coordinator.py                 # API polling + primary calendar auto-sync
 ├── diagnostics.py
-├── sensor.py                      # EntityDescription pattern (Gold tier)
-├── binary_sensor.py               # EntityDescription pattern (Gold tier)
+├── sensor.py                      # EntityDescription pattern
+├── binary_sensor.py               # EntityDescription pattern
 ├── calendar.py
-├── services.py                    # Response support enabled
-├── panel.py                       # Energy Hub registration pattern
+├── services.py                    # Services with response support
+├── panel.py                       # Panel registration
 ├── time_manager.py
-├── booking_manager.py             # make_booking(extra_calendars), sekundær kalender sync
-├── websocket.py                   # 18 WebSocket-kommandoer
+├── booking_manager.py             # make_booking(extra_calendars), secondary calendar sync
+├── caldav_async.py                # Async CalDAV client (deletes events)
+├── websocket.py                   # 18 WebSocket commands
 ├── storage.py                     # secondary_calendar_synced, booking metadata
-├── notification_manager.py        # Deep link, lyd, cancel action button
+├── notification_manager.py        # Deep link, sound, cancel action button
+├── icons.json                     # Entity icons
 ├── strings.json
 ├── frontend/
 │   ├── entrypoint.js              # Font preload (DM Sans/Mono)
-│   ├── panel.js                   # v2.5.0 — vanilla HTMLElement, shadow DOM
+│   ├── panel.js                   # Vanilla HTMLElement, shadow DOM
 │   └── mielelogic-booking-card.js
 └── translations/
     ├── da.json
@@ -162,64 +164,64 @@ custom_components/mielelogic/
 
 ---
 
-## WebSocket API (18 kommandoer)
+## WebSocket API (18 commands)
 
 ```
 Booking:        get_slots · make_booking · cancel_booking · get_bookings · get_status · get_machines
-Kalender:       get_calendars · get_week_availability
-Notifikationer: get_devices · save_devices · get_notifications · save_notification · test_notification · reset_notification
+Calendar:       get_calendars · get_week_availability
+Notifications:  get_devices · save_devices · get_notifications · save_notification · test_notification · reset_notification
 Admin:          get_admin · save_admin · get_history · cleanup_history
 ```
 
 ---
 
-## Fejlfinding
+## Troubleshooting
 
-**Panel vises ikke**
-Ryd browsercache (Ctrl+Shift+R). Tjek at panelet er aktiveret: Indstillinger → Integrationer → MieleLogic → Konfigurer → Panel.
+**Panel does not appear**
+Clear the browser cache (Ctrl+Shift+R). Check that the panel is enabled: Settings → Devices & services → MieleLogic → Configure → Panel.
 
-**Notifikationer virker ikke**
-Panel → Notifikationer → Kontroller at enheder er valgt og notifikationer er aktiveret.
+**Notifications do not work**
+Panel → Notifications → Check that devices are selected and notifications are enabled.
 
-**Cancel fra notifikation virker ikke**
-Kræver HA Companion App i seneste version. Tjek HA-loggen for `MIELELOGIC_CANCEL_`-events.
+**Cancel from notification does not work**
+Requires the latest HA Companion App. Check the HA log for `MIELELOGIC_CANCEL_` events.
 
-**Kalender-fejl ved opstart**
-Kræver Home Assistant 2026.1.0+.
+**Calendar error at startup**
+Requires Home Assistant 2026.1.0+.
 
-**Sekundære chips vises ikke**
-Konfigurer sekundære kalendere under Indstillinger → Integrationer → MieleLogic → Konfigurer → Calendar.
+**Secondary chips do not appear**
+Configure secondary calendars under Settings → Devices & services → MieleLogic → Configure → Calendar.
 
 ---
 
-## Kendte begrænsninger
+## Known limitations
 
-- Kun én vaskehus-instans understøttes (multi-vaskehus planlagt til v3.0.0)
-- Panel kræver internet til DM Sans font (Google Fonts)
+- Only one laundry room instance is supported (multi-laundry room planned for v3.0.0)
+- The panel requires internet access for the DM Sans font (Google Fonts)
 
 ---
 
 ## Roadmap
 
-Se [CHANGELOG.md](CHANGELOG.md) for fuld versionshistorik.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
-- **v2.5.4** ✅ — House Voice tale-påmindelse, storage migration, logo fix, CI fixes
-- **v2.5.1** ✅ — Bugfix: `_renderWeekStrip` crash på booking-kort, CI/CD workflow
-- **v2.5.0** ✅ — Multi-kalender, runtime_data migration, sekundær kalender-tracking
-- **v2.4.0** ✅ — Cancel fra push-notifikation, countdown-timer, rige notifikationer
-- **v2.3.0** ✅ — 7-dages dag-strip med ledig/optaget-indikator
-- **v2.2.0** ✅ — Inline booking/cancel bekræftelse, skeleton loading
-- **v2.1.0** ✅ — Performance, in-panel toast, klikbare chips, exponential backoff
-- **v2.0.0** ✅ — Energy Hub panel-registrering, Indeklima Designer redesign
-- **Næste** — Gold Tier tests, HACS/brands
-
----
-
-## Licens
-
-MIT — se [LICENSE.md](LICENSE.md)
+- **v2.5.4** ✅ — House Voice spoken reminder, storage migration, logo fix, CI fixes
+- **v2.5.1** ✅ — Bug fix: `_renderWeekStrip` crash on booking cards, CI/CD workflow
+- **v2.5.0** ✅ — Multi-calendar, runtime_data migration, secondary calendar tracking
+- **v2.4.0** ✅ — Cancel from push notification, countdown timer, rich notifications
+- **v2.3.0** ✅ — 7-day day strip with free/booked indicator
+- **v2.2.0** ✅ — Inline booking/cancel confirmation, skeleton loading
+- **v2.1.0** ✅ — Performance, in-panel toast, clickable chips, exponential backoff
+- **v2.0.0** ✅ — Energy Hub panel registration, Indeklima Designer redesign
+- **Next** — Gold tier tests, HACS/brands
 
 ---
 
-**Seneste version:** 2.5.4 — 31. maj 2026  
-**Udvikler:** KingPainter
+## License
+
+MIT — see [LICENSE.md](LICENSE.md)
+
+---
+
+**Latest version:** 2.6.6  
+**Developer:** KingPainter
