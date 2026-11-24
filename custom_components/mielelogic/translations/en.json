@@ -15,6 +15,16 @@
           "closing_time": "Closing time (e.g. 21:00)"
         }
       },
+      "reauth_confirm": {
+        "title": "Re-authenticate MieleLogic",
+        "description": "Your MieleLogic credentials for {username} are no longer valid. Please enter your credentials again.",
+        "data": {
+          "username": "Username (email)",
+          "password": "Password",
+          "client_id": "Client ID",
+          "client_secret": "Client Secret (optional)"
+        }
+      },
       "reconfigure": {
         "title": "Reconfigure MieleLogic",
         "description": "Update your credentials or laundry ID. Other settings are preserved.",
@@ -36,6 +46,7 @@
     },
     "abort": {
       "already_configured": "MieleLogic is already configured",
+      "reauth_successful": "Re-authentication successful",
       "reconfigure_successful": "Reconfiguration successful"
     }
   },
@@ -172,6 +183,12 @@
       "end_before_start": "End time must be after start time",
       "slot_overlap": "Time slots must not overlap with existing slots",
       "unknown": "Unknown error occurred"
+    }
+  },
+  "issues": {
+    "machine_inventory_changed": {
+      "title": "Machine list changed",
+      "description": "The laundry machine list has changed. {details} Check the MieleLogic integration if this is unexpected."
     }
   },
   "entity": {

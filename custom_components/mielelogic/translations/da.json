@@ -173,6 +173,12 @@
       "unknown": "Ukendt fejl opstod"
     }
   },
+  "issues": {
+    "machine_inventory_changed": {
+      "title": "Maskineliste ændret",
+      "description": "Vaskeriets maskineliste er ændret. {details} Tjek MieleLogic-integrationen hvis det ikke er forventet."
+    }
+  },
   "entity": {
     "binary_sensor": {
       "has_reservation": {"name": "Har Reservation"},

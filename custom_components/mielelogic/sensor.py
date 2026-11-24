@@ -18,7 +18,7 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntityDescription,
 )
-from homeassistant.components import persistent_notification
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -132,7 +132,7 @@ class MieleLogicMachineInventorySensor(RestoreEntity, SensorEntity):
     """Counts the machines in the laundry and notifies when the set of machine numbers changes.
 
     v2.6.4: Used to watch for machine expansion (e.g. machines 6 and 7 appearing in the API).
-    The last known set is restored after a restart. A persistent notification is created when
+    The last known set is restored after a restart. A repair issue is created when
     numbers are added or removed. Empty API responses are ignored, so a failed poll cannot
     trigger a false alarm.
     """
@@ -200,11 +200,16 @@ class MieleLogicMachineInventorySensor(RestoreEntity, SensorEntity):
                 parts.append("Forsvundne maskiner: " + ", ".join(str(n) for n in removed))
             message = ". ".join(parts) + ". Nu: " + ", ".join(str(n) for n in current) + "."
             _LOGGER.warning("Machine inventory changed: %s", message)
-            persistent_notification.async_create(
+            # Repair issue (shown under Settings > Repairs). Fixed issue id, so a new
+            # change replaces the previous one instead of stacking up.
+            ir.async_create_issue(
                 self.hass,
-                message,
-                title="MieleLogic: maskiner ændret",
-                notification_id=f"{DOMAIN}_machine_inventory",
+                DOMAIN,
+                "machine_inventory_changed",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="machine_inventory_changed",
+                translation_placeholders={"details": message},
             )
         self._known = current
 

@@ -185,6 +185,12 @@
       "unknown": "Unknown error occurred"
     }
   },
+  "issues": {
+    "machine_inventory_changed": {
+      "title": "Machine list changed",
+      "description": "The laundry machine list has changed. {details} Check the MieleLogic integration if this is unexpected."
+    }
+  },
   "entity": {
     "binary_sensor": {
       "has_reservation": {"name": "Has Reservation"},
