@@ -16,6 +16,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.6.4] - 2026-11-24
+
+### Tilføjet — Maskine inventar-sensor
+- Ny sensor `sensor.mielelogic_maskine_inventar`. State er antal maskiner. Attributterne `machine_numbers`, `by_laundry` (fx `Klatvask: [1, 2]`) og `changed_at` viser det aktuelle billede.
+- Sensoren gemmer den sidst kendte maskineliste og sender en persistent notifikation i HA, når maskinnumre tilføjes eller forsvinder. Listen overlever HA-genstart via `RestoreEntity`.
+- Tomme svar fra API'et ignoreres, så en mislykket hentning ikke udløser falsk alarm.
+
+---
+
+## [2.6.3] - 2026-11-24
+
+### Ændret — Restid for det booked vaskeri i booking-kortet
+- `websocket.py` (`ws_get_machines`): grupperer maskiner på `UnitName` (Klatvask / Stor vask) i stedet for hardkodede numre. Klatvask = 1, 2; Stor vask = 3, 4, 5.
+- Restid parses fra `Text1` ("Resttid: N min.") og sendes som `remaining_minutes`. Tidspunkt for reserverede maskiner læses fra `Text2` (fx "kl. 17:00").
+- Aktiv booking findes ud fra `coordinator.data["reservations"]` (`Start <= nu < End`). Svaret får nyt `booking`-felt med `unit_name`, `start`, `end`, og hver maskine får `in_booked_laundry` og `booked_by_us`.
+- `mielelogic-booking-card.js`: viser kun maskinerne i det vaskeri, der er booket i det aktive slot, med restid (fx "33 min"). Uden aktiv booking vises ingen maskinsektion.
+
+### Rettet
+- `websocket.py` og `sensor.py` læste `ReservationInfo`, som ikke findes i `laundrystates`-svaret. Tidspunktet ligger i `Text2`.
+- Versionsnumre var ikke konsistente. Alle `.py`-headere i integrationen, `tests/`, `panel.js`, `const.py`, `manifest.json` og README-badge'en er nu 2.6.3. `mielelogic-booking-card.js` stod på 2.7.1 og er også 2.6.3. `frontend/entrypoint.js` har sin egen version (2.1.0) og er uændret.
+
+---
+
 ## [2.6.2] - 2026-08-22
 
 ### Rettet — Backend/UI-gennemgang: kvote-bug, fejlbeskeder, oprydning, toast-UX

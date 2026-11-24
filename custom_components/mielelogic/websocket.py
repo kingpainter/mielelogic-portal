@@ -1,6 +1,10 @@
-# VERSION = "2.5.5"
+# VERSION = "2.6.4"
 """WebSocket API for MieleLogic panel."""
 import logging
+import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, callback
@@ -9,6 +13,48 @@ from homeassistant.components import websocket_api
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+_TZ = ZoneInfo("Europe/Copenhagen")
+_RESTTID_MIN_RE = re.compile(r"(\d+)\s*min", re.IGNORECASE)
+_RESTTID_HOUR_RE = re.compile(r"(\d+)\s*time", re.IGNORECASE)
+
+
+def _parse_local_dt(value: str) -> datetime | None:
+    """Parse a MieleLogic datetime. Naive values are Copenhagen local time (v2.6.3)."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_TZ)
+    return dt
+
+
+def _active_booking(coordinator, now: datetime):
+    """Return our reservation whose fixed slot contains `now`, or None (v2.6.3)."""
+    if not coordinator.data:
+        return None
+    reservations = coordinator.data.get("reservations", {}).get("Reservations", [])
+    for res in reservations:
+        start = _parse_local_dt(res.get("Start", ""))
+        end = _parse_local_dt(res.get("End", ""))
+        if start and end and start <= now < end:
+            return res
+    return None
+
+
+def _remaining_minutes(text1: str) -> int | None:
+    """Parse 'Resttid: 33 min.' (optionally with hours) into minutes (v2.6.3)."""
+    match = _RESTTID_MIN_RE.search(text1 or "")
+    if not match:
+        return None
+    minutes = int(match.group(1))
+    hour = _RESTTID_HOUR_RE.search(text1)
+    if hour:
+        minutes += int(hour.group(1)) * 60
+    return minutes
 
 
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
@@ -376,16 +422,26 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
         return
 
     try:
-        machine_states = (
-            coordinator.data.get("machine_states", {}).get("MachineStates", [])
-            if coordinator.data else []
-        )
+        data = coordinator.data or {}
+        machine_states = data.get("machine_states", {}).get("MachineStates", [])
+
+        # Bookings are fixed slots (e.g. 12:00-14:00). Find the one active now.
+        now = datetime.now(_TZ)
+        active = _active_booking(coordinator, now)
+        booked_number = active.get("MachineNumber") if active else None
+        booked_unit = None
+        if booked_number is not None:
+            for m in machine_states:
+                if m.get("MachineNumber") == booked_number:
+                    booked_unit = m.get("UnitName")
+                    break
 
         machines = []
         for m in machine_states:
-            text1 = m.get("Text1", "")
-            reservation_info = m.get("ReservationInfo", "")
-            unit_name = m.get("UnitName", f"Maskine {m.get('MachineNumber', '?')}")
+            number = m.get("MachineNumber")
+            text1 = m.get("Text1", "") or ""
+            text2 = m.get("Text2", "") or ""
+            unit_name = m.get("UnitName") or f"Maskine {number or '?'}"
             machine_type_code = m.get("MachineType", "")
             text_lower = text1.lower()
             name_lower = unit_name.lower()
@@ -408,19 +464,30 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
             else:
                 state = "unknown"
 
-            combined_status = f"{text1} {reservation_info}".strip() if reservation_info and reservation_info.strip() else (text1 or "Ukendt")
-
             machines.append({
-                "number": m.get("MachineNumber"),
+                "number": number,
                 "name": unit_name,
-                "status": combined_status,
+                # Text2 holds the reservation time (e.g. "kl. 17:00"); v2.6.3
+                "status": f"{text1} {text2}".strip() or "Ukendt",
                 "state": state,
+                "remaining_minutes": _remaining_minutes(text1),
                 "machine_type": machine_type,
+                # True when the machine is in the same laundry (UnitName) as our active booking
+                "in_booked_laundry": booked_unit is not None and unit_name == booked_unit,
+                "booked_by_us": number is not None and number == booked_number,
             })
 
         machines.sort(key=lambda x: x.get("number") or 0)
-        _LOGGER.debug("🔧 WebSocket: Returning %d machines", len(machines))
-        connection.send_result(msg["id"], {"machines": machines})
+        booking = None
+        if active:
+            booking = {
+                "start": active.get("Start"),
+                "end": active.get("End"),
+                "machine_number": booked_number,
+                "unit_name": booked_unit,
+            }
+        _LOGGER.debug("🔧 WebSocket: Returning %d machines (active booking: %s)", len(machines), bool(active))
+        connection.send_result(msg["id"], {"machines": machines, "booking": booking})
 
     except Exception as err:
         _LOGGER.exception("Error getting machines: %s", err)

@@ -1,4 +1,4 @@
-# VERSION = "2.5.4"
+# VERSION = "2.6.4"
 """
 MieleLogic sensor platform.
 
@@ -18,6 +18,7 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntityDescription,
 )
+from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -81,6 +82,7 @@ async def async_setup_entry(
         MieleLogicReservationsSensor(coordinator, config_entry, desc_map["reservations"]),
         MieleLogicAccountBalanceSensor(coordinator, config_entry, desc_map["account_balance"]),
         MieleLogicConfigSensor(coordinator, config_entry, desc_map["vaskehus_config"]),
+        MieleLogicMachineInventorySensor(coordinator, config_entry),
     ]
 
     machine_states = coordinator.data.get("machine_states", {}).get("MachineStates", [])
@@ -105,6 +107,90 @@ async def async_setup_entry(
 
     async_add_entities(sensors)
     _LOGGER.debug("Added %d sensors for MieleLogic", len(sensors))
+
+
+# ── Machine inventory ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+class MieleLogicMachineInventorySensor(RestoreEntity, SensorEntity):
+    """Counts the machines in the laundry and notifies when the set of machine numbers changes.
+
+    v2.6.4: Used to watch for machine expansion (e.g. machines 6 and 7 appearing in the API).
+    The last known set is restored after a restart. A persistent notification is created when
+    numbers are added or removed. Empty API responses are ignored, so a failed poll cannot
+    trigger a false alarm.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Maskine inventar"
+    _attr_icon = "mdi:format-list-numbered"
+
+    def __init__(self, coordinator, config_entry):
+        self.coordinator = coordinator
+        self._attr_unique_id = f"{config_entry.entry_id}_machine_inventory"
+        self._attr_device_info = coordinator.device_info
+        self._known: list[int] | None = None
+        self._changed_at: str | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last and last.attributes:
+            known = last.attributes.get("machine_numbers")
+            if isinstance(known, list):
+                self._known = [int(n) for n in known]
+            self._changed_at = last.attributes.get("changed_at")
+
+    def _machine_states(self) -> list:
+        if not self.coordinator.data:
+            return []
+        return self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
+
+    def _current_numbers(self) -> list[int]:
+        return sorted(
+            {int(m["MachineNumber"]) for m in self._machine_states() if m.get("MachineNumber") is not None}
+        )
+
+    @property
+    def native_value(self) -> int:
+        return len(self._current_numbers())
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        by_laundry: dict[str, list[int]] = {}
+        for m in self._machine_states():
+            if m.get("MachineNumber") is None:
+                continue
+            by_laundry.setdefault(m.get("UnitName") or "Ukendt", []).append(int(m["MachineNumber"]))
+        return {
+            "machine_numbers": self._current_numbers(),
+            "by_laundry": {k: sorted(v) for k, v in by_laundry.items()},
+            "changed_at": self._changed_at,
+        }
+
+    async def async_update(self) -> None:
+        """Compare the current machine numbers with the last known set."""
+        current = self._current_numbers()
+        if not current:
+            return  # ignore empty or failed responses
+        if self._known is not None and current != self._known:
+            added = sorted(set(current) - set(self._known))
+            removed = sorted(set(self._known) - set(current))
+            self._changed_at = datetime.now(ZoneInfo("Europe/Copenhagen")).isoformat()
+            parts = []
+            if added:
+                parts.append("Nye maskiner: " + ", ".join(str(n) for n in added))
+            if removed:
+                parts.append("Forsvundne maskiner: " + ", ".join(str(n) for n in removed))
+            message = ". ".join(parts) + ". Nu: " + ", ".join(str(n) for n in current) + "."
+            _LOGGER.warning("Machine inventory changed: %s", message)
+            persistent_notification.async_create(
+                self.hass,
+                message,
+                title="MieleLogic: maskiner ændret",
+                notification_id=f"{DOMAIN}_machine_inventory",
+            )
+        self._known = current
 
 
 # ── Base class ─────────────────────────────────────────────────────────────────
@@ -340,7 +426,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         if not machine_data:
             return "unknown"
         status = machine_data.get("Text1", "Unknown")
-        reservation_info = machine_data.get("ReservationInfo", "")
+        reservation_info = machine_data.get("Text2", "")
         if reservation_info and reservation_info.strip():
             return f"{status} {reservation_info}"
         if "lukket indtil" in status.lower():
@@ -404,7 +490,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
             "is_running": is_running,
             "is_closed": is_closed,
             "status_text": machine_data.get("Text1", ""),
-            "reservation_info": machine_data.get("ReservationInfo", ""),
+            "reservation_info": machine_data.get("Text2", ""),
             "color_code": machine_data.get("ColorCode", ""),
             "symbol_code": machine_data.get("SymbolCode", ""),
         }

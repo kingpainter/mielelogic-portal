@@ -1,4 +1,4 @@
-# VERSION = "2.6.2"
+# VERSION = "2.6.4"
 """
 MieleLogic Services
 
@@ -36,14 +36,30 @@ CANCEL_RESERVATION_SCHEMA = vol.Schema(
 )
 
 
-async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
-    """Set up services for MieleLogic integration."""
+def _get_coordinator(hass: HomeAssistant):
+    """Return the coordinator of the loaded MieleLogic entry.
+
+    Services are registered in async_setup (once per HA start), so the
+    coordinator is looked up on each call instead of being captured.
+    """
+    for entry in hass.config_entries.async_loaded_entries(DOMAIN):
+        runtime = getattr(entry, "runtime_data", None)
+        if runtime and "coordinator" in runtime:
+            return runtime["coordinator"]
+    raise ServiceValidationError(
+        "MieleLogic er ikke sat op. Tilføj integrationen først."
+    )
+
+
+async def async_setup_services(hass: HomeAssistant) -> None:
+    """Register services for MieleLogic integration (called from async_setup)."""
     
     async def handle_make_reservation(call: ServiceCall) -> dict:
         """Handle make_reservation service call.
         
         Returns dict with booking details for use in scripts/automations.
         """
+        coordinator = _get_coordinator(hass)
         machine_number = call.data.get("machine_number")
         start_time = call.data.get("start_time")
         duration = call.data.get("duration", 120)
@@ -176,6 +192,7 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
         
         Returns dict with cancellation details for use in scripts/automations.
         """
+        coordinator = _get_coordinator(hass)
         machine_number = call.data.get("machine_number")
         start_time = call.data.get("start_time")
         end_time = call.data.get("end_time")
@@ -314,9 +331,9 @@ async def async_setup_services(hass: HomeAssistant, coordinator) -> None:
 
 def _validate_machine_number(machine_number: int) -> None:
     """Validate machine number is in valid range."""
-    if not 1 <= machine_number <= 5:
+    if not 1 <= machine_number <= 7:
         raise ServiceValidationError(
-            f"Ugyldigt maskinnummer: {machine_number}. Skal være 1-5."
+            f"Ugyldigt maskinnummer: {machine_number}. Skal være 1-7."
         )
 
 

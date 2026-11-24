@@ -1,4 +1,4 @@
-# VERSION = "2.6.1"
+# VERSION = "2.6.4"
 """Manage booking and cancellation operations."""
 import logging
 from typing import Dict, List

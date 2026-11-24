@@ -1,6 +1,6 @@
 /**
  * MieleLogic Booking Card
- * VERSION = "2.7.1"
+ * VERSION = "2.6.4"
  *
  * Custom Lovelace card — same visual language as Heat Manager / Indeklima.
  * Dark background, uppercase section labels, clean metric rows.
@@ -124,7 +124,9 @@ class MieleLogicBookingCard extends HTMLElement {
     try {
       const r = await this._hass.callWS({ type: "mielelogic/get_machines" });
       this._machines = r.machines || [];
-    } catch (e) { this._machines = []; }
+      // v2.6.3: our active booking (null outside a booked slot)
+      this._machineBooking = r.booking || null;
+    } catch (e) { this._machines = []; this._machineBooking = null; }
     this._update();
   }
 
@@ -340,47 +342,37 @@ class MieleLogicBookingCard extends HTMLElement {
   }
 
   _renderMachines(isOpen) {
-    const now = Date.now();
-
-    // Build lookup: machineNumber -> our booking
-    const ourBookings = {};
-    for (const b of this._bookings) {
-      const num = String(b.MachineNumber ?? "");
-      try {
-        const start = new Date(b.Start.replace(" ", "T")).getTime();
-        const end   = new Date(b.End.replace(" ", "T")).getTime();
-        ourBookings[num] = { start, end, active: start <= now && now < end };
-      } catch(e) {}
-    }
+    // v2.6.3: only shown during our active booking slot, and only for the
+    // laundry we booked (Klatvask or Stor vask). Outside the slot nothing is shown.
+    const booking = this._machineBooking;
+    if (!booking || !isOpen) return "";
 
     const SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:var(--c);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><rect x="2" y="3" width="20" height="18" rx="2.5"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2.2" style="stroke-width:1.2"/><line x1="6.5" y1="7.5" x2="9" y2="7.5" style="stroke-width:1.2"/><circle cx="5.5" cy="7.5" r="0.9" style="fill:var(--c);stroke:none"/><rect x="16" y="6" width="2.5" height="1.5" rx="0.4" style="fill:var(--c);stroke:none"/></svg>`;
 
-    const items = this._machines.map(m => {
-      const num   = String(m.MachineNumber ?? m.machine_number ?? m.id ?? "");
-      const short = m.name.replace(/klatvask|storvask/gi, "").trim() || m.name;
-      const bk    = ourBookings[num];
-      const api   = m.state || "";
+    const items = this._machines
+      .filter(m => m.in_booked_laundry)
+      .map(m => {
+        const short = m.name.replace(/klatvask|storvask|stor vask/gi, "").trim() || m.name;
+        const mins  = m.remaining_minutes;
+        let color, label;
+        if (m.state === "running" && mins != null) {
+          color = m.booked_by_us ? "#4ade80" : "#60a5fa";
+          label = `${mins} min`;
+        } else if (m.state === "available") {
+          color = "#2a2a2a"; label = "Ledig";
+        } else if (m.state === "reserved") {
+          color = "#f59e0b"; label = (m.status || "").replace(/^Reserveret fra/i, "Res.");
+        } else {
+          color = "#2a2a2a"; label = m.status || "";
+        }
+        const tip = `${m.name}: ${m.status || m.state}${m.booked_by_us ? " · Vores booking" : ""}`;
+        return `<div class="mach-item" title="${tip}"><div class="mach-ring" style="--c:${color}">${SVG}</div><div class="mach-name">${short}</div><div class="mach-state" style="color:${color}">${label}</div></div>`;
+      }).join("");
 
-      let color, label;
-      if (!isOpen) {
-        color = "#2a2a2a"; label = "";
-      } else if (bk && bk.active) {
-        color = "#4ade80"; label = "I gang";
-      } else if (bk) {
-        color = "#60a5fa"; label = "Reserveret";
-      } else {
-        color = "#2a2a2a";
-        label = (api === "running" || api === "reserved") ? "Optaget" : "";
-      }
-
-      const tip = bk
-        ? (bk.active ? `${m.name}: Vores booking — i gang` : `${m.name}: Vores booking`)
-        : `${m.name}: ${m.status || api}`;
-
-      return `<div class="mach-item" title="${tip}"><div class="mach-ring" style="--c:${color}">${SVG}</div><div class="mach-name">${short}</div><div class="mach-state" style="color:${color}">${label}</div></div>`;
-    }).join("");
-
-    return `<div class="section"><div class="sec-label">MASKINER</div><div class="mach-row">${items}</div></div>`;
+    const from  = String(booking.start || "").slice(11, 16);
+    const to    = String(booking.end || "").slice(11, 16);
+    const title = `${(booking.unit_name || "Vaskeri").toUpperCase()} · ${from}–${to}`;
+    return `<div class="section"><div class="sec-label">${title}</div><div class="mach-row">${items || '<div class="empty-row">Ingen maskiner fundet</div>'}</div></div>`;
   }
 
   _bind() {

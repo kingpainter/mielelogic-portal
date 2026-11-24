@@ -1,4 +1,4 @@
-# VERSION = "2.6.1"
+# VERSION = "2.6.4"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 import asyncio
@@ -6,6 +6,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import (
     DOMAIN,
+    CONF_USERNAME,
+    CONF_LAUNDRY_ID,
     CONF_PANEL_ENABLED,
     CONF_SIDEBAR_TITLE,
     CONF_SIDEBAR_ICON,
@@ -16,7 +18,7 @@ from .const import (
     DEFAULT_REQUIRE_ADMIN,
 )
 from .coordinator import MieleLogicDataUpdateCoordinator
-from .services import async_setup_services, async_unload_services
+from .services import async_setup_services
 from .panel import async_register_panel, async_unregister_panel
 from .websocket import async_register_websocket_commands
 from .time_manager import TimeSlotManager
@@ -50,6 +52,16 @@ DEFAULT_CONFIG = {
     "opening_time": "07:00",
     "closing_time": "21:00",
 }
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the MieleLogic component once per HA start (action-setup rule).
+
+    Services are registered here so they exist regardless of config entries.
+    Their handlers resolve the coordinator at call time.
+    """
+    await async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -122,7 +134,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry_ids = [k for k in hass.data[DOMAIN].keys() if k not in ("store", "_panel_registered")]
     _LOGGER.debug("MieleLogic: active entries in hass.data: %s", entry_ids)
     if len(entry_ids) == 1:
-        await async_setup_services(hass, coordinator)
         
         # Register panel from options (Energy Hub pattern)
         options = entry.options
@@ -238,16 +249,32 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
         
-        # Unload services and panel only if this is the last config entry
+        # Unload panel only if this is the last config entry (services stay registered)
         if not any(
             k for k in hass.data[DOMAIN] if k not in ("store", "_panel_registered")
         ):
-            await async_unload_services(hass)
             async_unregister_panel(hass)
         
         _LOGGER.info("MieleLogic integration unloaded successfully")
         return True
     return False
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, config_entry: ConfigEntry, device_entry
+) -> bool:
+    """Allow removal of stale devices (e.g. duplicates created by mistake).
+
+    The current laundry device is protected; any other device of this
+    domain may be removed from the device page in Home Assistant.
+    """
+    current = {
+        (
+            DOMAIN,
+            f"{config_entry.data.get(CONF_USERNAME)}_{config_entry.data.get(CONF_LAUNDRY_ID)}",
+        )
+    }
+    return not (device_entry.identifiers & current)
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

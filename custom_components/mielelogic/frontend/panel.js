@@ -1,5 +1,5 @@
 // MieleLogic Panel — Main UI Component
-// VERSION = "2.6.2"
+// VERSION = "2.6.4"
 // Architecture: vanilla HTMLElement + shadow DOM
 // Design: Indeklima Designer (blue/cyan accent)
 // element name: mielelogic-panel-v2

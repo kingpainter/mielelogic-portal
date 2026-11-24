@@ -1,5 +1,5 @@
 """Tests for MieleLogic booking_manager."""
-# VERSION = "1.0.0"
+# VERSION = "2.6.4"
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
