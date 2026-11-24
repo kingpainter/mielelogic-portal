@@ -105,15 +105,19 @@ class CalDAVDeleteClient:
     async def _discover_calendars(self) -> dict[str, str]:
         """Return {displayname: absolute calendar href}."""
         status, text = await self._request("PROPFIND", self.url, _PROPFIND_PRINCIPAL, depth="0")
+        if status >= 400:
+            raise RuntimeError(f"principal lookup failed (HTTP {status})")
         principal = self._first_href(ET.fromstring(text), f"{_D}current-user-principal")
-        if status >= 400 or not principal:
-            raise RuntimeError(f"no current-user-principal (HTTP {status})")
+        if not principal:
+            raise RuntimeError("no current-user-principal in response")
         principal_url = urljoin(self.url, principal)
 
         status, text = await self._request("PROPFIND", principal_url, _PROPFIND_HOME, depth="0")
+        if status >= 400:
+            raise RuntimeError(f"calendar-home-set lookup failed (HTTP {status})")
         home = self._first_href(ET.fromstring(text), f"{_C}calendar-home-set")
-        if status >= 400 or not home:
-            raise RuntimeError(f"no calendar-home-set (HTTP {status})")
+        if not home:
+            raise RuntimeError("no calendar-home-set in response")
         home_url = urljoin(principal_url, home)
 
         status, text = await self._request("PROPFIND", home_url, _PROPFIND_CALENDARS, depth="1")

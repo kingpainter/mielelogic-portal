@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
+import pytest
 
 from custom_components.mielelogic.caldav_async import CalDAVDeleteClient
 
@@ -133,15 +134,23 @@ async def test_connection_error_returns_false() -> None:
 
 
 async def test_bad_auth_returns_false() -> None:
-    """HTTP 401 on the first PROPFIND gives no principal and returns False."""
-    unauthorized = "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\"/>"
-    request = _script((401, unauthorized))
+    """HTTP 401 with an empty body returns False."""
+    request = _script((401, ""))
     client = _client()
 
     with patch.object(client, "_request", request):
         ok = await client.delete_event("Vaskeri", "Vask 3", WINDOW_START, WINDOW_END)
 
     assert ok is False
+
+
+async def test_bad_auth_reports_http_status() -> None:
+    """A 401 with an empty body reports the HTTP status, not an XML parse error."""
+    request = _script((401, ""))
+    client = _client()
+
+    with patch.object(client, "_request", request), pytest.raises(RuntimeError, match="HTTP 401"):
+        await client._discover_calendars()
 
 
 async def test_calendars_are_cached_between_deletes() -> None:
