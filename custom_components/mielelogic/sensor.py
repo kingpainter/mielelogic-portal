@@ -19,7 +19,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
 )
 from homeassistant.components import persistent_notification
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -94,18 +94,34 @@ async def async_setup_entry(
     if has_dryers:
         sensors.append(MieleLogicDryerStatusSensor(coordinator, config_entry, desc_map["dryer_status"]))
 
-    for machine in machine_states:
-        machine_number = machine.get("MachineNumber")
-        machine_name = machine.get("UnitName", "Unknown")
-        machine_type = machine.get("MachineType")
-        if machine_number and machine_name:
-            sensors.append(
+    async_add_entities(sensors)
+
+    # Machine status sensors are added dynamically: a machine number that shows up
+    # in a later coordinator update (e.g. machines 6 and 7) gets its entity without
+    # a reload. Each number is added once.
+    known_machines: set[int] = set()
+
+    @callback
+    def _async_add_new_machines() -> None:
+        states = coordinator.data.get("machine_states", {}).get("MachineStates", [])
+        new_sensors = []
+        for machine in states:
+            machine_number = machine.get("MachineNumber")
+            machine_name = machine.get("UnitName", "Unknown")
+            if not machine_number or not machine_name or machine_number in known_machines:
+                continue
+            known_machines.add(machine_number)
+            new_sensors.append(
                 MieleLogicMachineStatusSensor(
-                    coordinator, config_entry, machine_number, machine_name, machine_type
+                    coordinator, config_entry, machine_number, machine_name, machine.get("MachineType")
                 )
             )
+        if new_sensors:
+            async_add_entities(new_sensors)
+            _LOGGER.info("MieleLogic: added %d machine sensor(s)", len(new_sensors))
 
-    async_add_entities(sensors)
+    _async_add_new_machines()
+    config_entry.async_on_unload(coordinator.async_add_listener(_async_add_new_machines))
     _LOGGER.debug("Added %d sensors for MieleLogic", len(sensors))
 
 
