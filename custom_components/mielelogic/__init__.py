@@ -2,8 +2,10 @@
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 import asyncio
+from typing import Any
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntry
 import homeassistant.helpers.config_validation as cv
 from .const import (
     DOMAIN,
@@ -58,7 +60,7 @@ DEFAULT_CONFIG = {
 }
 
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up the MieleLogic component once per HA start (action-setup rule).
 
     Services are registered here so they exist regardless of config entries.
@@ -158,7 +160,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Listen for mobile app notification actions (cancel from push)
         # Action format: MIELELOGIC_CANCEL_{machine}_{start_iso}
-        async def _handle_notification_action(event) -> None:
+        async def _handle_notification_action(event: Event) -> None:
             action = event.data.get("action", "")
             if not action.startswith("MIELELOGIC_CANCEL_"):
                 return
@@ -218,7 +220,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         hass.bus.async_listen("mobile_app_notification_action", _handle_notification_action)
     
-    _LOGGER.info("MieleLogic v2.5.0 setup complete with integrated panel")
+    _LOGGER.info("MieleLogic v2.6.5 setup complete with integrated panel")
     return True
 
 
@@ -265,7 +267,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_remove_config_entry_device(
-    hass: HomeAssistant, config_entry: ConfigEntry, device_entry
+    hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
 ) -> bool:
     """Allow removal of stale devices (e.g. duplicates created by mistake).
 

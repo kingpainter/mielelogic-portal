@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_call_later
 
 from .notification_spam_filter import NotificationSpamFilter
+from .storage import MieleLogicStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 class NotificationManager:
     """Manage notifications for MieleLogic bookings."""
 
-    def __init__(self, hass: HomeAssistant, store) -> None:
+    def __init__(self, hass: HomeAssistant, store: MieleLogicStore) -> None:
         """Initialize notification manager."""
         self.hass = hass
         self.store = store
@@ -237,7 +238,7 @@ class NotificationManager:
 
         event_id = config.get("event_id", "Vaske tid")
 
-        async def _fire(_now):
+        async def _fire(_now: object) -> None:
             """Fire the house_voice.say call."""
             try:
                 await self.hass.services.async_call(

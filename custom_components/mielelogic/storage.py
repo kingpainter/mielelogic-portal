@@ -21,7 +21,7 @@ class MieleLogicStore:
 
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
-        self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._data: dict[str, Any] = {}
         # In-memory handles for scheduled voice reminders — not persisted
         # Key: booking_key (str) → cancel handle from async_call_later
@@ -101,7 +101,8 @@ class MieleLogicStore:
     # ─── Devices ───
 
     def get_devices(self) -> list[str]:
-        return self._data.get("devices", [])
+        devices: list[str] = self._data.get("devices", [])
+        return devices
 
     async def async_save_devices(self, devices: list[str]) -> None:
         self._data["devices"] = devices
@@ -122,10 +123,12 @@ class MieleLogicStore:
     # ─── Notifications ───
 
     def get_notifications(self) -> dict[str, Any]:
-        return self._data.get("notifications", {})
+        notifications: dict[str, Any] = self._data.get("notifications", {})
+        return notifications
 
     def get_notification(self, notification_id: str) -> dict[str, Any] | None:
-        return self._data.get("notifications", {}).get(notification_id)
+        notification: dict[str, Any] | None = self._data.get("notifications", {}).get(notification_id)
+        return notification
 
     async def async_save_notification(self, notification_id: str, config: dict[str, Any]) -> None:
         if "notifications" not in self._data:
@@ -145,7 +148,7 @@ class MieleLogicStore:
         defaults = self._default_data()["notifications"]
         if notification_id not in defaults:
             return None
-        default_config = defaults[notification_id]
+        default_config: dict[str, Any] = defaults[notification_id]
         await self.async_save_notification(notification_id, default_config)
         return default_config
 
@@ -163,7 +166,7 @@ class MieleLogicStore:
         vaskehus: str | None = None,
         duration: int | None = None,
         calendar_event_id: str | None = None,
-        secondary_calendars: list | None = None,
+        secondary_calendars: list[str] | None = None,
     ) -> None:
         if "bookings" not in self._data:
             self._data["bookings"] = {}
@@ -181,7 +184,7 @@ class MieleLogicStore:
         await self.async_save()
         _LOGGER.debug("Saved booking metadata for %s (created by %s)", key, user_name)
 
-    def get_booking_history(self, days: int = 30) -> list:
+    def get_booking_history(self, days: int = 30) -> list[dict[str, Any]]:
         from datetime import timedelta
         cutoff = datetime.now() - timedelta(days=days)
         history = []
@@ -203,7 +206,8 @@ class MieleLogicStore:
 
     def get_booking_metadata(self, machine: int, start_time: str) -> dict[str, Any] | None:
         key = self._get_booking_key(machine, start_time)
-        return self._data.get("bookings", {}).get(key)
+        metadata: dict[str, Any] | None = self._data.get("bookings", {}).get(key)
+        return metadata
 
     async def async_delete_booking_metadata(self, machine: int, start_time: str) -> None:
         if "bookings" not in self._data:
@@ -216,14 +220,15 @@ class MieleLogicStore:
 
     # ─── Admin ───
 
-    def get_admin_settings(self) -> dict:
-        return self._data.get("admin", {
+    def get_admin_settings(self) -> dict[str, Any]:
+        admin: dict[str, Any] = self._data.get("admin", {
             "booking_locked": False,
             "lock_message": "Booking er midlertidigt spærret",
             "info_message": "",
         })
+        return admin
 
-    async def async_save_admin_settings(self, settings: dict) -> None:
+    async def async_save_admin_settings(self, settings: dict[str, Any]) -> None:
         self._data["admin"] = {
             "booking_locked": bool(settings.get("booking_locked", False)),
             "lock_message": str(settings.get("lock_message", "Booking er midlertidigt spærret")),
@@ -234,7 +239,7 @@ class MieleLogicStore:
 
     # ─── Primary Calendar Sync Tracking ───
 
-    def get_calendar_synced_events(self) -> set:
+    def get_calendar_synced_events(self) -> set[tuple[Any, ...]]:
         """Return set of (machine, start_time) tuples already synced to primary calendar."""
         raw = self._data.get("calendar_synced", [])
         return set(tuple(item) for item in raw)
@@ -269,7 +274,8 @@ class MieleLogicStore:
     def get_secondary_calendar_events(self, machine: int, start_time: str) -> list[str]:
         """Return list of secondary calendar entity_ids that had events created."""
         key = self._secondary_key(machine, start_time)
-        return self._data.get("secondary_calendar_synced", {}).get(key, [])
+        synced: list[str] = self._data.get("secondary_calendar_synced", {}).get(key, [])
+        return synced
 
     async def async_add_secondary_calendar_event(
         self, machine: int, start_time: str, calendar_entity_id: str

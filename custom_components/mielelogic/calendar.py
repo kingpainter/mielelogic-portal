@@ -1,5 +1,6 @@
 # VERSION = "2.6.5"
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant
@@ -8,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 import logging
 
 from .const import DOMAIN
+from .coordinator import MieleLogicDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class MieleLogicReservationCalendar(CalendarEntity):
     
     _attr_has_entity_name = True
     
-    def __init__(self, coordinator, config_entry):
+    def __init__(self, coordinator: MieleLogicDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
         """Initialize the calendar."""
         self.coordinator = coordinator
         self._attr_unique_id = f"{config_entry.entry_id}_calendar"
@@ -130,7 +132,7 @@ class MieleLogicReservationCalendar(CalendarEntity):
         
         return events
     
-    def _create_calendar_event(self, reservation: dict) -> CalendarEvent | None:
+    def _create_calendar_event(self, reservation: dict[str, Any]) -> CalendarEvent | None:
         """Create a CalendarEvent from reservation data."""
         try:
             start_str = reservation.get("Start")
@@ -187,6 +189,8 @@ class MieleLogicReservationCalendar(CalendarEntity):
         Returns "Klatvask", "Storvask", or "Maskine X" (fallback).
         """
         config_entry = self.coordinator.config_entry
+        if config_entry is None:
+            return f"Maskine {machine_number}"
         klatvask_machine = config_entry.data.get("klatvask_primary_machine", 1)
         storvask_machine = config_entry.data.get("storvask_primary_machine", 4)
         

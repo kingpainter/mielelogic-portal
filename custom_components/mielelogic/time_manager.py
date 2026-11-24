@@ -2,7 +2,7 @@
 """Manage time slots for vaskehus."""
 import logging
 from datetime import datetime
-from typing import List, Dict
+from typing import Any, Dict, List
 from homeassistant.config_entries import ConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class TimeSlotManager:
         """Initialize time slot manager."""
         self.config_entry = config_entry
     
-    def get_slots(self, vaskehus: str) -> List[Dict[str, any]]:
+    def get_slots(self, vaskehus: str) -> List[Dict[str, Any]]:
         """Get formatted time slots for vaskehus.
         
         Args:
@@ -97,9 +97,11 @@ class TimeSlotManager:
     def get_machine_for_vaskehus(self, vaskehus: str) -> int:
         """Get primary machine number for vaskehus."""
         if vaskehus == "Klatvask":
-            return self.config_entry.data.get("klatvask_primary_machine", 1)
+            klatvask: int = self.config_entry.data.get("klatvask_primary_machine", 1)
+            return klatvask
         else:
-            return self.config_entry.data.get("storvask_primary_machine", 4)
+            storvask: int = self.config_entry.data.get("storvask_primary_machine", 4)
+            return storvask
     
     def get_vaskehus_for_machine(self, machine_number: int) -> str:
         """Get vaskehus name from machine number."""

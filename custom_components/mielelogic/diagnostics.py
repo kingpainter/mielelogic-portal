@@ -90,7 +90,7 @@ async def async_get_config_entry_diagnostics(
     return diagnostics_data
 
 
-def _redact_reservations(reservations_data: dict) -> dict:
+def _redact_reservations(reservations_data: dict[str, Any]) -> dict[str, Any]:
     """Redact sensitive information from reservations data.
     
     Keeps structure and machine info, but removes any personal identifiers.
@@ -98,7 +98,7 @@ def _redact_reservations(reservations_data: dict) -> dict:
     if not reservations_data:
         return {}
 
-    redacted = {
+    redacted: dict[str, Any] = {
         "count": len(reservations_data.get("Reservations", [])),
         "reservations": [],
     }
@@ -118,7 +118,7 @@ def _redact_reservations(reservations_data: dict) -> dict:
     return redacted
 
 
-def _redact_machine_states(machine_states_data: dict) -> dict:
+def _redact_machine_states(machine_states_data: dict[str, Any]) -> dict[str, Any]:
     """Redact sensitive information from machine states data.
     
     Keeps machine status and availability, structure intact.
@@ -126,7 +126,7 @@ def _redact_machine_states(machine_states_data: dict) -> dict:
     if not machine_states_data:
         return {}
 
-    redacted = {
+    redacted: dict[str, Any] = {
         "count": len(machine_states_data.get("MachineStates", [])),
         "machine_states": [],
     }

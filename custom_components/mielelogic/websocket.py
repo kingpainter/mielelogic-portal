@@ -77,7 +77,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_reset_notification)
     websocket_api.async_register_command(hass, ws_get_week_availability)
     websocket_api.async_register_command(hass, ws_get_calendars)
-    _LOGGER.info("✅ MieleLogic WebSocket API registered (v2.5.0 - 18 commands)")
+    _LOGGER.info("✅ MieleLogic WebSocket API registered (v2.6.5 - 18 commands)")
 
 
 def _get_from_runtime(hass: HomeAssistant, key: str):
