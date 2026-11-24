@@ -251,11 +251,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Unload platforms
     if await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
+        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
         
         # Unload panel only if this is the last config entry (services stay registered)
         if not any(
-            k for k in hass.data[DOMAIN] if k not in ("store", "_panel_registered")
+            k for k in hass.data.get(DOMAIN, {}) if k not in ("store", "_panel_registered")
         ):
             async_unregister_panel(hass)
         

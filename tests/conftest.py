@@ -30,6 +30,8 @@ class MockConfigEntry:
         self.runtime_data = None
         self.add_update_listener = MagicMock(return_value=MagicMock())
         self.async_start_reauth = MagicMock()
+        # HA's DataUpdateCoordinator registers shutdown via this method
+        self.async_on_unload = MagicMock()
 
 
 class MockCoordinator:

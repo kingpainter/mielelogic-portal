@@ -5,6 +5,7 @@ import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import (
@@ -108,6 +109,10 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "bad_request"
             except ServerError:
                 errors["base"] = "server_error"
+            except AbortFlow:
+                # Must propagate: AbortFlow subclasses Exception and would
+                # otherwise be reported as an 'unknown' form error.
+                raise
             except Exception as err:
                 _LOGGER.exception("Unexpected exception: %s", err)
                 errors["base"] = "unknown"
