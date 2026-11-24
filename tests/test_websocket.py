@@ -8,6 +8,16 @@ from custom_components.mielelogic import websocket as ws_module
 from custom_components.mielelogic.const import DOMAIN
 
 
+@pytest.fixture(autouse=True)
+def _unwrap_async_handlers(monkeypatch):
+    """Async websocket handlers are wrapped by HA's async_response decorator,
+    which schedules the coroutine and returns None. Tests need the coroutine
+    itself, so use the undecorated function (functools.wraps sets __wrapped__)."""
+    for name in ("ws_make_booking", "ws_cancel_booking", "ws_reset_notification"):
+        handler = getattr(ws_module, name)
+        monkeypatch.setattr(ws_module, name, getattr(handler, "__wrapped__", handler))
+
+
 class FakeConnection:
     """Minimal fake of the HA websocket connection object."""
 

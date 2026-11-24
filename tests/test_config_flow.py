@@ -1,6 +1,7 @@
 """Tests for the MieleLogic config flow (config-flow-test-coverage rule)."""
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -16,6 +17,13 @@ USER_INPUT = {
 
 CREDENTIALS_PATCH = "custom_components.mielelogic.config_flow.MieleLogicConfigFlow._test_credentials"
 SETUP_PATCH = "custom_components.mielelogic.async_setup_entry"
+
+
+@pytest.fixture(autouse=True)
+def _mark_manifest_dependencies_loaded(hass):
+    """The manifest depends on frontend and panel_custom; mark them loaded so
+    HA's dependency check passes without setting up the real components."""
+    hass.config.components.update({"frontend", "panel_custom"})
 
 
 async def _start_flow(hass):

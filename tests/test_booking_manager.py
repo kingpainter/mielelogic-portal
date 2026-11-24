@@ -21,6 +21,15 @@ def booking_manager(mock_coordinator, mock_store, mock_notification_manager, moc
     return bm
 
 
+@pytest.fixture(autouse=True)
+def _replace_hass_services(mock_coordinator):
+    """Recent HA ServiceRegistry uses __slots__, so its methods cannot be
+    assigned in tests. Swap the whole registry for a MagicMock instead."""
+    mock_coordinator.hass.services = MagicMock()
+    mock_coordinator.hass.services.async_call = AsyncMock()
+    mock_coordinator.hass.services.has_service = MagicMock(return_value=True)
+
+
 class TestMakeBooking:
     """make_booking() happy path and failure handling."""
 

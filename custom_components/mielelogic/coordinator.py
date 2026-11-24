@@ -77,10 +77,13 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
             sw_version="v7",
         )
 
+        # Pass config_entry explicitly: otherwise HA's DataUpdateCoordinator
+        # overwrites self.config_entry with None outside an entry context.
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
+            config_entry=config_entry,
             update_interval=timedelta(seconds=60),
         )
 
