@@ -4,6 +4,7 @@ import logging
 import asyncio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+import homeassistant.helpers.config_validation as cv
 from .const import (
     DOMAIN,
     CONF_USERNAME,
@@ -27,6 +28,9 @@ from .booking_manager import BookingManager
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "binary_sensor", "calendar"]
+
+# Config entry only: no YAML configuration (satisfies hassfest CONFIG_SCHEMA rule).
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # Default configuration values (v1.4.6+)
 DEFAULT_CONFIG = {

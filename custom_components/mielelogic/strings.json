@@ -91,7 +91,7 @@
         "data_description": {
           "primary_calendar": "Always synced automatically — all bookings go here",
           "secondary_calendars_text": "Optional calendars for per-booking selection in the panel (e.g. calendar.lukas)",
-          "caldav_url": "E.g. https://caldav.icloud.com/ — only needed to enable deleting events on cancellation",
+          "caldav_url": "Example: your iCloud or Nextcloud CalDAV address (see README). Only needed to enable deleting events on cancellation",
           "caldav_username": "CalDAV account username (usually your email)",
           "caldav_password": "Use an app-specific password, not your main account password"
         }
