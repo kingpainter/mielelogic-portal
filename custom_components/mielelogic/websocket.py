@@ -1,16 +1,24 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 """WebSocket API for MieleLogic panel."""
 import logging
 import re
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.components import websocket_api
+from homeassistant.components.websocket_api.connection import ActiveConnection
+from homeassistant.components.websocket_api.decorators import async_response, websocket_command
 
+from .booking_manager import BookingManager
 from .const import DOMAIN
+from .coordinator import MieleLogicDataUpdateCoordinator
+from .notification_manager import NotificationManager
+from .storage import MieleLogicStore
+from .time_manager import TimeSlotManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,7 +40,7 @@ def _parse_local_dt(value: str) -> datetime | None:
     return dt
 
 
-def _active_booking(coordinator, now: datetime):
+def _active_booking(coordinator: MieleLogicDataUpdateCoordinator, now: datetime) -> dict[str, Any] | None:
     """Return our reservation whose fixed slot contains `now`, or None (v2.6.3)."""
     if not coordinator.data:
         return None
@@ -41,7 +49,8 @@ def _active_booking(coordinator, now: datetime):
         start = _parse_local_dt(res.get("Start", ""))
         end = _parse_local_dt(res.get("End", ""))
         if start and end and start <= now < end:
-            return res
+            found: dict[str, Any] = res
+            return found
     return None
 
 
@@ -77,10 +86,10 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_reset_notification)
     websocket_api.async_register_command(hass, ws_get_week_availability)
     websocket_api.async_register_command(hass, ws_get_calendars)
-    _LOGGER.info("✅ MieleLogic WebSocket API registered (v2.6.5 - 18 commands)")
+    _LOGGER.info("✅ MieleLogic WebSocket API registered (v2.6.6 - 18 commands)")
 
 
-def _get_from_runtime(hass: HomeAssistant, key: str):
+def _get_from_runtime(hass: HomeAssistant, key: str) -> Any:
     """Get a manager from runtime_data (v2.5.0). Falls back to hass.data."""
     for entry in hass.config_entries.async_entries(DOMAIN):
         rd = getattr(entry, "runtime_data", None)
@@ -94,31 +103,36 @@ def _get_from_runtime(hass: HomeAssistant, key: str):
     return None
 
 
-def _get_time_manager(hass: HomeAssistant):
-    return _get_from_runtime(hass, "time_manager")
+def _get_time_manager(hass: HomeAssistant) -> TimeSlotManager | None:
+    manager: TimeSlotManager | None = _get_from_runtime(hass, "time_manager")
+    return manager
 
 
-def _get_booking_manager(hass: HomeAssistant):
-    return _get_from_runtime(hass, "booking_manager")
+def _get_booking_manager(hass: HomeAssistant) -> BookingManager | None:
+    manager: BookingManager | None = _get_from_runtime(hass, "booking_manager")
+    return manager
 
 
-def _get_coordinator(hass: HomeAssistant):
-    return _get_from_runtime(hass, "coordinator")
+def _get_coordinator(hass: HomeAssistant) -> MieleLogicDataUpdateCoordinator | None:
+    coordinator: MieleLogicDataUpdateCoordinator | None = _get_from_runtime(hass, "coordinator")
+    return coordinator
 
 
-def _get_store(hass: HomeAssistant):
+def _get_store(hass: HomeAssistant) -> MieleLogicStore | None:
     # Store is also kept in hass.data[DOMAIN]["store"] (global singleton)
-    store = _get_from_runtime(hass, "store")
+    store: MieleLogicStore | None = _get_from_runtime(hass, "store")
     if store:
         return store
-    return hass.data.get(DOMAIN, {}).get("store")
+    legacy: MieleLogicStore | None = hass.data.get(DOMAIN, {}).get("store")
+    return legacy
 
 
-def _get_notification_manager(hass: HomeAssistant):
-    return _get_from_runtime(hass, "notification_manager")
+def _get_notification_manager(hass: HomeAssistant) -> NotificationManager | None:
+    manager: NotificationManager | None = _get_from_runtime(hass, "notification_manager")
+    return manager
 
 
-def _get_booked_starts_from_timetable(timetable: dict, machine_number: int, date_str: str) -> set:
+def _get_booked_starts_from_timetable(timetable: dict[str, Any], machine_number: int, date_str: str) -> set[str]:
     """Extract booked slot start times from timetable data for a specific machine and date.
 
     Timetable structure:
@@ -135,7 +149,7 @@ def _get_booked_starts_from_timetable(timetable: dict, machine_number: int, date
 
     Returns a set of "HH:MM" strings for slots with Status != "Available" on the given date.
     """
-    booked = set()
+    booked: set[str] = set()
     if not timetable:
         return booked
 
@@ -164,13 +178,13 @@ def _get_booked_starts_from_timetable(timetable: dict, machine_number: int, date
     return booked
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_slots",
     vol.Required("vaskehus"): str,
     vol.Optional("date"): str,  # "YYYY-MM-DD" — if provided, marks booked slots
 })
 @callback
-def ws_get_slots(hass: HomeAssistant, connection, msg):
+def ws_get_slots(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Get time slots for vaskehus, annotated with real availability from timetable.
 
     v1.9.2: Uses /timetable endpoint data (all users' bookings) instead of only
@@ -234,15 +248,15 @@ def ws_get_slots(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "service_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/make_booking",
     vol.Required("vaskehus"): str,
     vol.Required("slot_start"): str,
     vol.Required("date"): str,
     vol.Optional("extra_calendars", default=[]): list,  # v2.5.0: secondary calendars
 })
-@websocket_api.async_response
-async def ws_make_booking(hass: HomeAssistant, connection, msg):
+@async_response
+async def ws_make_booking(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Make a booking from the panel."""
     time_manager = _get_time_manager(hass)
     booking_manager = _get_booking_manager(hass)
@@ -283,14 +297,14 @@ async def ws_make_booking(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "service_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/cancel_booking",
     vol.Required("machine_number"): int,
     vol.Required("start_time"): str,
     vol.Required("end_time"): str,
 })
-@websocket_api.async_response
-async def ws_cancel_booking(hass: HomeAssistant, connection, msg):
+@async_response
+async def ws_cancel_booking(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Cancel a booking from the panel."""
     booking_manager = _get_booking_manager(hass)
     
@@ -315,11 +329,11 @@ async def ws_cancel_booking(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "service_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_bookings",
 })
 @callback
-def ws_get_bookings(hass: HomeAssistant, connection, msg):
+def ws_get_bookings(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Get current bookings for display in panel."""
     time_manager = _get_time_manager(hass)
     booking_manager = _get_booking_manager(hass)
@@ -358,11 +372,11 @@ def ws_get_bookings(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "storage_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_status",
 })
 @callback
-def ws_get_status(hass: HomeAssistant, connection, msg):
+def ws_get_status(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Get integration status."""
     booking_manager = _get_booking_manager(hass)
     
@@ -409,11 +423,11 @@ def ws_get_status(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "service_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_machines",
 })
 @callback
-def ws_get_machines(hass: HomeAssistant, connection, msg):
+def ws_get_machines(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Get all machine states for display in booking card."""
     coordinator = _get_coordinator(hass)
 
@@ -498,11 +512,11 @@ def ws_get_machines(hass: HomeAssistant, connection, msg):
 # ADMIN MANAGEMENT
 #
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_admin",
 })
 @callback
-def ws_get_admin(hass: HomeAssistant, connection, msg):
+def ws_get_admin(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -514,14 +528,14 @@ def ws_get_admin(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "storage_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/save_admin",
     vol.Required("booking_locked"): bool,
     vol.Optional("lock_message", default="Booking er midlertidigt spærret"): str,
     vol.Optional("info_message", default=""): str,
 })
-@websocket_api.async_response
-async def ws_save_admin(hass: HomeAssistant, connection, msg):
+@async_response
+async def ws_save_admin(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -543,11 +557,11 @@ async def ws_save_admin(hass: HomeAssistant, connection, msg):
 # STATISTICS
 #
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_history",
 })
 @callback
-def ws_get_history(hass: HomeAssistant, connection, msg):
+def ws_get_history(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -560,11 +574,11 @@ def ws_get_history(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "storage_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/cleanup_history",
 })
-@websocket_api.async_response
-async def ws_cleanup_history(hass: HomeAssistant, connection, msg):
+@async_response
+async def ws_cleanup_history(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Integration not ready")
@@ -582,11 +596,11 @@ async def ws_cleanup_history(hass: HomeAssistant, connection, msg):
 # NOTIFICATION MANAGEMENT
 #
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_devices",
 })
 @callback
-def ws_get_devices(hass: HomeAssistant, connection, msg):
+def ws_get_devices(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
@@ -601,12 +615,12 @@ def ws_get_devices(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "storage_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/save_devices",
     vol.Required("devices"): list,
 })
-@websocket_api.async_response
-async def ws_save_devices(hass: HomeAssistant, connection, msg):
+@async_response
+async def ws_save_devices(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
@@ -620,11 +634,11 @@ async def ws_save_devices(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "storage_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_notifications",
 })
 @callback
-def ws_get_notifications(hass: HomeAssistant, connection, msg):
+def ws_get_notifications(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
@@ -636,13 +650,13 @@ def ws_get_notifications(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "storage_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/save_notification",
     vol.Required("notification_id"): str,
     vol.Required("config"): dict,
 })
-@websocket_api.async_response
-async def ws_save_notification(hass: HomeAssistant, connection, msg):
+@async_response
+async def ws_save_notification(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
@@ -656,12 +670,12 @@ async def ws_save_notification(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "storage_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/test_notification",
     vol.Required("notification_id"): str,
 })
-@websocket_api.async_response
-async def ws_test_notification(hass: HomeAssistant, connection, msg):
+@async_response
+async def ws_test_notification(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     notification_manager = _get_notification_manager(hass)
     if not notification_manager:
         connection.send_error(msg["id"], "not_ready", "Notification manager not ready")
@@ -691,13 +705,13 @@ async def ws_test_notification(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "service_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_week_availability",
     vol.Required("vaskehus"): str,
     vol.Optional("start_date"): str,  # "YYYY-MM-DD", defaults to today
 })
 @callback
-def ws_get_week_availability(hass: HomeAssistant, connection, msg):
+def ws_get_week_availability(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Return slot availability (has_free, total, booked) for next 7 days.
 
     Uses existing coordinator timetable data — no extra API call.
@@ -752,12 +766,12 @@ def ws_get_week_availability(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "service_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/reset_notification",
     vol.Required("notification_id"): str,
 })
-@websocket_api.async_response
-async def ws_reset_notification(hass: HomeAssistant, connection, msg):
+@async_response
+async def ws_reset_notification(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     store = _get_store(hass)
     if not store:
         connection.send_error(msg["id"], "not_ready", "Store not ready")
@@ -774,11 +788,11 @@ async def ws_reset_notification(hass: HomeAssistant, connection, msg):
         connection.send_error(msg["id"], "storage_error", str(err))
 
 
-@websocket_api.websocket_command({
+@websocket_command({
     vol.Required("type"): f"{DOMAIN}/get_calendars",
 })
 @callback
-def ws_get_calendars(hass: HomeAssistant, connection, msg):
+def ws_get_calendars(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Return primary and secondary calendar configuration for the panel.
 
     v2.5.0: Panel uses this to show secondary calendar chips in booking form.
@@ -795,6 +809,9 @@ def ws_get_calendars(hass: HomeAssistant, connection, msg):
     try:
         from .const import CONF_PRIMARY_CALENDAR, CONF_SECONDARY_CALENDARS
         entry = coordinator.config_entry
+        if entry is None:
+            connection.send_error(msg["id"], "not_ready", "Integration not ready")
+            return
         primary = (
             entry.data.get(CONF_PRIMARY_CALENDAR)
             or entry.data.get("sync_to_calendar")

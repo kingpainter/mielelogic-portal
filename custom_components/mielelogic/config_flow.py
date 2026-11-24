@@ -1,11 +1,13 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 import logging
 import aiohttp
 import voluptuous as vol
 from datetime import datetime
+from typing import Any
 from homeassistant import config_entries
 from homeassistant.core import callback
 from .aiohttp_session import shared_session
+from .coordinator import CLIENT_TIMEOUT
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.exceptions import HomeAssistantError
 
@@ -62,7 +64,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Handle the initial step - ONLY credentials, NO calendar."""
         errors = {}
 
@@ -138,8 +140,8 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _test_credentials(
-        self, username: str, password: str, client_id: str, client_secret: str = None
-    ):
+        self, username: str, password: str, client_id: str, client_secret: str | None = None
+    ) -> None:
         """Validate credentials by attempting to get a token."""
         data = {
             "grant_type": "password",
@@ -160,7 +162,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             async with shared_session(self.hass) as session:
-                async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
+                async with session.post(AUTH_URL, data=data, headers=headers, timeout=CLIENT_TIMEOUT) as response:
                     if response.status == 400:
                         error_text = await response.text()
                         if "invalid_grant" in error_text:
@@ -184,13 +186,14 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.error("Unexpected error during authentication: %s", err)
             raise
 
-    async def async_step_reconfigure(self, user_input=None):
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Handle reconfiguration - allows changing credentials and laundry ID.
         
         This is the Gold tier reconfiguration_flow requirement.
         Accessible via Settings → Integrations → MieleLogic → Reconfigure.
         """
         errors = {}
+        reconfigure_entry = self._get_reconfigure_entry()
 
         if user_input is not None:
             try:
@@ -214,7 +217,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
                 # Preserve all existing settings, only update credentials + laundry_id
-                new_data = dict(self.config_entry.data)
+                new_data = dict(reconfigure_entry.data)
                 new_data[CONF_USERNAME] = user_input[CONF_USERNAME]
                 new_data[CONF_PASSWORD] = user_input[CONF_PASSWORD]
                 new_data[CONF_CLIENT_ID] = user_input[CONF_CLIENT_ID]
@@ -223,7 +226,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     new_data[CONF_CLIENT_SECRET] = user_input[CONF_CLIENT_SECRET]
 
                 return self.async_update_reload_and_abort(
-                    self.config_entry,
+                    reconfigure_entry,
                     data=new_data,
                     reason="reconfigure_successful",
                 )
@@ -243,7 +246,7 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "unknown"
 
         # Pre-fill with current values
-        current = self.config_entry.data
+        current = reconfigure_entry.data
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=vol.Schema(
@@ -263,11 +266,11 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
         """Get the options flow for this handler."""
         return MieleLogicOptionsFlowHandler()
 
-    async def async_step_reauth(self, entry_data):
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> config_entries.ConfigFlowResult:
         """Handle re-authentication when credentials are no longer valid.
 
         Triggered automatically by coordinator when password grant fails.
@@ -275,10 +278,11 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """
         return await self.async_step_reauth_confirm()
 
-    async def async_step_reauth_confirm(self, user_input=None):
+    async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Show re-auth form and validate new credentials."""
         errors = {}
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        assert entry is not None  # reauth always runs for an existing entry
 
         if user_input is not None:
             try:
@@ -335,14 +339,14 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for MieleLogic - FIVE OPTIONS."""
 
-    async def async_step_init(self, user_input=None):
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Show menu: credentials, calendar, laundry hours, machine config, time slots."""
         return self.async_show_menu(
             step_id="init",
             menu_options=["credentials", "calendar", "laundry_hours", "machine_config", "time_slots", "panel"],
         )
 
-    async def async_step_credentials(self, user_input=None):
+    async def async_step_credentials(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Update login credentials - SEPARATE from calendar."""
         errors = {}
 
@@ -413,7 +417,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             },
         )
 
-    async def async_step_calendar(self, user_input=None):
+    async def async_step_calendar(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Configure calendar sync — primary (auto) + secondary (manual per booking)."""
         errors = {}
 
@@ -480,7 +484,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
         current_caldav_username = self.config_entry.data.get(CONF_CALDAV_USERNAME, "")
         has_caldav_password = bool(self.config_entry.data.get(CONF_CALDAV_PASSWORD))
 
-        schema_dict = {}
+        schema_dict: dict[Any, Any] = {}
 
         if all_calendars:
             cal_options = {"": "(Ingen)"} | {c: c for c in all_calendars}
@@ -506,7 +510,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             },
         )
 
-    async def async_step_laundry_hours(self, user_input=None):
+    async def async_step_laundry_hours(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Configure laundry opening/closing hours."""
         errors = {}
 
@@ -544,7 +548,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             },
         )
 
-    async def async_step_machine_config(self, user_input=None):
+    async def async_step_machine_config(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Configure primary machines for each vaskehus."""
         errors = {}
 
@@ -587,7 +591,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             },
         )
 
-    async def async_step_time_slots(self, user_input=None):
+    async def async_step_time_slots(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Configure time slots menu."""
         if user_input is not None:
             action = user_input.get("action", "")
@@ -614,7 +618,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             }),
         )
 
-    async def async_step_panel(self, user_input=None):
+    async def async_step_panel(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Configure sidebar panel settings.
 
         Controls panel visibility, sidebar title, icon, and admin-only access.
@@ -648,7 +652,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             }),
         )
 
-    async def async_step_edit_storvask_slots(self, user_input=None):
+    async def async_step_edit_storvask_slots(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Edit Storvask time slots."""
         if user_input is not None:
             action = user_input.get("action", "")
@@ -691,7 +695,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             }),
         )
 
-    async def async_step_edit_klatvask_slots(self, user_input=None):
+    async def async_step_edit_klatvask_slots(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Edit Klatvask time slots."""
         if user_input is not None:
             action = user_input.get("action", "")
@@ -734,7 +738,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             }),
         )
 
-    async def async_step_add_storvask_slot(self, user_input=None):
+    async def async_step_add_storvask_slot(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Add new Storvask time slot."""
         errors = {}
 
@@ -787,7 +791,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
             errors=errors,
         )
 
-    async def async_step_add_klatvask_slot(self, user_input=None):
+    async def async_step_add_klatvask_slot(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
         """Add new Klatvask time slot."""
         errors = {}
 
@@ -857,14 +861,14 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
         except Exception:
             return "?"
 
-    def _validate_time_format(self, time_str: str):
+    def _validate_time_format(self, time_str: str) -> None:
         """Validate time format HH:MM."""
         try:
             datetime.strptime(time_str, "%H:%M")
         except ValueError:
             raise ValueError(f"Invalid time format: {time_str}")
 
-    def _check_slot_overlap(self, new_slot: dict, existing_slots: list) -> bool:
+    def _check_slot_overlap(self, new_slot: dict[str, Any], existing_slots: list[dict[str, Any]]) -> bool:
         """Check if new slot overlaps with any existing slot.
         
         Returns True if overlap detected, False otherwise.
@@ -908,8 +912,8 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
 
 
     async def _test_credentials(
-        self, username: str, password: str, client_id: str, client_secret: str = None
-    ):
+        self, username: str, password: str, client_id: str, client_secret: str | None = None
+    ) -> None:
         """Validate credentials by attempting to get a token."""
         data = {
             "grant_type": "password",
@@ -930,7 +934,7 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
 
         try:
             async with shared_session(self.hass) as session:
-                async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
+                async with session.post(AUTH_URL, data=data, headers=headers, timeout=CLIENT_TIMEOUT) as response:
                     if response.status == 400:
                         error_text = await response.text()
                         if "invalid_grant" in error_text:

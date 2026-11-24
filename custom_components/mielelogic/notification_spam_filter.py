@@ -1,4 +1,4 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 """Spam filter for MieleLogic notifications.
 
 Prevents the same notification from being sent more than once per minute,

@@ -1,5 +1,5 @@
 // MieleLogic Panel — Main UI Component
-// VERSION = "2.6.5"
+// VERSION = "2.6.6"
 // Architecture: vanilla HTMLElement + shadow DOM
 // Design: Indeklima Designer (blue/cyan accent)
 // element name: mielelogic-panel-v2
@@ -386,7 +386,7 @@ class MieleLogicPanel extends HTMLElement {
 
   _htmlHeader(count, max) {
     const bal = this._status.balance ? ` · ${this._fmtCurrency(this._status.balance)}` : "";
-    return `<div class="header"><div class="header-icon"><img src="${_ML_LOGO}" alt="MieleLogic"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.6.5</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
+    return `<div class="header"><div class="header-icon"><img src="${_ML_LOGO}" alt="MieleLogic"></div><div class="header-text"><h1>MieleLogic</h1><div class="header-meta">${count}${max ? ` / ${max}` : ""} booking${count !== 1 ? "er" : ""}${bal} · v2.6.6</div></div><button class="header-refresh" data-action="refresh" ${this._loading ? "disabled" : ""}><span class="${this._loading ? "spin" : ""}">↻</span> Opdater</button></div>`;
   }
 
   _htmlTabs() {

@@ -1,4 +1,4 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 """The MieleLogic integration - Integrated Panel Edition."""
 import logging
 import asyncio
@@ -220,7 +220,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         hass.bus.async_listen("mobile_app_notification_action", _handle_notification_action)
     
-    _LOGGER.info("MieleLogic v2.6.5 setup complete with integrated panel")
+    _LOGGER.info("MieleLogic v2.6.6 setup complete with integrated panel")
     return True
 
 

@@ -1,5 +1,5 @@
 """Shared fixtures for MieleLogic tests."""
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 
 from __future__ import annotations
 

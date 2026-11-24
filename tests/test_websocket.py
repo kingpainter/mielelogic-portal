@@ -1,5 +1,5 @@
 """Tests for MieleLogic websocket API."""
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch

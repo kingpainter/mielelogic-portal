@@ -1,5 +1,5 @@
 """Tests for MieleLogic coordinator."""
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo

@@ -14,3 +14,6 @@ pytest
 # for the sibling secure_me project — same HA core version needed here).
 pytest-homeassistant-custom-component==0.13.316
 pytest-asyncio
+
+# Strict type checking (mypy.ini at repo root). Run: mypy --config-file mypy.ini
+mypy==2.4.1

@@ -1,4 +1,4 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 """
 MieleLogic Services
 
@@ -6,15 +6,17 @@ Provides services for making and canceling reservations programmatically.
 """
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 import aiohttp
 from .aiohttp_session import shared_session
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 import voluptuous as vol
 
 from .const import DOMAIN, API_BASE_URL
+from .coordinator import CLIENT_TIMEOUT, MieleLogicDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ CANCEL_RESERVATION_SCHEMA = vol.Schema(
 )
 
 
-def _get_coordinator(hass: HomeAssistant):
+def _get_coordinator(hass: HomeAssistant) -> MieleLogicDataUpdateCoordinator:
     """Return the coordinator of the loaded MieleLogic entry.
 
     Services are registered in async_setup (once per HA start), so the
@@ -46,7 +48,8 @@ def _get_coordinator(hass: HomeAssistant):
     for entry in hass.config_entries.async_loaded_entries(DOMAIN):
         runtime = getattr(entry, "runtime_data", None)
         if runtime and "coordinator" in runtime:
-            return runtime["coordinator"]
+            coordinator: MieleLogicDataUpdateCoordinator = runtime["coordinator"]
+            return coordinator
     raise ServiceValidationError(
         "MieleLogic er ikke sat op. Tilføj integrationen først."
     )
@@ -55,16 +58,16 @@ def _get_coordinator(hass: HomeAssistant):
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Register services for MieleLogic integration (called from async_setup)."""
     
-    async def handle_make_reservation(call: ServiceCall) -> dict:
+    async def handle_make_reservation(call: ServiceCall) -> dict[str, Any]:
         """Handle make_reservation service call.
         
         Returns dict with booking details for use in scripts/automations.
         """
         coordinator = _get_coordinator(hass)
-        machine_number = call.data.get("machine_number")
-        start_time = call.data.get("start_time")
-        duration = call.data.get("duration", 120)
-        end_time = call.data.get("end_time")
+        machine_number: int = call.data["machine_number"]
+        start_time: datetime = call.data["start_time"]
+        duration: int = call.data.get("duration", 120)
+        end_time: datetime | None = call.data.get("end_time")
         
         _LOGGER.debug(
             "Making reservation: machine=%s, start=%s, duration=%s, end=%s",
@@ -130,7 +133,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         
         try:
             async with shared_session(hass) as session:
-                async with session.put(url, json=body, headers=headers, timeout=10) as response:
+                async with session.put(url, json=body, headers=headers, timeout=CLIENT_TIMEOUT) as response:
                     response_text = await response.text()
                     _LOGGER.debug("API Response Status: %s", response.status)
                     _LOGGER.debug("API Response Body: %s", response_text)
@@ -141,7 +144,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         await coordinator._refresh_token()
                         headers["Authorization"] = f"Bearer {coordinator.access_token}"
                         
-                        async with session.put(url, json=body, headers=headers, timeout=10) as retry_response:
+                        async with session.put(url, json=body, headers=headers, timeout=CLIENT_TIMEOUT) as retry_response:
                             retry_text = await retry_response.text()
                             _LOGGER.debug("Retry Response Status: %s", retry_response.status)
                             _LOGGER.debug("Retry Response Body: %s", retry_text)
@@ -188,15 +191,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Unexpected error during reservation: %s", err)
             raise HomeAssistantError(f"Unexpected error: {err}") from err
     
-    async def handle_cancel_reservation(call: ServiceCall) -> dict:
+    async def handle_cancel_reservation(call: ServiceCall) -> dict[str, Any]:
         """Handle cancel_reservation service call.
         
         Returns dict with cancellation details for use in scripts/automations.
         """
         coordinator = _get_coordinator(hass)
-        machine_number = call.data.get("machine_number")
-        start_time = call.data.get("start_time")
-        end_time = call.data.get("end_time")
+        machine_number: int = call.data["machine_number"]
+        start_time: datetime = call.data["start_time"]
+        end_time: datetime = call.data["end_time"]
         
         _LOGGER.debug(
             "Canceling reservation: machine=%s, start=%s, end=%s",
@@ -226,7 +229,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         
         # Make API request (DELETE with query parameters)
         url = f"{API_BASE_URL}/reservations"
-        params = {
+        params: dict[str, str | int] = {
             "MachineNumber": int(machine_number),  # Force int
             "LaundryNumber": int(coordinator.laundry_id),  # Force int (match app!)
             "Start": start_str,
@@ -251,7 +254,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         
         try:
             async with shared_session(hass) as session:
-                async with session.delete(url, params=params, headers=headers, timeout=10) as response:
+                async with session.delete(url, params=params, headers=headers, timeout=CLIENT_TIMEOUT) as response:
                     response_text = await response.text()
                     _LOGGER.debug("Cancel API Response Status: %s", response.status)
                     _LOGGER.debug("Cancel API Response Body: %s", response_text)
@@ -262,7 +265,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         await coordinator._refresh_token()
                         headers["Authorization"] = f"Bearer {coordinator.access_token}"
                         
-                        async with session.delete(url, params=params, headers=headers, timeout=10) as retry_response:
+                        async with session.delete(url, params=params, headers=headers, timeout=CLIENT_TIMEOUT) as retry_response:
                             retry_text = await retry_response.text()
                             _LOGGER.debug("Cancel Retry Response Status: %s", retry_response.status)
                             _LOGGER.debug("Cancel Retry Response Body: %s", retry_text)
@@ -314,7 +317,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         "make_reservation",
         handle_make_reservation,
         schema=MAKE_RESERVATION_SCHEMA,
-        supports_response="optional",  # NEW: Support return values
+        supports_response=SupportsResponse.OPTIONAL,  # Support return values
     )
     
     hass.services.async_register(
@@ -322,7 +325,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         "cancel_reservation",
         handle_cancel_reservation,
         schema=CANCEL_RESERVATION_SCHEMA,
-        supports_response="optional",  # NEW: Support return values
+        supports_response=SupportsResponse.OPTIONAL,  # Support return values
     )
     
     _LOGGER.info("✅ MieleLogic services registered: make_reservation, cancel_reservation")
@@ -338,7 +341,7 @@ def _validate_machine_number(machine_number: int) -> None:
         )
 
 
-def _validate_start_time(start_time: datetime, coordinator) -> None:
+def _validate_start_time(start_time: datetime, coordinator: MieleLogicDataUpdateCoordinator) -> None:
     """Validate start time is in the future and within laundry hours."""
     # Ensure both datetimes have timezone info for comparison
     if start_time.tzinfo is None:
@@ -363,8 +366,11 @@ def _validate_start_time(start_time: datetime, coordinator) -> None:
         )
     
     # Check laundry hours
-    opening_time = coordinator.config_entry.data.get("opening_time", "07:00")
-    closing_time = coordinator.config_entry.data.get("closing_time", "21:00")
+    entry = coordinator.config_entry
+    if entry is None:
+        raise ServiceValidationError("MieleLogic er ikke sat op. Tilføj integrationen først.")
+    opening_time: str = entry.data.get("opening_time", "07:00")
+    closing_time: str = entry.data.get("closing_time", "21:00")
     
     opening_hour = int(opening_time.split(":")[0])
     closing_hour = int(closing_time.split(":")[0])
@@ -402,7 +408,7 @@ def _validate_start_time(start_time: datetime, coordinator) -> None:
 
 
 
-def _validate_end_time(end_time: datetime, start_time: datetime, coordinator) -> None:
+def _validate_end_time(end_time: datetime, start_time: datetime, coordinator: MieleLogicDataUpdateCoordinator) -> None:
     """Validate end time is after start time and within laundry hours."""
     # Ensure both datetimes have timezone info
     if end_time.tzinfo is None:
@@ -416,7 +422,10 @@ def _validate_end_time(end_time: datetime, start_time: datetime, coordinator) ->
         )
     
     # Check laundry hours
-    closing_time = coordinator.config_entry.data.get("closing_time", "21:00")
+    entry = coordinator.config_entry
+    if entry is None:
+        raise ServiceValidationError("MieleLogic er ikke sat op. Tilføj integrationen først.")
+    closing_time: str = entry.data.get("closing_time", "21:00")
     closing_hour = int(closing_time.split(":")[0])
     
     if end_time.hour > closing_hour:
@@ -446,7 +455,7 @@ def _validate_duration(start_time: datetime, end_time: datetime) -> None:
         )
 
 
-async def _check_max_reservations(coordinator) -> None:
+async def _check_max_reservations(coordinator: MieleLogicDataUpdateCoordinator) -> None:
     """Check if user has reached max reservations."""
     reservations = coordinator.data.get("reservations", {}).get("Reservations", [])
     max_reservations = coordinator.data.get("reservations", {}).get("MaxUserReservations", 2)
@@ -481,7 +490,7 @@ async def _check_max_reservations(coordinator) -> None:
 
 
 async def _verify_reservation_exists(
-    coordinator, machine_number: int, start_time: datetime, end_time: datetime
+    coordinator: MieleLogicDataUpdateCoordinator, machine_number: int, start_time: datetime, end_time: datetime
 ) -> None:
     """Verify that the reservation exists before attempting to cancel."""
     reservations = coordinator.data.get("reservations", {}).get("Reservations", [])

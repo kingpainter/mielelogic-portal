@@ -1,4 +1,4 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 """Access Home Assistant's shared aiohttp session.
 
 The session belongs to Home Assistant and must never be closed by us.

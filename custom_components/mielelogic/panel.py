@@ -1,4 +1,4 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 """Panel registration for MieleLogic.
 
 Serves the JS panel as a static HTTP path and registers it in the HA

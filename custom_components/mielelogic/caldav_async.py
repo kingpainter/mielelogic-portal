@@ -1,4 +1,4 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 """Async CalDAV client used only for deleting calendar events.
 
 Replaces caldav_client.py (which used the synchronous `caldav` package).

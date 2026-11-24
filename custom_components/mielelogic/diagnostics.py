@@ -1,4 +1,4 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 """Diagnostics support for MieleLogic integration.
 
 Provides diagnostic information for troubleshooting, including:

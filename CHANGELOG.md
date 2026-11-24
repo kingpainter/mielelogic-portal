@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.6.6] — Quality scale: strict typing, ikoner, reconfigure-fix
+
+### Ændret
+- Strikt typning: `mypy.ini` i repo-roden (`strict = True`). Hele `custom_components/mielelogic` er nu mypy-ren. Typecheck kører i CI (`.github/workflows/pytest.yml`).
+- Koordinator, services, websocket, booking manager og config flow er typede (`DataUpdateCoordinator[dict[str, Any]]`, typede handlers og service-responses).
+- HTTP-timeouts bruger `aiohttp.ClientTimeout(total=10)` (`CLIENT_TIMEOUT`) i stedet for heltal.
+- Service-kald med svar bruger `SupportsResponse.OPTIONAL`.
+- Ikoner flyttet fra kode til `icons.json` (icon translations). Dynamiske ikoner for vaskemaskine/tørretumbler styres af state-mapping.
+- Maskineliste-ændringer vises som repair issue (`machine_inventory_changed`) i stedet for persistent notification. Oversat til dansk og engelsk.
+
+### Rettet
+- Reconfigure-flowet kaldte `self.config_entry`, som ikke findes på `ConfigFlow`. Rettet med `_get_reconfigure_entry()`, så ændring af brugernavn, adgangskode og vaskeri virker.
+- Panelets versionsheader viste hardkodet v2.5.0. Viser nu korrekt version.
+
+### Tilføjet
+- Tests for reconfigure: opdatering af entry og fejl ved ugyldig login (`tests/test_config_flow.py`).
+- `mypy==2.4.1` i `requirements.txt`.
+
+---
+
 ## [2.6.5] — Quality scale: Bronze fixes, websession, tests grønne
 
 ### Ændret

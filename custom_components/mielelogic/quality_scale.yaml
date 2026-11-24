@@ -1,5 +1,5 @@
 # MieleLogic Integration Quality Scale
-# Version: 2.6.5
+# Version: 2.6.6
 # Target Tier: Gold
 # Status: Gold tier substantially complete — integration_test_coverage partial (services.py untested)
 
@@ -109,8 +109,8 @@ rules:
     comment: 2.6.5 caldav_async.py uses aiohttp. caldav removed from manifest. Old caldav_client.py is dead code. Not tested against a real CalDAV server yet.
 
   strict_typing:
-    status: todo
-    comment: Add type annotations and mypy strict configuration.
+    status: done
+    comment: 2.6.5 mypy --strict passes for custom_components/mielelogic (mypy.ini at repo root). Run `mypy --config-file mypy.ini` with homeassistant installed.
 
   test_before_configure:
     status: done
@@ -202,4 +202,4 @@ rules:
 #   🔲 reconfiguration_flow - laundry_id change support
 #   🔲 integration_test_coverage - services.py still untested (partial)
 #
-# Current status: SILVER TIER ✅ | GOLD SUBSTANTIALLY COMPLETE 🟡 (v2.6.5)
+# Current status: SILVER TIER ✅ | GOLD SUBSTANTIALLY COMPLETE 🟡 (v2.6.6)

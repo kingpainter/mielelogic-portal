@@ -1,4 +1,4 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo

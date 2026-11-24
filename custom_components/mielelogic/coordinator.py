@@ -1,6 +1,7 @@
-# VERSION = "2.6.5"
+# VERSION = "2.6.6"
 import logging
 import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -11,6 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .aiohttp_session import shared_session
+from .storage import MieleLogicStore
 
 from .const import (
     DOMAIN,
@@ -30,6 +32,9 @@ _LOGGER = logging.getLogger(__name__)
 MAX_RETRIES = 3
 RETRY_DELAYS = [1, 2, 4]  # Exponential backoff in seconds
 
+# Total timeout for API and token calls. aiohttp deprecates plain int timeouts.
+CLIENT_TIMEOUT = aiohttp.ClientTimeout(total=10)
+
 
 class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Class to manage fetching MieleLogic data from the API."""
@@ -37,6 +42,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         """Initialize the coordinator."""
         self.config_entry = config_entry
+        self._config_entry: ConfigEntry = config_entry
         self.username = config_entry.data[CONF_USERNAME]
         self.password = config_entry.data[CONF_PASSWORD]
         self.client_id = config_entry.data[CONF_CLIENT_ID]
@@ -45,30 +51,30 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         
         # Calendar sync — primary calendar (auto-synced by coordinator)
         # Backwards-compatible: fall back to legacy sync_to_calendar key
-        self.primary_calendar = (
+        self.primary_calendar: str | None = (
             config_entry.data.get(CONF_PRIMARY_CALENDAR)
             or config_entry.data.get("sync_to_calendar")
         )
         # Keep sync_to_calendar as alias for legacy code paths
-        self.sync_to_calendar = self.primary_calendar
+        self.sync_to_calendar: str | None = self.primary_calendar
 
-        self.access_token = None
-        self.refresh_token = None
-        self.token_expiry = None
+        self.access_token: str | None = None
+        self.refresh_token: str | None = None
+        self.token_expiry: datetime | None = None
         
         # Track last sync time to prevent rapid duplicate syncs
-        self._last_sync_time = None
+        self._last_sync_time: datetime | None = None
         self._min_sync_interval = 5
 
         # v2.6.2: throttle for automatic storage housekeeping (once/24h)
-        self._last_cleanup_time = None
+        self._last_cleanup_time: datetime | None = None
 
         # In-memory duplicate guard (populated from persistent store on first sync)
-        self._created_events: set = set()
+        self._created_events: set[tuple[Any, ...]] = set()
         self._created_events_loaded = False
 
         # Response caching (60s TTL)
-        self._cache = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._cache_ttl = timedelta(seconds=60)
 
         # Device info for all entities
@@ -90,9 +96,9 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=60),
         )
 
-    async def _fetch_with_retry(self, fetch_func, description: str):
+    async def _fetch_with_retry(self, fetch_func: Callable[[], Awaitable[Any]], description: str) -> Any:
         """Fetch data with retry logic and exponential backoff."""
-        last_error = None
+        last_error: aiohttp.ClientError | None = None
         
         for attempt in range(MAX_RETRIES):
             try:
@@ -114,9 +120,11 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.error("❌ %s unexpected error: %s", description, err, exc_info=True)
                 raise
         
+        if last_error is None:
+            raise RuntimeError("Retry loop ended without a result")
         raise last_error
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from MieleLogic API with retry logic and graceful degradation."""
         try:
             await self._ensure_token()
@@ -128,11 +136,11 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             }
 
-            data = {}
+            data: dict[str, Any] = {}
             
             # Fetch reservations (own bookings)
             try:
-                async def fetch_reservations():
+                async def fetch_reservations() -> Any:
                     session = async_get_clientsession(self.hass)
                     return await self._fetch_with_cache(
                             session,
@@ -152,7 +160,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             
             # Fetch machine states (real-time status)
             try:
-                async def fetch_machine_states():
+                async def fetch_machine_states() -> Any:
                     session = async_get_clientsession(self.hass)
                     return await self._fetch_with_cache(
                             session,
@@ -169,7 +177,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Used to mark timeslots as booked/available regardless of who booked them.
             # Endpoint: GET /v7/country/DA/laundry/{laundry_id}/timetable
             try:
-                async def fetch_timetable():
+                async def fetch_timetable() -> Any:
                     session = async_get_clientsession(self.hass)
                     return await self._fetch_with_cache(
                             session,
@@ -185,7 +193,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             
             # Fetch account details (non-critical)
             try:
-                async def fetch_account_details():
+                async def fetch_account_details() -> Any:
                     session = async_get_clientsession(self.hass)
                     return await self._fetch_with_cache(
                             session,
@@ -218,7 +226,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.error("❌ Critical error in coordinator update: %s", err, exc_info=True)
             raise UpdateFailed(f"Critical error: {err}") from err
 
-    async def _sync_to_external_calendar(self, data):
+    async def _sync_to_external_calendar(self, data: dict[str, Any]) -> None:
         """Sync MieleLogic reservations to external calendar (throttled)."""
         now = datetime.now()
         if self._last_sync_time:
@@ -230,14 +238,16 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_sync_time = now
         await self._do_sync_to_external_calendar(data)
     
-    def _get_store(self):
+    def _get_store(self) -> MieleLogicStore | None:
         """Get the MieleLogicStore — prefer runtime_data, fall back to hass.data."""
         # v2.5.0: runtime_data pattern
         for entry in self.hass.config_entries.async_entries(DOMAIN):
             if hasattr(entry, "runtime_data") and entry.runtime_data:
-                return entry.runtime_data.get("store")
+                found: MieleLogicStore | None = entry.runtime_data.get("store")
+                return found
         # Legacy fallback
-        return self.hass.data.get(DOMAIN, {}).get("store")
+        legacy: MieleLogicStore | None = self.hass.data.get(DOMAIN, {}).get("store")
+        return legacy
 
     async def _maybe_cleanup_old_bookings(self) -> None:
         """Run store housekeeping at most once every 24h.
@@ -258,9 +268,11 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if count:
             _LOGGER.info("🧹 Auto cleanup: removed %d old booking metadata entries", count)
 
-    async def _do_sync_to_external_calendar(self, data):
+    async def _do_sync_to_external_calendar(self, data: dict[str, Any]) -> None:
         """Internal sync implementation."""
         target_calendar = self.sync_to_calendar
+        if not target_calendar:
+            return
 
         from homeassistant.helpers import entity_registry as er
         entity_reg = er.async_get(self.hass)
@@ -282,7 +294,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         now = datetime.now(ZoneInfo("UTC"))
         end_date = now + timedelta(days=30)
 
-        existing_events = []
+        existing_events: list[dict[str, Any]] = []
         try:
             if not self.hass.services.has_service("calendar", "get_events"):
                 _LOGGER.debug("Calendar service 'get_events' not available")
@@ -292,7 +304,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     {"entity_id": target_calendar, "start_date_time": now.isoformat(), "end_date_time": end_date.isoformat()},
                     blocking=True, return_response=True,
                 )
-                existing_events = response.get(target_calendar, {}).get("events", [])
+                response_data: dict[str, Any] = response or {}
+                existing_events = response_data.get(target_calendar, {}).get("events", [])
                 _LOGGER.debug("Found %d existing events in target calendar", len(existing_events))
         except Exception as err:
             _LOGGER.warning("Could not get existing events from %s: %s", target_calendar, err)
@@ -362,7 +375,7 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.warning("Could not sync reservation %s: %s", reservation.get("ReservationId"), err)
                 continue
 
-    def _times_match(self, event_start, expected: datetime) -> bool:
+    def _times_match(self, event_start: str | None, expected: datetime) -> bool:
         if not event_start:
             return False
         try:
@@ -382,8 +395,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     
     def _get_vaskehus_name(self, machine_number: int) -> str:
         """Get vaskehus name from machine number."""
-        klatvask_machine = self.config_entry.data.get("klatvask_primary_machine", 1)
-        storvask_machine = self.config_entry.data.get("storvask_primary_machine", 4)
+        klatvask_machine = self._config_entry.data.get("klatvask_primary_machine", 1)
+        storvask_machine = self._config_entry.data.get("storvask_primary_machine", 4)
         if machine_number == klatvask_machine:
             return "Klatvask"
         elif machine_number == storvask_machine:
@@ -399,39 +412,40 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _is_cache_valid(self, cache_key: str) -> bool:
         if cache_key not in self._cache:
             return False
-        age = datetime.now(ZoneInfo("UTC")) - self._cache[cache_key]["timestamp"]
-        return age < self._cache_ttl
+        age: timedelta = datetime.now(ZoneInfo("UTC")) - self._cache[cache_key]["timestamp"]
+        valid: bool = age < self._cache_ttl
+        return valid
 
-    def _get_from_cache(self, cache_key: str):
+    def _get_from_cache(self, cache_key: str) -> Any:
         if self._is_cache_valid(cache_key):
             cached = self._cache[cache_key]
-            age = (datetime.now(ZoneInfo("UTC")) - cached["timestamp"]).total_seconds()
+            age: float = (datetime.now(ZoneInfo("UTC")) - cached["timestamp"]).total_seconds()
             _LOGGER.info("✅ Cache HIT for %s (age: %.1fs)", cache_key, age)
             return cached["data"]
         _LOGGER.debug("❌ Cache MISS for %s", cache_key)
         return None
 
-    def _save_to_cache(self, cache_key: str, data):
+    def _save_to_cache(self, cache_key: str, data: Any) -> None:
         self._cache[cache_key] = {"data": data, "timestamp": datetime.now(ZoneInfo("UTC"))}
         _LOGGER.debug("💾 Cached data for %s", cache_key)
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         self._cache = {}
         _LOGGER.debug("🗑️ Cache cleared")
 
-    async def _fetch_with_cache(self, session: aiohttp.ClientSession, url: str, cache_key: str, headers: dict):
+    async def _fetch_with_cache(self, session: aiohttp.ClientSession, url: str, cache_key: str, headers: dict[str, str]) -> Any:
         """Fetch data with caching."""
         cached_data = self._get_from_cache(cache_key)
         if cached_data is not None:
             return cached_data
 
         _LOGGER.info("Fetching from API: %s", url)
-        async with session.get(url, headers=headers, timeout=10) as response:
+        async with session.get(url, headers=headers, timeout=CLIENT_TIMEOUT) as response:
             if response.status == 401:
                 _LOGGER.warning("Token expired during fetch, refreshing...")
                 await self._refresh_token()
                 headers["Authorization"] = f"Bearer {self.access_token}"
-                async with session.get(url, headers=headers, timeout=10) as retry_response:
+                async with session.get(url, headers=headers, timeout=CLIENT_TIMEOUT) as retry_response:
                     retry_response.raise_for_status()
                     data = await retry_response.json()
             else:
@@ -443,13 +457,13 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # ===== TOKEN MANAGEMENT =====
 
-    async def _ensure_token(self):
+    async def _ensure_token(self) -> None:
         if self.access_token and self.token_expiry:
             if datetime.now(ZoneInfo("UTC")) < (self.token_expiry - timedelta(seconds=60)):
                 return
         await self._refresh_token()
 
-    async def _refresh_token(self):
+    async def _refresh_token(self) -> None:
         if self.refresh_token:
             try:
                 await self._token_request_refresh_grant()
@@ -462,25 +476,25 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.info("Token refreshed using password grant")
         except Exception as err:
             _LOGGER.error("Password grant failed — triggering re-authentication: %s", err)
-            self.config_entry.async_start_reauth(self.hass)
+            self._config_entry.async_start_reauth(self.hass)
             raise
 
-    async def _token_request_refresh_grant(self):
+    async def _token_request_refresh_grant(self) -> None:
         data = {"grant_type": "refresh_token", "refresh_token": self.refresh_token, "client_id": self.client_id}
         if self.client_secret:
             data["client_secret"] = self.client_secret
         await self._make_token_request(data)
 
-    async def _token_request_password_grant(self):
+    async def _token_request_password_grant(self) -> None:
         data = {"grant_type": "password", "username": self.username, "password": self.password, "client_id": self.client_id, "scope": "DA"}
         if self.client_secret:
             data["client_secret"] = self.client_secret
         await self._make_token_request(data)
 
-    async def _make_token_request(self, data: dict):
+    async def _make_token_request(self, data: dict[str, Any]) -> None:
         headers = {"Content-Type": "application/x-www-form-urlencoded", "Origin": "https://mielelogic.com", "Referer": "https://mielelogic.com/"}
         async with shared_session(self.hass) as session:
-            async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
+            async with session.post(AUTH_URL, data=data, headers=headers, timeout=CLIENT_TIMEOUT) as response:
                 response.raise_for_status()
                 result = await response.json()
                 self.access_token = result["access_token"]

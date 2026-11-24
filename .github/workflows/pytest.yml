@@ -34,3 +34,7 @@ jobs:
           pytest tests/ --tb=short -v
         env:
           PYTHONPATH: ${{ github.workspace }}
+
+      - name: Type check (mypy --strict)
+        run: |
+          mypy --config-file mypy.ini
