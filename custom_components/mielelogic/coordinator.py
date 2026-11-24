@@ -1,6 +1,7 @@
 # VERSION = "2.6.5"
 import logging
 import asyncio
+from typing import Any
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import aiohttp
@@ -30,7 +31,7 @@ MAX_RETRIES = 3
 RETRY_DELAYS = [1, 2, 4]  # Exponential backoff in seconds
 
 
-class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
+class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Class to manage fetching MieleLogic data from the API."""
 
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:

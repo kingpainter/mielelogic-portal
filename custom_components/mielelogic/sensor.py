@@ -9,6 +9,7 @@ v2.0.0 Update:
 """
 import logging
 import re
+from typing import Any
 from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -25,6 +26,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN
+from .coordinator import MieleLogicDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -136,7 +138,7 @@ class MieleLogicMachineInventorySensor(RestoreEntity, SensorEntity):
     _attr_name = "Maskine inventar"
     _attr_icon = "mdi:format-list-numbered"
 
-    def __init__(self, coordinator, config_entry):
+    def __init__(self, coordinator: MieleLogicDataUpdateCoordinator, config_entry: ConfigEntry) -> None:
         self.coordinator = coordinator
         self._attr_unique_id = f"{config_entry.entry_id}_machine_inventory"
         self._attr_device_info = coordinator.device_info
@@ -152,10 +154,11 @@ class MieleLogicMachineInventorySensor(RestoreEntity, SensorEntity):
                 self._known = [int(n) for n in known]
             self._changed_at = last.attributes.get("changed_at")
 
-    def _machine_states(self) -> list:
+    def _machine_states(self) -> list[dict[str, Any]]:
         if not self.coordinator.data:
             return []
-        return self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
+        states: list[dict[str, Any]] = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
+        return states
 
     def _current_numbers(self) -> list[int]:
         return sorted(
@@ -167,7 +170,7 @@ class MieleLogicMachineInventorySensor(RestoreEntity, SensorEntity):
         return len(self._current_numbers())
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         by_laundry: dict[str, list[int]] = {}
         for m in self._machine_states():
             if m.get("MachineNumber") is None:
@@ -216,7 +219,12 @@ class MieleLogicSensorBase(SensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, config_entry, description: MieleLogicSensorEntityDescription):
+    def __init__(
+        self,
+        coordinator: MieleLogicDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        description: MieleLogicSensorEntityDescription,
+    ) -> None:
         self.coordinator = coordinator
         self.entity_description = description
         self._attr_unique_id = f"{config_entry.entry_id}_{description.key}"
@@ -229,11 +237,11 @@ class MieleLogicReservationsSensor(MieleLogicSensorBase):
     """Sensor showing number of active reservations."""
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         return len(self.coordinator.data.get("reservations", {}).get("Reservations", []))
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         washer_count = sum(
             1 for r in reservations
@@ -268,11 +276,12 @@ class MieleLogicAccountBalanceSensor(MieleLogicSensorBase):
     """Sensor showing account balance."""
 
     @property
-    def native_value(self):
-        return self.coordinator.data.get("account_details", {}).get("Balance", 0)
+    def native_value(self) -> float:
+        balance: float = self.coordinator.data.get("account_details", {}).get("Balance", 0)
+        return balance
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         account = self.coordinator.data.get("account_details", {})
         return {
             "account_number": account.get("AccountNumber"),
@@ -284,12 +293,13 @@ class MieleLogicConfigSensor(MieleLogicSensorBase):
     """Sensor exposing vaskehus configuration."""
 
     @property
-    def native_value(self):
+    def native_value(self) -> str:
         return "OK"
 
     @property
-    def extra_state_attributes(self):
-        data = self.coordinator.config_entry.data
+    def extra_state_attributes(self) -> dict[str, Any]:
+        config_entry = self.coordinator.config_entry
+        data: dict[str, Any] = dict(config_entry.data) if config_entry is not None else {}
         return {
             "klatvask_machine": data.get("klatvask_primary_machine") or 1,
             "storvask_machine": data.get("storvask_primary_machine") or 4,
@@ -321,7 +331,7 @@ class MieleLogicWasherStatusSensor(MieleLogicSensorBase):
     """
 
     @property
-    def native_value(self):
+    def native_value(self) -> str:
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
         washers = [m for m in machine_states if m.get("MachineType") in ["51", "85"]]
         if not washers:
@@ -337,7 +347,7 @@ class MieleLogicWasherStatusSensor(MieleLogicSensorBase):
         return "partially_available"
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
         washers = [m for m in machine_states if m.get("MachineType") in ["51", "85"]]
         return {
@@ -358,7 +368,7 @@ class MieleLogicDryerStatusSensor(MieleLogicSensorBase):
     """
 
     @property
-    def native_value(self):
+    def native_value(self) -> str:
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
         dryers = [m for m in machine_states if m.get("MachineType") == "58"]
         if not dryers:
@@ -374,7 +384,7 @@ class MieleLogicDryerStatusSensor(MieleLogicSensorBase):
         return "partially_available"
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
         dryers = [m for m in machine_states if m.get("MachineType") == "58"]
         return {
@@ -392,13 +402,20 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, config_entry, machine_number, machine_name, machine_type):
+    def __init__(
+        self,
+        coordinator: MieleLogicDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        machine_number: int,
+        machine_name: str,
+        machine_type: str | None,
+    ) -> None:
         self.coordinator = coordinator
         self._machine_number = machine_number
         self._machine_name = machine_name
-        self._machine_type = machine_type
-        self._countdown_started = None
-        self._countdown_duration = None
+        self._machine_type: str = machine_type or ""
+        self._countdown_started: datetime | None = None
+        self._countdown_duration: int | None = None
 
         clean_name = (
             machine_name.lower()
@@ -423,7 +440,7 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
         else:
             self._attr_icon = "mdi:washing-machine"
 
-    async def async_added_to_hass(self):
+    async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state and last_state.attributes:
@@ -437,21 +454,23 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
                     _LOGGER.warning("Failed to restore countdown data: %s", err)
 
     @property
-    def native_value(self):
+    def native_value(self) -> str:
         machine_data = self._get_machine_data()
         if not machine_data:
             return "unknown"
-        status = machine_data.get("Text1", "Unknown")
-        reservation_info = machine_data.get("Text2", "")
+        status: str = machine_data.get("Text1", "Unknown")
+        reservation_info: str = machine_data.get("Text2", "")
         if reservation_info and reservation_info.strip():
             return f"{status} {reservation_info}"
         if "lukket indtil" in status.lower():
-            opening_time = self.coordinator.config_entry.data.get("opening_time", "07:00")
+            opening_time: str = "07:00"
+            if self.coordinator.config_entry is not None:
+                opening_time = self.coordinator.config_entry.data.get("opening_time", "07:00")
             return f"{status} kl. {opening_time}"
         return status
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         machine_data = self._get_machine_data()
         if not machine_data:
             return {}
@@ -529,9 +548,10 @@ class MieleLogicMachineStatusSensor(RestoreEntity, SensorEntity):
             return minutes
         return None
 
-    def _get_machine_data(self):
+    def _get_machine_data(self) -> dict[str, Any] | None:
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
         for machine in machine_states:
             if machine.get("MachineNumber") == self._machine_number:
-                return machine
+                found: dict[str, Any] = machine
+                return found
         return None

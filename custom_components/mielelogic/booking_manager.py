@@ -1,11 +1,17 @@
 # VERSION = "2.6.5"
 """Manage booking and cancellation operations."""
 import logging
-from typing import Dict, List
+from typing import Any, Dict, List
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from homeassistant.exceptions import HomeAssistantError
+
+from .caldav_async import CalDAVDeleteClient
+from .coordinator import MieleLogicDataUpdateCoordinator
+from .notification_manager import NotificationManager
+from .storage import MieleLogicStore
+from .time_manager import TimeSlotManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -13,7 +19,13 @@ _LOGGER = logging.getLogger(__name__)
 class BookingManager:
     """Handle booking and cancellation logic."""
 
-    def __init__(self, coordinator, store=None, notification_manager=None, caldav_client=None):
+    def __init__(
+        self,
+        coordinator: MieleLogicDataUpdateCoordinator,
+        store: MieleLogicStore | None = None,
+        notification_manager: NotificationManager | None = None,
+        caldav_client: CalDAVDeleteClient | None = None,
+    ) -> None:
         self.coordinator = coordinator
         self.hass = coordinator.hass
         self.store = store
@@ -28,21 +40,24 @@ class BookingManager:
             return None
         state = self.hass.states.get(entity_id)
         if state and state.attributes.get("friendly_name"):
-            return state.attributes["friendly_name"]
+            friendly: str = state.attributes["friendly_name"]
+            return friendly
         return None
 
-    def _get_time_manager(self):
+    def _get_time_manager(self) -> TimeSlotManager | None:
         """Get time_manager — prefer runtime_data."""
         from .const import DOMAIN
         for entry in self.hass.config_entries.async_entries(DOMAIN):
             rd = getattr(entry, "runtime_data", None)
             if rd and "time_manager" in rd:
-                return rd["time_manager"]
+                manager: TimeSlotManager = rd["time_manager"]
+                return manager
         # Legacy fallback
         domain_data = self.hass.data.get(DOMAIN, {})
         for key, value in domain_data.items():
             if isinstance(value, dict) and "time_manager" in value:
-                return value["time_manager"]
+                legacy: TimeSlotManager = value["time_manager"]
+                return legacy
         return None
 
     async def make_booking(
@@ -50,9 +65,9 @@ class BookingManager:
         machine_number: int,
         start_datetime: str,
         duration: int,
-        context=None,
-        extra_calendars: list | None = None,
-    ) -> Dict:
+        context: Any = None,
+        extra_calendars: list[str] | None = None,
+    ) -> Dict[str, Any]:
         """Make a booking and sync to primary + any selected secondary calendars.
 
         Args:
@@ -131,7 +146,7 @@ class BookingManager:
             _LOGGER.exception("Unexpected booking error: %s", err)
             return {"success": False, "message": f"Ukendt fejl: {err}"}
 
-    async def cancel_booking(self, machine_number: int, start_time: str, end_time: str) -> Dict:
+    async def cancel_booking(self, machine_number: int, start_time: str, end_time: str) -> Dict[str, Any]:
         _LOGGER.info("Canceling: Machine %s from %s to %s", machine_number, start_time, end_time)
         try:
             await self.hass.services.async_call(
@@ -241,7 +256,8 @@ class BookingManager:
                 blocking=True, return_response=True,
             )
 
-            events = response.get(target_calendar, {}).get("events", [])
+            response_data: dict[str, Any] = response or {}
+            events: list[dict[str, Any]] = response_data.get(target_calendar, {}).get("events", [])
 
             # Match priority: exact summary + start time match, then summary only
             start_dt_str = start_dt.isoformat()
@@ -271,7 +287,7 @@ class BookingManager:
             event_start = event.get("start", start_dt.isoformat())
             event_end   = event.get("end", event_start)
 
-            call_data: dict = {
+            call_data: dict[str, Any] = {
                 "entity_id": target_calendar,
                 "start_date_time": event_start,
                 "end_date_time": event_end,
@@ -295,7 +311,7 @@ class BookingManager:
             )
 
     async def _sync_to_secondary_calendars(
-        self, machine_number: int, start_datetime: str, duration: int, calendars: list
+        self, machine_number: int, start_datetime: str, duration: int, calendars: list[str]
     ) -> None:
         """Create calendar events in secondary calendars selected by user.
 
@@ -410,12 +426,13 @@ class BookingManager:
                     },
                     blocking=True, return_response=True,
                 )
-                events = response.get(calendar_entity_id, {}).get("events", [])
+                response_data: dict[str, Any] = response or {}
+                events: list[dict[str, Any]] = response_data.get(calendar_entity_id, {}).get("events", [])
                 matching = [e for e in events if e.get("summary") == summary]
                 if not matching:
                     continue
                 event = matching[0]
-                call_data: dict = {
+                call_data: dict[str, Any] = {
                     "entity_id": calendar_entity_id,
                     "start_date_time": event.get("start", start_dt.isoformat()),
                     "end_date_time": event.get("end", event.get("start", start_dt.isoformat())),
@@ -428,18 +445,21 @@ class BookingManager:
             except Exception as err:
                 _LOGGER.warning("Could not delete secondary calendar event in %s: %s", calendar_entity_id, err)
 
-        await self.store.async_remove_secondary_calendar_events(machine_number, start_time)
+        if self.store:
+            await self.store.async_remove_secondary_calendar_events(machine_number, start_time)
 
-    def get_current_bookings(self) -> List[Dict]:
+    def get_current_bookings(self) -> List[Dict[str, Any]]:
         reservations = self.coordinator.data.get("reservations", {})
-        bookings = reservations.get("Reservations", [])
+        bookings: list[dict[str, Any]] = reservations.get("Reservations", [])
         _LOGGER.debug("Current bookings: %d", len(bookings))
         return bookings
 
     def get_account_balance(self) -> float:
         account = self.coordinator.data.get("account_details", {})
-        return account.get("Balance", 0.0)
+        balance: float = account.get("Balance", 0.0)
+        return balance
 
     def get_max_reservations(self) -> int:
         reservations = self.coordinator.data.get("reservations", {})
-        return reservations.get("MaxUserReservations", 2)
+        maximum: int = reservations.get("MaxUserReservations", 2)
+        return maximum

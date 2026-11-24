@@ -7,6 +7,7 @@ v2.0.0 Update:
   - Entity names now driven by translation keys
 """
 import logging
+from typing import Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -21,6 +22,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
+from .coordinator import MieleLogicDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,7 +107,12 @@ class MieleLogicBinarySensorBase(BinarySensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, config_entry, description: MieleLogicBinarySensorEntityDescription):
+    def __init__(
+        self,
+        coordinator: MieleLogicDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        description: MieleLogicBinarySensorEntityDescription,
+    ) -> None:
         self.coordinator = coordinator
         self.entity_description = description
         self._attr_unique_id = f"{config_entry.entry_id}_{description.key}"
@@ -122,7 +129,7 @@ class MieleLogicHasReservationBinarySensor(MieleLogicBinarySensorBase):
         return len(self.coordinator.data.get("reservations", {}).get("Reservations", [])) > 0
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         return {
             "count": len(reservations),
@@ -142,7 +149,7 @@ class MieleLogicHasWasherReservationBinarySensor(MieleLogicBinarySensorBase):
         )
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         washer_res = [
             r for r in reservations
@@ -163,7 +170,7 @@ class MieleLogicHasDryerReservationBinarySensor(MieleLogicBinarySensorBase):
         )
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         dryer_res = [
             r for r in reservations
@@ -193,7 +200,7 @@ class MieleLogicReservationStartingSoonBinarySensor(MieleLogicBinarySensorBase):
         return False
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         reservations = self.coordinator.data.get("reservations", {}).get("Reservations", [])
         now = datetime.now(ZoneInfo("UTC"))
         threshold = now + timedelta(minutes=15)
@@ -234,7 +241,7 @@ class MieleLogicWasherAvailableBinarySensor(MieleLogicBinarySensorBase):
         )
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
         washers = [m for m in machine_states if m.get("MachineType") in ["51", "85"]]
         available = [
@@ -264,7 +271,7 @@ class MieleLogicDryerAvailableBinarySensor(MieleLogicBinarySensorBase):
         )
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any]:
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
         dryers = [m for m in machine_states if m.get("MachineType") == "58"]
         available = [
