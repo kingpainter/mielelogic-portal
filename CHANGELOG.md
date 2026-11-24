@@ -11,7 +11,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Ændret
 - Services registreres i `async_setup` (action-setup). Handlers henter koordinator ved kald.
 - Maskinnummer-validering accepterer 1–7 (nye maskiner).
-- Alle HTTP-kald bruger HA's delte session via `async_get_clientsession` (inject-websession, delvist: caldav-klient er stadig synkron).
+- Alle HTTP-kald bruger HA's delte session via `async_get_clientsession` (inject-websession).
+- CalDAV-sletning bruger nu en async-klient (`caldav_async.py`) i stedet for den synkrone `caldav`-pakke. `caldav` er fjernet fra `manifest.json` (async-dependency). `caldav_client.py` er ikke længere i brug og kan slettes.
 - `hassfest`: URL fjernet fra caldav-beskrivelse; `CONFIG_SCHEMA` tilføjet.
 - Koordinator sender `config_entry` videre til `DataUpdateCoordinator` (fast ved `self.config_entry = None`).
 - `AbortFlow` propagerer i config flow (dublet-laundry giver nu afvisning, ikke "unknown"-fejl).

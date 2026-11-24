@@ -5,7 +5,7 @@ import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from .aiohttp_session import shared_session
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.exceptions import HomeAssistantError
 
@@ -159,10 +159,8 @@ class MieleLogicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         }
 
         try:
-            session = async_get_clientsession(self.hass)
-            async with session.post(
-                    AUTH_URL, data=data, headers=headers, timeout=10
-                ) as response:
+            async with shared_session(self.hass) as session:
+                async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
                     if response.status == 400:
                         error_text = await response.text()
                         if "invalid_grant" in error_text:
@@ -931,10 +929,8 @@ class MieleLogicOptionsFlowHandler(config_entries.OptionsFlow):
         }
 
         try:
-            session = async_get_clientsession(self.hass)
-            async with session.post(
-                    AUTH_URL, data=data, headers=headers, timeout=10
-                ) as response:
+            async with shared_session(self.hass) as session:
+                async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
                     if response.status == 400:
                         error_text = await response.text()
                         if "invalid_grant" in error_text:

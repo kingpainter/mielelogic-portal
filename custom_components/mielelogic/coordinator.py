@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from .aiohttp_session import shared_session
 
 from .const import (
     DOMAIN,
@@ -477,8 +478,8 @@ class MieleLogicDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _make_token_request(self, data: dict):
         headers = {"Content-Type": "application/x-www-form-urlencoded", "Origin": "https://mielelogic.com", "Referer": "https://mielelogic.com/"}
-        session = async_get_clientsession(self.hass)
-        async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
+        async with shared_session(self.hass) as session:
+            async with session.post(AUTH_URL, data=data, headers=headers, timeout=10) as response:
                 response.raise_for_status()
                 result = await response.json()
                 self.access_token = result["access_token"]

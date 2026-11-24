@@ -113,7 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     caldav_username = entry.data.get(CONF_CALDAV_USERNAME)
     caldav_password = entry.data.get(CONF_CALDAV_PASSWORD)
     if caldav_url and caldav_username and caldav_password:
-        from .caldav_client import CalDAVDeleteClient
+        from .caldav_async import CalDAVDeleteClient
         caldav_client = CalDAVDeleteClient(hass, caldav_url, caldav_username, caldav_password)
         _LOGGER.debug("MieleLogic: direct CalDAV delete client configured")
 
