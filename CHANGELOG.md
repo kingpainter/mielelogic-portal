@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [Unreleased]
+
+### Changed
+- Service errors use translation keys. All 18 `ServiceValidationError` and `HomeAssistantError` raises in `services.py` have a `translation_key`. Texts are in the `exceptions` section of `strings.json`, `translations/en.json` and `translations/da.json`.
+- The `vaskehus_config` sensor is a diagnostic entity and disabled by default. Existing entity registry entries keep their current setting.
+- The CalDAV delete client checks the HTTP status before parsing the response. A 401 now logs `HTTP 401` instead of an XML parse error.
+- The booking card registration message is logged at info level instead of warning.
+
+### Fixed
+- An API rejection during booking or cancellation was reported as "Unexpected error". The API's own message is now reported (`reservation_failed` / `cancellation_failed`).
+
+### Added
+- `tests/test_services.py`: validation rules, the `not_configured` error, and a regression test for the API rejection message.
+- `tests/test_sensor_dynamic.py`: machine sensors are added when a new machine appears, are not added twice, and skip machines without a name.
+- `tests/test_caldav_async.py`: the CalDAV delete flow with mocked responses, including 401 and missing calendars.
+- Manual check of the CalDAV delete against a real CalDAV server (Radicale). This is not part of CI.
+- Test suite: 111 tests, `mypy --config-file mypy.ini` clean.
+
+---
+
 ## [2.6.6] — Quality scale: strict typing, icons, reconfigure fix
 
 ### Changed
@@ -48,7 +68,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
-## [Unreleased] — Gold tier unit tests
+## Test suite for coordinator, booking_manager and websocket
 
 ### Added — Test suite for coordinator, booking_manager, websocket
 - New `tests/` folder: `conftest.py` (shared fixtures + `MockConfigEntry`/`MockCoordinator`), `test_coordinator.py`, `test_booking_manager.py`, `test_websocket.py`

@@ -26,12 +26,14 @@
 
 ## Testing
 
-- [ ] Tested on Home Assistant 2026.1.0+
+- [ ] `pytest tests/` passes
+- [ ] `mypy --config-file mypy.ini` passes
+- [ ] Tested on Home Assistant 2026.3.0+
 - [ ] Booking flow works (create + delete)
 - [ ] Panel opens without errors
 - [ ] No new console errors in the browser
-- [ ] Version number bumped in `const.py`, `manifest.json`, `__init__.py`
-- [ ] `CHANGELOG.md` updated
+- [ ] All version references bumped (see CONTRIBUTING.md)
+- [ ] `CHANGELOG.md` updated (English)
 
 ## Screenshots
 

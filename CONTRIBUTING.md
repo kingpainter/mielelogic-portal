@@ -11,7 +11,7 @@ MieleLogic is a community project and all contributions are welcome — from bug
 Use [GitHub Issues](https://github.com/kingpainter/mielelogic/issues) with the **Bug Report** template.
 
 **Before you open an issue:**
-- Check that you are running Home Assistant 2026.1.0+
+- Check that you are running Home Assistant 2026.3.0+
 - Check that the bug has not already been reported
 - Restart Home Assistant and see whether the bug happens again
 
@@ -37,8 +37,8 @@ Please describe:
 ## 🔧 Contributing code
 
 ### Requirements
-- Python 3.11+
-- Home Assistant 2026.1.0+
+- Python 3.13+ (the test stack requires it)
+- Home Assistant 2026.3.0+
 - A MieleLogic account with active laundry access
 - Basic knowledge of Home Assistant custom integrations
 
@@ -51,8 +51,13 @@ Please describe:
    git checkout -b feat/multi-laundry-support
    ```
 3. **Make your changes** — see the code standards below
-4. **Test thoroughly** — use the testing checklist in `PROJECT_INSTRUCTIONS.md`
-5. **Commit** with a descriptive message:
+4. **Run the checks locally** (the same checks run in CI):
+   ```
+   pip install -r requirements.txt
+   pytest tests/
+   mypy --config-file mypy.ini
+   ```
+5. **Commit** with a descriptive message in English:
    ```
    fix: card border no longer bleeds on hover
    feat: add multi-laundry support
@@ -62,20 +67,26 @@ Please describe:
 ### Code standards
 
 **Python:**
-- Follow the existing pattern with `dict`-based data access
-- `VERSION = "x.x.x"` at the top of every `.py` file
+- Strict typing: `mypy --config-file mypy.ini` must pass with no errors
+- Access runtime state through `entry.runtime_data` (the `hass.data` fallback exists only in `websocket.py`)
+- Every `.py` file starts with `# VERSION = "x.x.x"`
 - Use `_LOGGER` for logging — not `print()`
-- Graceful fallback if HA services are not available
+- Use `CLIENT_TIMEOUT` (`aiohttp.ClientTimeout`) for HTTP calls and `async_get_clientsession` / `shared_session` for the HTTP session
+- Raise `ServiceValidationError` or `HomeAssistantError` with a `translation_key` (texts go in `strings.json`, `en.json` and `da.json` under `exceptions`)
+- Entity icons go in `icons.json`, not in code
 
 **JavaScript:**
-- All state variables must be in LitElement `static get properties()`
-- Use `lit@2` — not `lit-element@2.4.0`
-- Use `inset box-shadow` for hover effects — never `border` or `outline` on elements inside `overflow: hidden`
+- The panel and the booking card are vanilla `HTMLElement` components with shadow DOM. Do not add Lit or other frameworks
 - Use `div.card-root` as the wrapper — never `ha-card`
+- Use `inset box-shadow` for hover effects — never `border` or `outline` on elements inside `overflow: hidden`
 
-**Versions:**
-- Bump the version in `const.py`, `manifest.json` and `__init__.py`
-- Add an entry to `CHANGELOG.md`
+**Versions** — bump all of these when releasing:
+- `# VERSION = "x.x.x"` header in every `.py` file, including `tests/`
+- `VERSION` in `const.py` and `version` in `manifest.json`
+- The version headers in `frontend/panel.js` and `frontend/mielelogic-booking-card.js`, and the version text in the panel header
+- The version badge in `README.md`
+- The version log messages in `__init__.py` and `websocket.py`
+- A new entry at the top of `CHANGELOG.md`
 
 ---
 
@@ -85,14 +96,15 @@ Please describe:
 - Describe what changed and why
 - Reference related issues with `Fixes #123`
 - Make sure all existing features still work
+- `pytest tests/` and `mypy --config-file mypy.ini` must pass
 
 ---
 
 ## 🌍 Language
 
-- Code and comments: English
-- UI texts (da.json/en.json): Danish + English
-- Documentation (README, CHANGELOG, contributing guides): English
+- Code, comments and documentation (README, CHANGELOG, contributing guides): English
+- UI texts (`translations/da.json`, `translations/en.json`): Danish and English
+- Commit messages: English
 - Issues and PRs: Danish or English — both are welcome
 
 ---

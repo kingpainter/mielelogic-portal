@@ -4,11 +4,11 @@
 [![CI](https://github.com/kingpainter/mielelogic/actions/workflows/validate.yml/badge.svg)](https://github.com/kingpainter/mielelogic/actions/workflows/validate.yml)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.1%2B-blue.svg)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-blue.svg)](https://www.home-assistant.io/)
 
 Home Assistant integration for MieleLogic laundry room systems. Book washing slots, monitor machines in real time and receive notifications directly on your phone — all from Home Assistant.
 
-> **Requirement:** Home Assistant Core 2026.1.0 or newer.
+> **Requirement:** Home Assistant Core 2026.3.0 or newer.
 
 ---
 
@@ -93,6 +93,8 @@ The **primary calendar** is configured in the Options Flow and synced automatica
 
 **Secondary calendars** appear as chips in the booking form under "ADD TO CALENDAR". They are not selected by default — the user activates them per booking. Secondary events are deleted automatically when a booking is cancelled.
 
+**CalDAV calendars (e.g. iCloud):** Home Assistant's CalDAV integration cannot delete events. For CalDAV calendars, enter the server URL, username and an app-specific password in the calendar step of the options flow. Deletion then goes directly to the CalDAV server. Other calendar types (e.g. Local Calendar, Google Calendar) use the standard calendar service.
+
 ---
 
 ## Notifications
@@ -124,9 +126,9 @@ The panel follows the **Indeklima Designer** design language:
 
 | Component | Minimum version |
 |---|---|
-| Home Assistant Core | **2026.1.0** |
+| Home Assistant Core | **2026.3.0** |
 | HA Companion App (notifications + cancel action) | Latest |
-| Python | 3.11+ |
+| Python | 3.13+ |
 
 ---
 
@@ -144,6 +146,7 @@ custom_components/mielelogic/
 ├── binary_sensor.py               # EntityDescription pattern
 ├── calendar.py
 ├── services.py                    # Services with response support
+├── services.yaml                  # Service definitions
 ├── panel.py                       # Panel registration
 ├── time_manager.py
 ├── booking_manager.py             # make_booking(extra_calendars), secondary calendar sync
@@ -152,6 +155,7 @@ custom_components/mielelogic/
 ├── storage.py                     # secondary_calendar_synced, booking metadata
 ├── notification_manager.py        # Deep link, sound, cancel action button
 ├── icons.json                     # Entity icons
+├── brand/                         # Local brand icons (HA 2026.3+)
 ├── strings.json
 ├── frontend/
 │   ├── entrypoint.js              # Font preload (DM Sans/Mono)
@@ -184,10 +188,10 @@ Clear the browser cache (Ctrl+Shift+R). Check that the panel is enabled: Setting
 Panel → Notifications → Check that devices are selected and notifications are enabled.
 
 **Cancel from notification does not work**
-Requires the latest HA Companion App. Check the HA log for `MIELELOGIC_CANCEL_` events.
+Requires the latest HA Companion App. The notification action ID has the form `MIELELOGIC_CANCEL_<machine>_<start>` and is handled from the `mobile_app_notification_action` event. Check the HA log for warnings from `custom_components.mielelogic`.
 
 **Calendar error at startup**
-Requires Home Assistant 2026.1.0+.
+Requires Home Assistant 2026.3.0+.
 
 **Secondary chips do not appear**
 Configure secondary calendars under Settings → Devices & services → MieleLogic → Configure → Calendar.
@@ -196,24 +200,16 @@ Configure secondary calendars under Settings → Devices & services → MieleLog
 
 ## Known limitations
 
-- Only one laundry room instance is supported (multi-laundry room planned for v3.0.0)
+- Only one laundry room instance is supported
 - The panel requires internet access for the DM Sans font (Google Fonts)
+- Deleting calendar events on CalDAV calendars needs the CalDAV settings in the options flow (see Calendar integration)
 
 ---
 
-## Roadmap
+## Version history and quality scale
 
-See [CHANGELOG.md](CHANGELOG.md) for the full version history.
-
-- **v2.5.4** ✅ — House Voice spoken reminder, storage migration, logo fix, CI fixes
-- **v2.5.1** ✅ — Bug fix: `_renderWeekStrip` crash on booking cards, CI/CD workflow
-- **v2.5.0** ✅ — Multi-calendar, runtime_data migration, secondary calendar tracking
-- **v2.4.0** ✅ — Cancel from push notification, countdown timer, rich notifications
-- **v2.3.0** ✅ — 7-day day strip with free/booked indicator
-- **v2.2.0** ✅ — Inline booking/cancel confirmation, skeleton loading
-- **v2.1.0** ✅ — Performance, in-panel toast, clickable chips, exponential backoff
-- **v2.0.0** ✅ — Energy Hub panel registration, Indeklima Designer redesign
-- **Next** — Gold tier tests, HACS/brands
+- Full version history: [CHANGELOG.md](CHANGELOG.md)
+- Home Assistant quality scale status, item by item: [`custom_components/mielelogic/quality_scale.yaml`](custom_components/mielelogic/quality_scale.yaml)
 
 ---
 
