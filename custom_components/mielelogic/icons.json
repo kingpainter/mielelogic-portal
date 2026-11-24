@@ -1,0 +1,47 @@
+{
+  "entity": {
+    "sensor": {
+      "reservations": {
+        "default": "mdi:calendar-clock"
+      },
+      "account_balance": {
+        "default": "mdi:cash"
+      },
+      "vaskehus_config": {
+        "default": "mdi:cog"
+      },
+      "washer_status": {
+        "default": "mdi:washing-machine"
+      },
+      "dryer_status": {
+        "default": "mdi:tumble-dryer"
+      }
+    },
+    "binary_sensor": {
+      "has_reservation": {
+        "default": "mdi:calendar-check"
+      },
+      "has_washer_reservation": {
+        "default": "mdi:washing-machine"
+      },
+      "has_dryer_reservation": {
+        "default": "mdi:tumble-dryer"
+      },
+      "reservation_starting_soon": {
+        "default": "mdi:clock-alert"
+      },
+      "washer_available": {
+        "default": "mdi:washing-machine-off",
+        "state": {
+          "on": "mdi:washing-machine"
+        }
+      },
+      "dryer_available": {
+        "default": "mdi:tumble-dryer-off",
+        "state": {
+          "on": "mdi:tumble-dryer"
+        }
+      }
+    }
+  }
+}

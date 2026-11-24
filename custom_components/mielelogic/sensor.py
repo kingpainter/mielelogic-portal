@@ -40,29 +40,24 @@ SENSOR_DESCRIPTIONS: tuple[MieleLogicSensorEntityDescription, ...] = (
     MieleLogicSensorEntityDescription(
         key="reservations",
         translation_key="reservations",
-        icon="mdi:calendar-clock",
     ),
     MieleLogicSensorEntityDescription(
         key="account_balance",
         translation_key="account_balance",
         device_class=SensorDeviceClass.MONETARY,
         native_unit_of_measurement="DKK",
-        icon="mdi:cash",
     ),
     MieleLogicSensorEntityDescription(
         key="vaskehus_config",
         translation_key="vaskehus_config",
-        icon="mdi:cog",
     ),
     MieleLogicSensorEntityDescription(
         key="washer_status",
         translation_key="washer_status",
-        icon="mdi:washing-machine",
     ),
     MieleLogicSensorEntityDescription(
         key="dryer_status",
         translation_key="dryer_status",
-        icon="mdi:tumble-dryer",
     ),
 )
 

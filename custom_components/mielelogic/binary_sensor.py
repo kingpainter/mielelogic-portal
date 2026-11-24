@@ -47,23 +47,19 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[MieleLogicBinarySensorEntityDescription, ...] 
     MieleLogicBinarySensorEntityDescription(
         key="has_reservation",
         translation_key="has_reservation",
-        icon="mdi:calendar-check",
     ),
     MieleLogicBinarySensorEntityDescription(
         key="has_washer_reservation",
         translation_key="has_washer_reservation",
-        icon="mdi:washing-machine",
     ),
     MieleLogicBinarySensorEntityDescription(
         key="has_dryer_reservation",
         translation_key="has_dryer_reservation",
-        icon="mdi:tumble-dryer",
     ),
     MieleLogicBinarySensorEntityDescription(
         key="reservation_starting_soon",
         translation_key="reservation_starting_soon",
         device_class=BinarySensorDeviceClass.RUNNING,
-        icon="mdi:clock-alert",
     ),
     MieleLogicBinarySensorEntityDescription(
         key="washer_available",
@@ -238,10 +234,6 @@ class MieleLogicWasherAvailableBinarySensor(MieleLogicBinarySensorBase):
         )
 
     @property
-    def icon(self):
-        return "mdi:washing-machine" if self.is_on else "mdi:washing-machine-off"
-
-    @property
     def extra_state_attributes(self):
         machine_states = self.coordinator.data.get("machine_states", {}).get("MachineStates", [])
         washers = [m for m in machine_states if m.get("MachineType") in ["51", "85"]]
@@ -270,10 +262,6 @@ class MieleLogicDryerAvailableBinarySensor(MieleLogicBinarySensorBase):
             and ("ledig" in m.get("Text1", "").lower() or "available" in m.get("Text1", "").lower())
             for m in machine_states
         )
-
-    @property
-    def icon(self):
-        return "mdi:tumble-dryer" if self.is_on else "mdi:tumble-dryer-off"
 
     @property
     def extra_state_attributes(self):

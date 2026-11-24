@@ -1,5 +1,5 @@
 # MieleLogic Integration Quality Scale
-# Version: 2.6.2
+# Version: 2.6.5
 # Target Tier: Gold
 # Status: Gold tier substantially complete — integration_test_coverage partial (services.py untested)
 
@@ -11,8 +11,8 @@ rules:
     comment: Full UI configuration via config flow with username, password, client_id, laundry_id, and opening hours
   
   config_flow_test:
-    status: todo
-    comment: Config flow tests not yet implemented
+    status: done
+    comment: tests/test_config_flow.py (2.6.5) covers success, invalid_auth, cannot_connect and duplicate abort. Runs in CI.
   
   dependency_transparency:
     status: done
@@ -100,6 +100,18 @@ rules:
     status: done
     comment: Uses coordinator stored in hass.data[DOMAIN][entry.entry_id]
   
+  inject_websession:
+    status: partial
+    comment: 2.6.5 uses async_get_clientsession(hass) in coordinator, services and config_flow. Remaining: caldav package in the old client (dead code) - see async_dependency.
+
+  async_dependency:
+    status: done
+    comment: 2.6.5 caldav_async.py uses aiohttp. caldav removed from manifest. Old caldav_client.py is dead code. Not tested against a real CalDAV server yet.
+
+  strict_typing:
+    status: todo
+    comment: Add type annotations and mypy strict configuration.
+
   test_before_configure:
     status: done
     comment: Config flow validates credentials before creating entry
@@ -134,6 +146,18 @@ rules:
     status: done
     comment: All sensors and binary sensors refactored to use EntityDescription dataclasses (v2.0.0)
   
+  dynamic_devices:
+    status: done
+    comment: 2.6.5 machine status sensors are added via a coordinator listener when a new machine number appears (no reload). Not tested on HA yet.
+
+  icon_translations:
+    status: done
+    comment: 2.6.5 icons.json for all entities with a translation_key. Dynamic icon for washer/dryer availability via state mapping. Machine status sensors keep their own icon (no translation key).
+
+  repair_issues:
+    status: done
+    comment: 2.6.5 machine inventory change creates a repair issue (issues.machine_inventory_changed, da + en) instead of a persistent notification. Not tested on HA yet.
+
   integration_test_coverage:
     status: partial
     comment: coordinator.py, booking_manager.py and websocket.py covered (tests/). services.py (validation logic, incl. the reservation-quota check) not yet covered.
@@ -176,7 +200,6 @@ rules:
 #
 # Gold tier remaining:
 #   🔲 reconfiguration_flow - laundry_id change support
-#   🔲 config_flow_test - pytest tests for config flow
 #   🔲 integration_test_coverage - services.py still untested (partial)
 #
-# Current status: SILVER TIER ✅ | GOLD SUBSTANTIALLY COMPLETE 🟡 (v2.6.2, 2026-08-22)
+# Current status: SILVER TIER ✅ | GOLD SUBSTANTIALLY COMPLETE 🟡 (v2.6.5)
